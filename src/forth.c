@@ -252,7 +252,7 @@ static int Token(const char **name)
 } /* end of Token */
 
 /* Create: A word named by the next of the input, its name kept with the others. */
-static Word *Create(Context *c, void (*code)(Context *, const Word *))
+static Word *Create(Context *c, void (*code)(Context *, const Word *), uint8_t flags)
 {
   const char *name;
   int length = Token(&name), i;
@@ -269,7 +269,7 @@ static Word *Create(Context *c, void (*code)(Context *, const Word *))
      c->Error = FORTH_NAME;
      return NULL;
   }
-  if (NamesUsed + length > FORTH_NAMES || (w = NewWord(&Names[NamesUsed],length,code,0)) == NULL) {
+  if (NamesUsed + length > FORTH_NAMES || (w = NewWord(&Names[NamesUsed],length,code,flags)) == NULL) {
      c->Error = FORTH_FULL;
      return NULL;
   }
@@ -560,9 +560,9 @@ static void PColon(Context *c, const Word *w)
      c->Error = FORTH_CONTROL;
      return;
   }
-  if ((Defining = Create(c,DoColon)) == NULL)
+  /* Hidden from the moment it is counted. */
+  if ((Defining = Create(c,DoColon,WORD_HIDDEN)) == NULL)
      return;
-  Defining->Flags |= WORD_HIDDEN;
   DefinedWords = words;
   DefinedHere = here;
   DefinedNames = names;
@@ -593,7 +593,7 @@ static void PConstant(Context *c, const Word *w)
   (void)w;
   CONSOLE_ONLY(c);
   FORTH_NEED(c,1);
-  if ((n = Create(c,DoConstant)) != NULL)
+  if ((n = Create(c,DoConstant,0)) != NULL)
      n->Value = FORTH_POP(c);
 } /* end of PConstant */
 
@@ -601,7 +601,13 @@ static void PVariable(Context *c, const Word *w)
 {
   (void)w;
   CONSOLE_ONLY(c);
-  if (Create(c,DoVariable) != NULL)
+  /* Its cell first: a variable made in a full code space would point past it, kept,
+  ** since no definition is under way to undo (a review, 2026-10-24). */
+  if (Here >= FORTH_CODE) {
+     c->Error = FORTH_FULL;
+     return;
+  }
+  if (Create(c,DoVariable,0) != NULL)
      Comma(c,0);
 } /* end of PVariable */
 
@@ -609,7 +615,7 @@ static void PDefer(Context *c, const Word *w)
 {
   (void)w;
   CONSOLE_ONLY(c);
-  Create(c,DoDefer);
+  Create(c,DoDefer,0);
 } /* end of PDefer */
 
 static const Word *Named(Context *c)

@@ -36,7 +36,9 @@ then take at most 70 % of the processor.
 - A word's time is measured on the clock, preemptions included: an upper bound of what
   it held the processor.
 - `@` and `!` take any address, as in any Forth: a wrong one faults the core that ran
-  it. A cell taken for a word is checked against the dictionary first.
+  it. So does a cell that is no word compiled into a definition, by an immediate word
+  doing `,`. A cell given to `execute`, `is` or `every` is checked against the
+  dictionary first.
 - Core 1 holds no budget either: a word that loops for ever holds core 0, and under EDF
   only once its deadline has passed does it hold it whole. Core 1 then sees the 1 ms
   slot stop beating, and after 3 ms restarts core 0 (`pico/restart.c`, step 2 of the

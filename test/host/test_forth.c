@@ -93,6 +93,8 @@ static void Interpreter(void)
   CASE("dot quote at the end of the code space"," ok\n .\" dictionary full\n<0>  ok\n",
        "2046 cells allot",": x .\" abc\" ;",".s");
   CASE("exit inside a loop"," ok\n f unbalanced control\n",": f 10 5 do exit loop ;","f");
+  CASE("variable in a full code space"," ok\n variable dictionary full\n b ?\n",
+       "variable a 2047 cells allot","variable b","5 b !");
   CASE("exit inside a loop from 0"," ok\n ok\n g unbalanced control\n",
        ": f 10 0 do exit loop .\" after\" ;",": g f .\" g-after\" ;","g");
   CASE("exit inside a loop over the code space"," ok\n ok\n f unbalanced control\n",

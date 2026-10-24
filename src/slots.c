@@ -102,9 +102,12 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
 
 void SlotsRestarted(void)
 {
+  int i;
   if (RunningDepth > 0 && Running[RunningDepth - 1] >= 0)
      Slots[Running[RunningDepth - 1]].Error = FORTH_STALLED;
   RunningDepth = 0;
+  for (i = 0; i < SLOT_PERIODS; i += 1)
+     Running[i] = -1;
 } /* end of SlotsRestarted */
 
 
