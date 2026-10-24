@@ -7,7 +7,8 @@ of Escapement's issue #40.
 
 - **Core 1** runs the console: a minimal indirect-threaded Forth of its own (`src/forth.c`),
   on UART0 (GP0 TX, GP1 RX, 115200 8N1), no kernel: one interrupt a millisecond watches
-  core 0 and takes what the UART received, and Ctrl-C stops the word the console runs.
+  core 0 and takes what the UART received, and Ctrl-C stops the word the console runs,
+  or drops the line being typed.
 - **Core 0** runs Escapement's hard kernel under EDF, and the pool of slots
   (`src/slots.c`): one task for each period, 1, 10, 100 and 1000 ms, each with four
   entries.

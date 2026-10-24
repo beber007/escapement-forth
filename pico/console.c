@@ -85,6 +85,7 @@ static char Line[FORTH_LINE] FORTH_KEEP;
 static volatile UINT8 Input[INPUT] FORTH_KEEP;
 static volatile UINT32 InputHead FORTH_KEEP, InputTail FORTH_KEEP;
 static volatile int Break FORTH_KEEP;
+static volatile UINT32 Breaks FORTH_KEEP;   /* the Ctrl-Cs in the ring */
 static volatile UINT32 Restarted[RESTART_FAILED + 1] FORTH_KEEP;   /* each outcome, counted */
 static UINT32 Core1Table[48] FORTH_KEEP __attribute__((aligned(256)));
 
@@ -117,7 +118,7 @@ static void Drain(void)
   static const char *const Said[] = {"", "\n[core 0 restarted]\n",
                                      "\n[core 0 restarted, hard]\n",
                                      "\n[core 0 did not restart]\n"};
-  UINT32 tail, primask;
+  UINT32 tail, head, primask;
   UINT32 seen;
   int i;
   for (i = RESTART_SOFT; i <= RESTART_FAILED; i += 1) {
@@ -128,8 +129,11 @@ static void Drain(void)
      while (seen-- > 0)
         ForthPrintText(Said[i]);
   }
+  /* As far as the ring held at the start: a slot that prints faster than the UART sends
+  ** would otherwise hold the console here (a review, 2026-10-24). */
   tail = RingTail;
-  while (tail != RingHead) {
+  head = RingHead;
+  while (tail != head) {
      ForthBarrier();
      if (Ring[tail % RING] == '\n')
         Send('\r');
@@ -160,8 +164,12 @@ static void Tick(void)
      head = InputHead;
      if (c == BREAK_CHAR) {
         Break = 1;
-        if (head - InputTail >= INPUT)
+        if (head - InputTail >= INPUT) {
            head -= 1, InputHead = head;
+           if (Input[head % INPUT] == BREAK_CHAR)
+              Breaks -= 1;
+        }
+        Breaks += 1;
      }
      if (head - InputTail < INPUT) {   /* full, the byte is lost: a line typed too fast */
         Input[head % INPUT] = (UINT8)c;
@@ -197,8 +205,9 @@ int ForthMemory(uintptr_t address, size_t size, int write)
   return 0;
 } /* end of ForthMemory */
 
-/* Take: The next byte of the ring, which is not empty; a Ctrl-C's break cleared with
-** it, at once: another the interrupt took meanwhile is for the lines after. */
+/* Take: The next byte of the ring, which is not empty; with a Ctrl-C, the break cleared
+** at once, unless another waits in the ring, which is for the lines before it: the break
+** the console's word took may have been that one's (a review, 2026-10-24). */
 static char Take(void)
 {
   UINT32 primask;
@@ -206,7 +215,7 @@ static char Take(void)
   __asm volatile ("mrs %0, primask\n cpsid i" : "=r" (primask) :: "memory");
   c = (char)Input[InputTail % INPUT];
   InputTail += 1;
-  if (c == BREAK_CHAR)
+  if (c == BREAK_CHAR && --Breaks == 0)
      Break = 0;
   __asm volatile ("msr primask, %0" :: "r" (primask) : "memory");
   return c;
@@ -422,6 +431,7 @@ void ConsoleInit(void)
   RingHead = RingTail = Dropped = 0;
   InputHead = InputTail = 0;
   Break = 0;
+  Breaks = 0;
   Restarted[RESTART_SOFT] = Restarted[RESTART_HARD] = Restarted[RESTART_FAILED] = 0;
   #ifdef SCRIPT
      LogLength = ScriptDone = 0;
@@ -465,8 +475,12 @@ void Console(void)
         last = 0;
         continue;
      }
-     if (c == BREAK_CHAR)   /* for the word before, done, or none: Take cleared it */
+     if (c == BREAK_CHAR) {   /* for the word before, done, or none, and the line typed */
+        if (length > 0)
+           ForthPrintText(" ^C\n");
+        length = 0;
         continue;
+     }
      last = c;
      if (c == '\r' || c == '\n') {
         line[length] = 0;
