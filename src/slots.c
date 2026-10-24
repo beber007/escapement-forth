@@ -29,7 +29,12 @@ typedef struct {
    volatile uint8_t Error;
 } Slot;
 
-static Slot Slots[SLOTS];
+static Slot Slots[SLOTS] FORTH_KEEP;
+
+/* The entries running on the kernel's core, the one holding it last: slots of shorter
+** periods preempt the others, one stack, so they nest. Written by that core alone. */
+static volatile int8_t Running[SLOT_PERIODS] FORTH_KEEP;
+static volatile int RunningDepth FORTH_KEEP;
 
 static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, uint32_t wcet,
                     Context *c);
@@ -75,9 +80,12 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
      return;
   c->Depth = c->ReturnDepth = 0;
   c->IP = NULL;
+  Running[RunningDepth] = (int8_t)(s - Slots);
+  RunningDepth += 1;
   start = ForthNow();
   error = ForthExecute(c,w);
   time = ForthNow() - start;
+  RunningDepth -= 1;
   s->Runs += 1;
   if (time > s->MaxTime)
      s->MaxTime = time;
@@ -85,6 +93,14 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
      s->Excess += 1;
   s->Error = (uint8_t)error;
 } /* end of Measure */
+
+
+void SlotsRestarted(void)
+{
+  if (RunningDepth > 0)
+     Slots[Running[RunningDepth - 1]].Error = FORTH_STALLED;
+  RunningDepth = 0;
+} /* end of SlotsRestarted */
 
 
 /* ---- The console's side. */
@@ -280,6 +296,7 @@ void SlotsWords(void)
      Slots[i].Wcet = Slots[i].Runs = Slots[i].MaxTime = Slots[i].Excess = 0;
      Slots[i].Error = FORTH_OK;
   }
+  RunningDepth = 0;
   ForthAddWord("every",PEvery,0);
   ForthAddWord("promote",PPromote,0);
   ForthAddWord("stop",PStop,0);

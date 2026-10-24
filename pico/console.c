@@ -20,6 +20,7 @@
 #include "forth_platform.h"
 #include "slots.h"
 #include "console.h"
+#include "restart.h"
 
 #define UART0_BASE           0x40034000
 #define UART_REG(offset)     *((volatile UINT32 *)(UART0_BASE + (offset)))
@@ -61,17 +62,19 @@
 
 #define RING                 256         /* a power of 2 */
 
-static volatile UINT8 Ring[RING];
-static volatile UINT32 RingHead, RingTail;   /* written by core 0, by core 1 */
-static volatile UINT32 Dropped;
+/* All of it outlives a restart of core 0, which clears its .bss under core 1. */
+static volatile UINT8 Ring[RING] FORTH_KEEP;
+static volatile UINT32 RingHead FORTH_KEEP, RingTail FORTH_KEEP;   /* core 0's, core 1's */
+static volatile UINT32 Dropped FORTH_KEEP;
+static char Line[FORTH_LINE] FORTH_KEEP;
 
-extern volatile UINT32 Overruns;
+extern volatile uint32_t Overruns;
 
 #ifdef SCRIPT
    /* make SCRIPT=file: core 1 types the file's lines at start, and keeps what the console
    ** prints in Log as well, for a probe to read with no UART wired (tools/smoke_board.sh). */
-   volatile char Log[8192];
-   volatile UINT32 LogLength, ScriptDone;
+   volatile char Log[8192] FORTH_KEEP;
+   volatile UINT32 LogLength FORTH_KEEP, ScriptDone FORTH_KEEP;
    static const char Script[] = {
       #include "script.inc"
       0
@@ -88,10 +91,17 @@ static void Send(char c)
   UART_DR = (UINT8)c;
 } /* end of Send */
 
-/* Drain: What the slots printed, sent. */
+/* Drain: What the slots printed, sent; core 0 watched meanwhile, and its restarts said. */
 static void Drain(void)
 {
-  UINT32 tail = RingTail;
+  static const char *const Said[] = {"", "\n[core 0 restarted]\n",
+                                     "\n[core 0 restarted, hard]\n",
+                                     "\n[core 0 did not restart]\n"};
+  UINT32 tail;
+  int restart;
+  if ((restart = Watch()) != 0)
+     ForthPrintText(Said[restart]);
+  tail = RingTail;
   while (tail != RingHead) {
      ForthBarrier();
      if (Ring[tail % RING] == '\n')
@@ -175,6 +185,15 @@ static void POverruns(Context *c, const Word *w)
   FORTH_PUSH(c,Overruns);
 } /* end of POverruns */
 
+/* RESTARTS ( -- soft hard ): The restarts of core 0 that brought its beat back. */
+static void PRestarts(Context *c, const Word *w)
+{
+  (void)w;
+  FORTH_ROOM(c,2);
+  FORTH_PUSH(c,SoftRestarts);
+  FORTH_PUSH(c,HardRestarts);
+} /* end of PRestarts */
+
 static void PDropped(Context *c, const Word *w)
 {
   (void)w;
@@ -208,6 +227,7 @@ void ForthPlatformWords(void)
   ForthAddWord("overruns",POverruns,0);
   ForthAddWord("dropped",PDropped,0);
   ForthAddWord("ms",PMs,0);
+  ForthAddWord("restarts",PRestarts,0);
   SlotsWords();
 } /* end of ForthPlatformWords */
 
@@ -231,11 +251,20 @@ static void InitUART(void)
   UART_CR = CR_UARTEN | CR_TXE | CR_RXE;
 } /* end of InitUART */
 
+void ConsoleInit(void)
+{
+  RingHead = RingTail = Dropped = 0;
+  #ifdef SCRIPT
+     LogLength = ScriptDone = 0;
+  #endif
+} /* end of ConsoleInit */
+
 void Console(void)
 {
-  static char line[FORTH_LINE];
+  char *line = Line;
   UINT32 length = 0;
   char last = 0;
+  WatchInit();
   InitUART();
   ForthPrintText("\nEscapement Forth\n");
   #ifdef SCRIPT

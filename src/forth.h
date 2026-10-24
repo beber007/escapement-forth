@@ -22,6 +22,13 @@
 
 typedef intptr_t Cell;
 
+/* FORTH_KEEP: The section of what must outlive a restart of the kernel's core, which
+** clears the rest: the dictionary, the console's state, the pool. The board's build puts
+** it in .noinit; nothing there has a value until ForthInit gives it one. */
+#ifndef FORTH_KEEP
+   #define FORTH_KEEP
+#endif
+
 #define FORTH_STACK   16     /* cells of each stack of a context */
 #define FORTH_WORDS   192    /* words of the dictionary, built in ones included */
 #define FORTH_CODE    2048   /* cells of the code space, colon definitions and data */
@@ -35,7 +42,7 @@ typedef intptr_t Cell;
 enum {
    FORTH_OK = 0, FORTH_UNDERFLOW, FORTH_OVERFLOW, FORTH_RETURN_OVERFLOW,
    FORTH_DIVISION, FORTH_FULL, FORTH_UNKNOWN, FORTH_COMPILE_ONLY, FORTH_NAME,
-   FORTH_CONTROL, FORTH_ARGUMENT
+   FORTH_CONTROL, FORTH_ARGUMENT, FORTH_STALLED
 };
 
 typedef struct Word Word;

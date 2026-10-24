@@ -16,6 +16,8 @@ INCLUDE = -I. -I../src -I$(PORT) -I$(E)/CORTEX-Mx -I$(E)
 # -fno-strict-aliasing as Escapement's examples: its kernel needs it.
 CFLAGS = -mcpu=cortex-m0plus -mthumb -Wall -c -g -fdata-sections -ffunction-sections \
          -ffreestanding -O2 -fno-strict-aliasing -MMD -MP
+# What must outlive a restart of core 0 (restart.c), out of the .bss its start clears.
+CFLAGS += -DFORTH_KEEP='__attribute__((section(".noinit")))'
 AFLAGS = -mcpu=cortex-m0plus -mthumb -Wall -c -g -MMD -MP
 
 $(shell mkdir -p $(B))
@@ -33,7 +35,7 @@ endif
 KERNEL = $(B)/Escapement_RamEntry.o $(B)/Escapement_CortexMx.o $(B)/Escapement_CortexMx_a.o \
          $(B)/Escapement_Atomic.o $(B)/Escapement_Interrupts.o $(B)/Escapement_Timer.o \
          $(B)/Escapement_Processor.o $(B)/Escapement_Core1.o $(B)/EscapementHard.o
-FORTH = $(B)/forth.o $(B)/slots.o $(B)/console.o $(B)/main.o
+FORTH = $(B)/forth.o $(B)/slots.o $(B)/console.o $(B)/restart.o $(B)/main.o
 
 all: $(B)/EscapementForth.elf
 

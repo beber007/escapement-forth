@@ -13,30 +13,31 @@
 #include "forth.h"
 #include "forth_platform.h"
 
-static Word Dictionary[FORTH_WORDS];
-static int Words;
-static Cell Code[FORTH_CODE];
-static int Here;
-static char Names[FORTH_NAMES];
-static int NamesUsed;
+static Word Dictionary[FORTH_WORDS] FORTH_KEEP;
+static int Words FORTH_KEEP;
+static Cell Code[FORTH_CODE] FORTH_KEEP;
+static int Here FORTH_KEEP;
+static char Names[FORTH_NAMES] FORTH_KEEP;
+static int NamesUsed FORTH_KEEP;
 
 /* The console's context, its data stack kept from one line to the next; the state of the
 ** outer interpreter, and its stack of the control structures being compiled. */
-static Context Console;
-static const char *In;
-static int Compiling;
-static Word *Defining;
-static int DefinedWords, DefinedHere, DefinedNames;
+static Context Console FORTH_KEEP;
+static const char *In FORTH_KEEP;
+static int Compiling FORTH_KEEP;
+static Word *Defining FORTH_KEEP;
+static int DefinedWords FORTH_KEEP, DefinedHere FORTH_KEEP, DefinedNames FORTH_KEEP;
 enum { CONTROL_IF = 1, CONTROL_ELSE, CONTROL_BEGIN, CONTROL_WHILE, CONTROL_DO };
-static struct { int Kind, At; } Control[FORTH_STACK];
-static int ControlDepth;
+static struct { int Kind, At; } Control[FORTH_STACK] FORTH_KEEP;
+static int ControlDepth FORTH_KEEP;
 
-static const Word *Lit, *Branch, *ZeroBranch, *Do, *Loop, *PlusLoop, *DotQuote, *Exit;
+static const Word *Lit FORTH_KEEP, *Branch FORTH_KEEP, *ZeroBranch FORTH_KEEP, *Do FORTH_KEEP,
+                  *Loop FORTH_KEEP, *PlusLoop FORTH_KEEP, *DotQuote FORTH_KEEP, *Exit FORTH_KEEP;
 
 static const char *const Errors[] = {
    "", "stack empty", "stack full", "return stack full", "division by zero",
    "dictionary full", "?", "compile only", "name expected", "unbalanced control",
-   "bad argument"
+   "bad argument", "stalled"
 };
 
 

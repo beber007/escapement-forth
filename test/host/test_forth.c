@@ -33,11 +33,16 @@ static void Check(const char *name, const char *const lines[], const char *expec
 #define CASE(name,expected,...) \
    do { static const char *const l[] = {__VA_ARGS__, NULL}; Check(name,l,expected); } while (0)
 
-/* Run: The slot task of a period, run n times, the clock moving 1 us between. */
+/* Run: The slot task of a period, run n times, the clock moving 1 us between. A word
+** that STALLs leaves the run as a restart of the core would, which SlotsRestarted then
+** follows. */
 static void Run(int period, int n)
 {
   while (n-- > 0) {
-     SlotsRun(period);
+     if (setjmp(Restart) == 0)
+        SlotsRun(period);
+     else
+        SlotsRestarted();
      Clock += 1;
   }
 } /* end of Run */
@@ -160,6 +165,20 @@ static void Pool(void)
   Run(0,3);
   Type("slots");
   Expect("failed"," ok\nslot 0  ok\n\n0 1000us bad trial runs 1 max 0 failed: stack empty"
+         "\n8 100000us w promoted runs 5 max 60 wcet 51 over 2 "
+         "\n9 100000us t trial runs 0 max 0 \nload 1.0%  ok\n");
+
+  /* A word that held the core when it restarted is stopped; the others run on. */
+  Type("variable k : stuck k @ if stall then ; : fine ;");
+  Type("' stuck 10 every ' fine 10 every");
+  Run(1,2);
+  Type("-1 k !");
+  Run(1,3);
+  Type("slots");
+  Expect("stalled"," ok\nslot 4 slot 5  ok\n ok\n"
+         "\n0 1000us bad trial runs 1 max 0 failed: stack empty"
+         "\n4 10000us stuck trial runs 2 max 0 failed: stalled"
+         "\n5 10000us fine trial runs 4 max 0 "
          "\n8 100000us w promoted runs 5 max 60 wcet 51 over 2 "
          "\n9 100000us t trial runs 0 max 0 \nload 1.0%  ok\n");
 

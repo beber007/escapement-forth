@@ -7,10 +7,12 @@
 #ifndef PLATFORM_HOST_H
 #define PLATFORM_HOST_H
 
+#include <setjmp.h>
 #include <stdint.h>
 
 extern char Output[4096];
 extern int OutputLength;
 extern uint32_t Clock;
+extern jmp_buf Restart;     /* where STALL leaves a slot's run for */
 
 #endif /* PLATFORM_HOST_H */

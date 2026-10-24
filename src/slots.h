@@ -39,6 +39,11 @@ enum { SLOT_FREE = 0, SLOT_TRIAL, SLOT_PROMOTED };
 ** Called by that period's task, at each of its instances. */
 void SlotsRun(int period);
 
+/* SlotsRestarted: Called by the kernel's core when it starts again, the kernel restarted
+** with the pool kept: the word that held the core is stopped, its error FORTH_STALLED;
+** those it had preempted run again at their next release. */
+void SlotsRestarted(void);
+
 /* SlotsWords: Adds EVERY, PROMOTE, STOP and SLOTS to the dictionary, the pool empty.
 ** Called by ForthPlatformWords, before the kernel runs the slots. */
 void SlotsWords(void);

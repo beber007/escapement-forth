@@ -11,6 +11,8 @@
 #include "slots.h"
 #include "platform_host.h"
 
+jmp_buf Restart;
+
 char Output[4096];
 int OutputLength;
 uint32_t Clock;
@@ -40,8 +42,17 @@ static void PSpend(Context *c, const Word *w)
   Clock += (uint32_t)FORTH_POP(c);
 } /* end of PSpend */
 
+/* STALL ( -- ): Leaves the slot's run where it is, as a restart of the core abandons the
+** word that held it (test_forth.c, Run). */
+static void PStall(Context *c, const Word *w)
+{
+  (void)c; (void)w;
+  longjmp(Restart,1);
+} /* end of PStall */
+
 void ForthPlatformWords(void)
 {
   ForthAddWord("spend",PSpend,0);
+  ForthAddWord("stall",PStall,0);
   SlotsWords();
 } /* end of ForthPlatformWords */

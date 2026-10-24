@@ -12,6 +12,8 @@ of Escapement's issue #40.
   entries.
 
 ```forth
+\ words of the board: output high low toggle pins ( masks: 1 15 lshift is GP15 ),
+\ ms, overruns, restarts, dropped
 variable n
 : tick  1 n +! ;
 ' tick 10 every      \ slot 4, on trial: run every 10 ms, its time measured
@@ -35,8 +37,15 @@ then take at most 70 % of the processor.
   it held the processor.
 - `@` and `!` take any address, as in any Forth: a wrong one faults the core that ran
   it. A cell taken for a word is checked against the dictionary first.
-- A word that loops for ever holds core 0. Restarting it from core 1, step 2 of the issue,
-  is not built in yet.
+- Core 1 holds no budget either: a word that loops for ever holds core 0, and under EDF
+  only once its deadline has passed does it hold it whole. Core 1 then sees the 1 ms
+  slot stop beating, and after 3 ms restarts core 0 (`pico/restart.c`, step 2 of the
+  issue): softly, through an interrupt that rewrites where the loop returns, or, 5 ms
+  later, through the NMI and a reset of core 0 alone, for a loop with interrupts masked
+  or a fault. The kernel starts again; the dictionary, the pool and the console are
+  kept in `.noinit`, and the word that held the core is stopped (`failed: stalled`). A
+  word that was preempted midway has done what it had done.
+- A word typed at the console that loops holds core 1, and with it the watch.
 - What the slots print goes through a ring of 256 bytes, which drops what it has no room
   for (`dropped`).
 
@@ -48,7 +57,7 @@ make -C test/host run      # the Forth and the pool on the host, under the sanit
 make -C pico               # pico/build/EscapementForth.elf, loaded into SRAM over SWD
 ```
 
-With no UART wired, `make -C pico SCRIPT=tools/smoke.fs` builds an image whose console
+With no UART wired, `make -C pico SCRIPT=tools/smoke.fs` (or `tools/restart.fs`) builds an image whose console
 types that file at start and keeps what it prints in RAM, which `tools/smoke_board.sh`
 reads over SWD on Escapement's bench.
 
