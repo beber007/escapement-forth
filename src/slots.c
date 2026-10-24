@@ -78,6 +78,13 @@ void SlotsRun(int period)
 ** it took (Excluded): the kernel's entries and the interrupts are in it.
 ** The interrupts held at its start and at its end keep a slot that preempts from being
 ** counted against this one or the one below; in its run, ForthOwnTime reads again. */
+/* Carries: Whether the figures of generation go on into sequence: the promotion's alone,
+** not a word bound anew after it (a review, 2026-10-24). */
+static int Carries(const Slot *s, uint32_t generation, uint32_t sequence)
+{
+  return generation == s->Carried && sequence == generation + 2;
+} /* end of Carries */
+
 /* Write, Written: On the kernel's core, around a change of an entry's figures. */
 static void Write(Slot *s)
 {
@@ -99,7 +106,7 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
   if (s->Generation != sequence) {
      mask = ForthMask();
      Write(s);
-     if (s->Generation != s->Carried) {
+     if (!Carries(s,s->Generation,sequence)) {
         s->Runs = s->MaxTime = s->Excess = 0;
         s->Error = FORTH_OK;
      }
@@ -364,7 +371,7 @@ static void PSlots(Context *c, const Word *w)
      ForthPrintText(States[s->State]);
      /* The figures of the word bound before, until the kernel's core first runs this one. */
      Read(s,&f);
-     current = f.Generation == s->Sequence;
+     current = f.Generation == s->Sequence || Carries(s,f.Generation,s->Sequence);
      ForthPrintText(" runs ");
      ForthPrintNumber(current ? f.Runs : 0);
      ForthPrintText("max ");

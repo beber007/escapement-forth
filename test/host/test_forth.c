@@ -329,6 +329,22 @@ static void Pool(void)
          "ababababababababababpromoted, wcet 1 us, load 0.9%  ok\n");
   Run(3,2);
   Expect("b first","baba");
+
+  /* The figures of a promotion go on into it alone: not into a word bound anew in its
+  ** entry before the kernel's core ran it. Shown from the promotion on. */
+  Type("12 stop 13 stop");
+  Type(": c ;");
+  Type("' a 1000 every");
+  Run(3,10);
+  Type("12 promote slots");
+  Type("12 stop ' c 1000 every");
+  Run(3,1);
+  Type("slots");
+  Expect("figures carried once",
+         " ok\n ok\nslot 12  ok\naaaaaaaaaapromoted, wcet 1 us, load 0.9% "
+         "\n12 1000000us a promoted runs 10 max 0 wcet 1 over 0 \nload 0.9%  ok\n"
+         "slot 12  ok\n"
+         "\n12 1000000us c trial runs 1 max 0 \nload 0.9%  ok\n");
 }
 
 
