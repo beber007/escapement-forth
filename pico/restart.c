@@ -82,8 +82,8 @@ void __attribute__((noreturn, used)) RestartCore0(void)
   NVIC_ICER = 0xFFFFFFFF;
   NVIC_ICPR = 0xFFFFFFFF;
   ICSR = (1u << 27) | (1u << 25);    /* PENDSVCLR, PENDSTCLR */
-  TIMER_ARMED = 0xF;                 /* written 1, an alarm is disarmed */
-  TIMER_INTR = 0xF;
+  TIMER_ARMED = 0x7;                 /* written 1, an alarm is disarmed; 3 is core 1's */
+  TIMER_INTR = 0x7;
   TIMER_INTF = 0;
   while (SIO_FIFO_ST & SIO_FIFO_VLD)
      (void)SIO_FIFO_RD;

@@ -361,11 +361,26 @@ static void Pool(void)
 }
 
 
+/* Break: A word typed at the console that loops, stopped by a break, Ctrl-C on the board,
+** which ForthExecute takes as it takes a budget; the console goes on. */
+static void Breaks(void)
+{
+  Type(": l begin again ;");
+  Expect("defined"," ok\n");
+  Break = 1;
+  Type("l");
+  Expect("interrupted"," l interrupted\n");
+  Type("1 2 + .");
+  Expect("after a break","3  ok\n");
+} /* end of Breaks */
+
+
 int main(void)
 {
   Interpreter();
   HiddenWords();
   Pool();
+  Breaks();
   printf("%d cases, %d failed\n",Cases,Failures);
   return Failures != 0;
 } /* end of main */

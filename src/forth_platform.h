@@ -22,6 +22,10 @@ uint32_t ForthNow(void);
 ** other core: a word compiled before the store that binds it. */
 void ForthBarrier(void);
 
+/* ForthBreak: Whether a break was asked at the console since it was last asked, Ctrl-C
+** on the board: the word the console runs then stops, FORTH_BREAK. */
+int ForthBreak(void);
+
 /* ForthMask, ForthUnmask: Hold the interrupts of the core that calls, a slot's task
 ** not preempted in between, then let them be as ForthMask found them. */
 uint32_t ForthMask(void);

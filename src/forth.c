@@ -37,7 +37,8 @@ static const Word *Lit FORTH_KEEP, *Branch FORTH_KEEP, *ZeroBranch FORTH_KEEP, *
 static const char *const Errors[] = {
    "", "stack empty", "stack full", "return stack full", "division by zero",
    "dictionary full", "?", "compile only", "name expected", "unbalanced control",
-   "bad argument", "stalled", "inside a definition", "over budget"
+   "bad argument", "stalled", "inside a definition", "over budget",
+   "interrupted"
 };
 
 
@@ -130,10 +131,14 @@ int ForthExecute(Context *c, const Word *w)
   while (c->IP != NULL && c->Error == FORTH_OK) {
      const Word *next = (const Word *)*c->IP++;
      next->Code(c,next);
-     /* Not over an error of the word's, which stops it where the budget would not. */
-     if (c->Error == FORTH_OK && c->Budget != 0 && ++steps % FORTH_BUDGET_STEPS == 0 &&
-         ForthOwnTime(c->Start,c->Excluded) > c->Budget)
-        c->Error = FORTH_BUDGET;
+     /* Not over an error of the word's, which stops it where the budget would not. The
+     ** console's has no budget, but a break, Ctrl-C on the board. */
+     if (c->Error == FORTH_OK && ++steps % FORTH_BUDGET_STEPS == 0) {
+        if (c->Budget != 0 && ForthOwnTime(c->Start,c->Excluded) > c->Budget)
+           c->Error = FORTH_BUDGET;
+        else if (c == &Console && ForthBreak())
+           c->Error = FORTH_BREAK;
+     }
   }
   c->ReturnDepth = returnDepth;
   c->IP = outer;

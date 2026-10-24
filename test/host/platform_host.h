@@ -13,6 +13,7 @@
 extern char Output[4096];
 extern int OutputLength;
 extern uint32_t Clock;
+extern int Break;          /* a break asked, which ForthBreak takes */
 extern jmp_buf Restart;     /* where STALL leaves a slot's run for */
 
 #endif /* PLATFORM_HOST_H */

@@ -5,8 +5,11 @@
 /* File console.c: The platform of the Forth on the Pico (forth_platform.h): the console on
 ** core 1, the output of both cores, the clock and the pins.
 **
-** Core 1 runs no kernel and takes no interrupt: it polls UART0, on GP0 (TX) and GP1 (RX),
-** 115200 baud, 8N1, the pins and settings of Escapement's UART driver. What a slot prints
+** Core 1 runs no kernel. It takes one interrupt, the timer's alarm 3 every millisecond,
+** which watches core 0 (restart.c) and moves what UART0 received into a ring, a Ctrl-C a
+** break of the word the console runs (ForthBreak): a word typed at the console that loops
+** holds neither the watch nor the console. UART0 is on GP0 (TX) and GP1 (RX), 115200 baud,
+** 8N1, the pins and settings of Escapement's UART driver. What a slot prints
 ** on core 0 goes into a ring that core 1 empties between its own lines; full, the ring
 ** drops the bytes and counts them, since a task must not wait for the console. Slots of
 ** different periods preempt one another on core 0: each byte goes in with interrupts
@@ -53,6 +56,15 @@
 #define SIO_GPIO_OUT_XOR     *((volatile UINT32 *)(0xD0000000 + 0x1C))
 #define SIO_GPIO_OE_SET      *((volatile UINT32 *)(0xD0000000 + 0x24))
 #define TIMER_TIMERAWL       *((volatile UINT32 *)(0x40054000 + 0x28))
+#define TIMER_ALARM3         *((volatile UINT32 *)(0x40054000 + 0x1C))
+#define TIMER_INTR           *((volatile UINT32 *)(0x40054000 + 0x34))
+#define TIMER_INTE_SET       *((volatile UINT32 *)(0x40054000 + 0x2000 + 0x38))
+#define ALARM3_BIT           (1u << 3)
+#define TIMER_IRQ_3          3
+#define NVIC_ISER            *((volatile UINT32 *)0xE000E100)
+#define VTOR                 *((volatile UINT32 *)0xE000ED08)
+#define TICK                 1000        /* us between two of core 1's interrupts */
+#define BREAK_CHAR           0x03        /* Ctrl-C */
 
 #define CLK_PERI_HZ          12000000u   /* as OSInitializeSystemClocks leaves it */
 #define BAUD_RATE            115200u
@@ -61,12 +73,18 @@
 #define FREE_PINS            0x1C7FFFFCu
 
 #define RING                 256         /* a power of 2 */
+#define INPUT                64          /* a power of 2 */
 
 /* All of it outlives a restart of core 0, which clears its .bss under core 1. */
 static volatile UINT8 Ring[RING] FORTH_KEEP;
 static volatile UINT32 RingHead FORTH_KEEP, RingTail FORTH_KEEP;   /* core 0's, core 1's */
 static volatile UINT32 Dropped FORTH_KEEP;
 static char Line[FORTH_LINE] FORTH_KEEP;
+/* What core 1's interrupt received, and saw; its vector table. */
+static volatile UINT8 Input[INPUT] FORTH_KEEP;
+static volatile UINT32 InputHead FORTH_KEEP, InputTail FORTH_KEEP;
+static volatile int Break FORTH_KEEP, Restarted FORTH_KEEP;
+static UINT32 Core1Table[48] FORTH_KEEP __attribute__((aligned(256)));
 
 extern volatile uint32_t Overruns;
 
@@ -91,15 +109,19 @@ static void Send(char c)
   UART_DR = (UINT8)c;
 } /* end of Send */
 
-/* Drain: What the slots printed, sent; core 0 watched meanwhile, and its restarts said. */
+/* Drain: What the slots printed, sent, and the restarts of core 0 the interrupt saw. */
 static void Drain(void)
 {
   static const char *const Said[] = {"", "\n[core 0 restarted]\n",
                                      "\n[core 0 restarted, hard]\n",
                                      "\n[core 0 did not restart]\n"};
-  UINT32 tail;
+  UINT32 tail, primask;
   int restart;
-  if ((restart = Watch()) != 0)
+  __asm volatile ("mrs %0, primask\n cpsid i" : "=r" (primask) :: "memory");
+  restart = Restarted;
+  Restarted = 0;
+  __asm volatile ("msr primask, %0" :: "r" (primask) : "memory");
+  if (restart != 0)
      ForthPrintText(Said[restart]);
   tail = RingTail;
   while (tail != RingHead) {
@@ -112,6 +134,36 @@ static void Drain(void)
      RingTail = tail;
   }
 } /* end of Drain */
+
+/* Tick: Core 1's interrupt, alarm 3: core 0 watched, what UART0 received taken. */
+static void Tick(void)
+{
+  UINT32 head;
+  int restart;
+  TIMER_INTR = ALARM3_BIT;
+  TIMER_ALARM3 = TIMER_TIMERAWL + TICK;
+  if ((restart = Watch()) != 0)
+     Restarted = restart;
+  while ((UART_FR & FR_RXFE) == 0) {
+     char c = (char)UART_DR;
+     if (c == BREAK_CHAR) {
+        Break = 1;
+        continue;
+     }
+     head = InputHead;
+     if (head - InputTail < INPUT) {   /* full, the byte is lost: a line typed too fast */
+        Input[head % INPUT] = (UINT8)c;
+        InputHead = head + 1;
+     }
+  }
+} /* end of Tick */
+
+int ForthBreak(void)
+{
+  int asked = Break;
+  Break = 0;
+  return asked;
+} /* end of ForthBreak */
 
 void ForthEmit(char c)
 {
@@ -239,7 +291,12 @@ static void PMs(Context *c, const Word *w)
   }
   wait = (UINT32)FORTH_POP(c) * 1000;
   while (TIMER_TIMERAWL - start < wait)
-     Drain();
+     if (ForthBreak()) {
+        c->Error = FORTH_BREAK;
+        return;
+     }
+     else
+        Drain();
 } /* end of PMs */
 
 void ForthPlatformWords(void)
@@ -277,9 +334,27 @@ static void InitUART(void)
   UART_CR = CR_UARTEN | CR_TXE | CR_RXE;
 } /* end of InitUART */
 
+/* StartTick: Core 1's interrupt set going, from its own vector table, in RAM. */
+static void StartTick(void)
+{
+  extern void (* const CortexMxVectorTable[])(void);
+  int i;
+  for (i = 0; i < 48; i += 1)
+     Core1Table[i] = (UINT32)CortexMxVectorTable[i];
+  Core1Table[16 + TIMER_IRQ_3] = (UINT32)Tick;
+  VTOR = (UINT32)Core1Table;
+  TIMER_INTR = ALARM3_BIT;
+  TIMER_ALARM3 = TIMER_TIMERAWL + TICK;
+  TIMER_INTE_SET = ALARM3_BIT;
+  NVIC_ISER = 1u << TIMER_IRQ_3;
+  __asm volatile ("cpsie i" ::: "memory");
+} /* end of StartTick */
+
 void ConsoleInit(void)
 {
   RingHead = RingTail = Dropped = 0;
+  InputHead = InputTail = 0;
+  Break = Restarted = 0;
   #ifdef SCRIPT
      LogLength = ScriptDone = 0;
   #endif
@@ -292,6 +367,7 @@ void Console(void)
   char last = 0;
   WatchInit();
   InitUART();
+  StartTick();
   ForthPrintText("\nEscapement Forth\n");
   #ifdef SCRIPT
      {
@@ -314,9 +390,10 @@ void Console(void)
   while (TRUE) {
      char c;
      Drain();
-     if (UART_FR & FR_RXFE)
+     if (InputTail == InputHead)
         continue;
-     c = (char)UART_DR;
+     c = (char)Input[InputTail % INPUT];
+     InputTail += 1;
      if (c == '\n' && last == '\r') {   /* the second half of CR LF */
         last = 0;
         continue;
@@ -325,6 +402,7 @@ void Console(void)
      if (c == '\r' || c == '\n') {
         line[length] = 0;
         Send(' ');
+        Break = 0;   /* one typed before the line is not for it */
         ForthInterpret(line);
         length = 0;
      }

@@ -46,6 +46,15 @@ uint32_t ForthNow(void)
   return now;
 } /* end of ForthNow */
 
+int Break;
+
+int ForthBreak(void)
+{
+  int asked = Break;
+  Break = 0;
+  return asked;
+} /* end of ForthBreak */
+
 uint32_t ForthMask(void)
 {
   uint32_t mask = (uint32_t)Masked;
