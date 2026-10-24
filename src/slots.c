@@ -23,6 +23,7 @@ typedef struct {
    const Word *volatile Bound;
    volatile uint8_t State;
    volatile uint32_t Wcet;         /* us, the worst case admitted */
+   volatile uint32_t Carried;      /* the sequence whose figures go on into the next */
    /* Written by the kernel's core, under Writing, odd while it writes them. */
    volatile uint32_t Writing;
    volatile uint32_t Generation;   /* the sequence the figures are of */
@@ -98,8 +99,10 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
   if (s->Generation != sequence) {
      mask = ForthMask();
      Write(s);
-     s->Runs = s->MaxTime = s->Excess = 0;
-     s->Error = FORTH_OK;
+     if (s->Generation != s->Carried) {
+        s->Runs = s->MaxTime = s->Excess = 0;
+        s->Error = FORTH_OK;
+     }
      s->Generation = sequence;
      Written(s);
      ForthUnmask(mask);
@@ -315,6 +318,9 @@ static void PPromote(Context *c, const Word *w)
      PrintShare(load);
      return;
   }
+  /* The figures of the trial go on: a run that ended as it was promoted, or that was
+  ** running, counts against it, over or failed (a review, 2026-10-24). */
+  s->Carried = s->Sequence;
   Bind(s,s->Bound,SLOT_PROMOTED,wcet);
   ForthPrintText("promoted, wcet ");
   ForthPrintNumber(wcet);
@@ -386,6 +392,7 @@ void SlotsWords(void)
   /* Field by field: the board links no memset. */
   for (i = 0; i < SLOTS; i += 1) {
      Slots[i].Sequence = Slots[i].Writing = Slots[i].Generation = 0;
+     Slots[i].Carried = 1;    /* odd: no sequence */
      Slots[i].Bound = NULL;
      Slots[i].State = SLOT_FREE;
      Slots[i].Wcet = Slots[i].Runs = Slots[i].MaxTime = Slots[i].Excess = 0;

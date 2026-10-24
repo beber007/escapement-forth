@@ -167,13 +167,13 @@ static void Pool(void)
   Expect("promoted","promoted, wcet 51 us, load 1.0%  ok\n");
   Run(2,3);
   Type("slots");
-  Expect("runs promoted","\n8 100000us w promoted runs 3 max 40 wcet 51 over 0 \nload 1.0%  ok\n");
+  Expect("runs promoted","\n8 100000us w promoted runs 13 max 40 wcet 51 over 0 \nload 1.0%  ok\n");
 
   Type("60 cost !");
   Run(2,2);
   Type("40 cost !");
   Type("slots");
-  Expect("over its wcet"," ok\n ok\n\n8 100000us w promoted runs 5 max 60 wcet 51 over 2 "
+  Expect("over its wcet"," ok\n ok\n\n8 100000us w promoted runs 15 max 60 wcet 51 over 2 "
          "\nload 1.0%  ok\n");
 
   Type(": t 1 spend ;");
@@ -193,7 +193,7 @@ static void Pool(void)
   Run(0,3);
   Type("slots");
   Expect("failed"," ok\nslot 0  ok\n\n0 1000us bad trial runs 1 max 0 failed: stack empty"
-         "\n8 100000us w promoted runs 5 max 60 wcet 51 over 2 "
+         "\n8 100000us w promoted runs 15 max 60 wcet 51 over 2 "
          "\n9 100000us t trial runs 0 max 0 \nload 1.0%  ok\n");
 
   /* A word that held the core when it restarted is stopped; the others run on. */
@@ -207,7 +207,7 @@ static void Pool(void)
          "\n0 1000us bad trial runs 1 max 0 failed: stack empty"
          "\n4 10000us stuck trial runs 2 max 0 failed: stalled"
          "\n5 10000us fine trial runs 4 max 0 "
-         "\n8 100000us w promoted runs 5 max 60 wcet 51 over 2 "
+         "\n8 100000us w promoted runs 15 max 60 wcet 51 over 2 "
          "\n9 100000us t trial runs 0 max 0 \nload 1.0%  ok\n");
 
   /* Bound anew, an entry shows nothing of the word before until it runs. */
@@ -217,7 +217,7 @@ static void Pool(void)
          "\n0 1000us t trial runs 0 max 0 "
          "\n4 10000us stuck trial runs 2 max 0 failed: stalled"
          "\n5 10000us fine trial runs 4 max 0 "
-         "\n8 100000us w promoted runs 5 max 60 wcet 51 over 2 "
+         "\n8 100000us w promoted runs 15 max 60 wcet 51 over 2 "
          "\n9 100000us t trial runs 0 max 0 \nload 1.0%  ok\n");
   Type("0 stop");
   Expect("stopped"," ok\n");
@@ -308,7 +308,7 @@ static void Pool(void)
   Run(2,3);
   Type("slots");
   Expect("error past the worst case","slot 8  ok\npromoted, wcet 1 us, load 0.9%  ok\n ok\n"
-         "\n8 100000us p promoted runs 1 max 100 wcet 1 over 1 failed: division by zero"
+         "\n8 100000us p promoted runs 11 max 100 wcet 1 over 1 failed: division by zero"
          "\nload 0.9%  ok\n");
   Type("8 stop");
 

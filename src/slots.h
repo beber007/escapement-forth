@@ -9,9 +9,11 @@
 ** is one task, released whether a word is bound to it or not, and holds a few entries.
 ** A word bound with EVERY is on trial: it runs, its time is measured, and nothing is
 ** promised. PROMOTE admits it, with a worst case drawn from what was measured, if the
-** promoted words and the pool itself then fit under SLOT_BOUND of the processor. The
-** kernel enforces no budget: a word that runs over its worst case delays the tasks of
-** later deadlines all the same, and is counted.
+** promoted words and the pool itself then fit under SLOT_BOUND of the processor. Each
+** run has a budget, its worst case or, on trial, a tenth of its period, which the Forth
+** checks at NEXT: past it the run is cut and counted, and the word runs again at its
+** next release. The kernel enforces none: what the check does not reach, a word of C,
+** delays the tasks of later deadlines all the same.
 **
 ** The console's core alone binds, promotes and stops, through a sequence counter; the
 ** kernel's core alone writes what it measures. A word that fails, its stack empty or

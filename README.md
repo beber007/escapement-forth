@@ -30,7 +30,8 @@ then take at most 70 % of the processor.
 Each run has a budget: its worst case once promoted, a tenth of its period on trial. The
 inner interpreter checks it every 16 words, at its `NEXT`, and cuts the run short there;
 the run is counted over (`slots`), and the word runs again at its next release. A word on
-trial that went over is not promoted. A word's time is taken on the clock, less what the
+trial that went over is not promoted; promoted, its figures go on from its trial, and a
+run that ended as it was promoted counts against it. A word's time is taken on the clock, less what the
 slots that preempted it took; the kernel's entries and the interrupts are in it.
 
 ## Limits
