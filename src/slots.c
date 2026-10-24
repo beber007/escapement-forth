@@ -196,7 +196,9 @@ static void PEvery(Context *c, const Word *w)
      return;
   }
   x = (const Word *)FORTH_POP(c);
-  for (p = 0; p < SLOT_PERIODS && (Cell)SlotPeriod[p] != period * 1000; p += 1);
+  /* In ms against the periods divided, not the period multiplied, which wrapped on a
+  ** cell of 32 bits: 536870913 was taken for 1 (a review, 2026-10-24). */
+  for (p = 0; p < SLOT_PERIODS && (Cell)(SlotPeriod[p] / 1000) != period; p += 1);
   if (p == SLOT_PERIODS) {
      c->Error = FORTH_ARGUMENT;
      return;

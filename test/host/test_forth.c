@@ -142,6 +142,7 @@ static void Pool(void)
 {
   CASE("every needs a period of the pool"," ok\n every bad argument\n",": w ;","' w 3 every");
   CASE("a comment run by a slot"," ok\nslot 0  ok\n3  ok\n",": w ;","' \\ 1 every","run0 1 2 + .");
+  CASE("every a period that wraps"," ok\n every bad argument\n",": w ;","' w 4294967297 every");
   CASE("every a number"," every bad argument\n","5 10 every");
   CASE("every binds on trial"," ok\nslot 4  ok\nslot 5  ok\n",": w ;","' w 10 every",
        "' w 10 every");
