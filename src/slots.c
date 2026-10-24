@@ -23,11 +23,18 @@ typedef struct {
    const Word *volatile Bound;
    volatile uint8_t State;
    volatile uint32_t Wcet;         /* us, the worst case admitted */
-   /* Written by the kernel's core. */
+   /* Written by the kernel's core, under Writing, odd while it writes them. */
+   volatile uint32_t Writing;
    volatile uint32_t Generation;   /* the sequence the figures are of */
    volatile uint32_t Runs, MaxTime, Excess;
    volatile uint8_t Error;
 } Slot;
+
+/* Figures: An entry's figures as the console's core reads them, all of one instant. */
+typedef struct {
+   uint32_t Generation, Runs, MaxTime, Excess;
+   uint8_t Error;
+} Figures;
 
 static Slot Slots[SLOTS] FORTH_KEEP;
 
@@ -70,15 +77,32 @@ void SlotsRun(int period)
 ** it took (Excluded): the kernel's entries and the interrupts are in it.
 ** The interrupts held at its start and at its end keep a slot that preempts from being
 ** counted against this one or the one below; in its run, ForthOwnTime reads again. */
+/* Write, Written: On the kernel's core, around a change of an entry's figures. */
+static void Write(Slot *s)
+{
+  s->Writing += 1;
+  ForthBarrier();
+} /* end of Write */
+
+static void Written(Slot *s)
+{
+  ForthBarrier();
+  s->Writing += 1;
+} /* end of Written */
+
 static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, uint32_t wcet,
                     Context *c)
 {
   uint32_t start, end, excluded, time, mask;
   int error, depth;
   if (s->Generation != sequence) {
+     mask = ForthMask();
+     Write(s);
      s->Runs = s->MaxTime = s->Excess = 0;
      s->Error = FORTH_OK;
      s->Generation = sequence;
+     Written(s);
+     ForthUnmask(mask);
   }
   if (s->Error != FORTH_OK)
      return;
@@ -106,8 +130,9 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
   time = end - start - excluded;
   /* Over its budget, cut short or ended before a check: counted, the word run again
   ** next time, but for an error of its own. The figures written before the entry is let
-  ** go, or a restart in between lost them (a review, 2026-10-24); in the order SLOTS and
-  ** PROMOTE read them backwards, the time last. */
+  ** go, or a restart in between lost them; under Writing, for SLOTS and PROMOTE to read
+  ** them of one run (two reviews, 2026-10-24). */
+  Write(s);
   s->Runs += 1;
   if (error == FORTH_BUDGET || time > c->Budget)
      s->Excess += 1;
@@ -116,6 +141,7 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
   if (time > s->MaxTime)
      s->MaxTime = time;
   s->Error = (uint8_t)error;
+  Written(s);
   Running[depth] = -1;
   RunningDepth = depth;
   ForthUnmask(mask);
@@ -125,8 +151,15 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
 void SlotsRestarted(void)
 {
   int i;
-  if (RunningDepth > 0 && Running[RunningDepth - 1] >= 0)
+  /* A change of figures the restart cut short, ended. */
+  for (i = 0; i < SLOTS; i += 1)
+     if (Slots[i].Writing & 1)
+        Written(&Slots[i]);
+  if (RunningDepth > 0 && Running[RunningDepth - 1] >= 0) {
+     Write(&Slots[Running[RunningDepth - 1]]);
      Slots[Running[RunningDepth - 1]].Error = FORTH_STALLED;
+     Written(&Slots[Running[RunningDepth - 1]]);
+  }
   RunningDepth = 0;
   for (i = 0; i < SLOT_PERIODS; i += 1)
      Running[i] = -1;
@@ -236,30 +269,46 @@ static void PEvery(Context *c, const Word *w)
   ForthPrintNumber(i);
 } /* end of PEvery */
 
+/* Read: On the console's core, an entry's figures, read again while the kernel's core
+** wrote them. */
+static void Read(const Slot *s, Figures *f)
+{
+  uint32_t writing;
+  do {
+     writing = s->Writing;
+     ForthBarrier();
+     f->Generation = s->Generation;
+     f->Runs = s->Runs;
+     f->MaxTime = s->MaxTime;
+     f->Excess = s->Excess;
+     f->Error = s->Error;
+     ForthBarrier();
+  } while ((writing & 1) != 0 || s->Writing != writing);
+} /* end of Read */
+
 /* PROMOTE ( n -- ): Admits the word on trial in entry n, or says why not. */
 static void PPromote(Context *c, const Word *w)
 {
   Slot *s;
-  uint32_t max, wcet, load;
+  Figures f;
+  uint32_t wcet, load;
   (void)w;
   if ((s = Entry(c)) == NULL)
      return;
-  /* The longest time read before what Measure counts ahead of it: a run cut short in
-  ** between is not admitted at its cut (a review, 2026-10-24). */
-  max = s->MaxTime;
-  if (s->State != SLOT_TRIAL || s->Generation != s->Sequence || s->Error != FORTH_OK) {
+  Read(s,&f);
+  if (s->State != SLOT_TRIAL || f.Generation != s->Sequence || f.Error != FORTH_OK) {
      ForthPrintText("not on trial ");
      return;
   }
-  if (s->Excess != 0) {
+  if (f.Excess != 0) {
      ForthPrintText("over budget ");
      return;
   }
-  if (s->Runs < SLOT_MIN_RUNS) {
+  if (f.Runs < SLOT_MIN_RUNS) {
      ForthPrintText("too few runs ");
      return;
   }
-  wcet = Admitted(max);
+  wcet = Admitted(f.MaxTime);
   load = SlotsLoad() + Share(wcet,SlotPeriod[(s - Slots) / SLOT_ENTRIES]);
   if (load > SLOT_BOUND) {
      ForthPrintText("refused, load ");
@@ -295,7 +344,7 @@ static void PSlots(Context *c, const Word *w)
   for (i = 0; i < SLOTS; i += 1) {
      const Slot *s = &Slots[i];
      const Word *b = s->Bound;
-     uint32_t max, excess, runs;
+     Figures f;
      int current;
      if (s->State == SLOT_FREE || b == NULL)
         continue;
@@ -308,24 +357,23 @@ static void PSlots(Context *c, const Word *w)
      ForthEmit(' ');
      ForthPrintText(States[s->State]);
      /* The figures of the word bound before, until the kernel's core first runs this one. */
-     current = s->Generation == s->Sequence;
-     /* Read backwards from the order Measure writes them: no more over than runs. */
-     max = s->MaxTime, excess = s->Excess, runs = s->Runs;
+     Read(s,&f);
+     current = f.Generation == s->Sequence;
      ForthPrintText(" runs ");
-     ForthPrintNumber(current ? runs : 0);
+     ForthPrintNumber(current ? f.Runs : 0);
      ForthPrintText("max ");
-     ForthPrintNumber(current ? max : 0);
+     ForthPrintNumber(current ? f.MaxTime : 0);
      if (s->State == SLOT_PROMOTED) {
         ForthPrintText("wcet ");
         ForthPrintNumber(s->Wcet);
      }
-     if (s->State == SLOT_PROMOTED || (current && excess != 0)) {
+     if (s->State == SLOT_PROMOTED || (current && f.Excess != 0)) {
         ForthPrintText("over ");
-        ForthPrintNumber(current ? excess : 0);
+        ForthPrintNumber(current ? f.Excess : 0);
      }
-     if (current && s->Error != FORTH_OK) {
+     if (current && f.Error != FORTH_OK) {
         ForthPrintText("failed: ");
-        ForthPrintText(ForthErrorText(s->Error));
+        ForthPrintText(ForthErrorText(f.Error));
      }
   }
   ForthPrintText("\nload ");
@@ -337,7 +385,7 @@ void SlotsWords(void)
   int i;
   /* Field by field: the board links no memset. */
   for (i = 0; i < SLOTS; i += 1) {
-     Slots[i].Sequence = Slots[i].Generation = 0;
+     Slots[i].Sequence = Slots[i].Writing = Slots[i].Generation = 0;
      Slots[i].Bound = NULL;
      Slots[i].State = SLOT_FREE;
      Slots[i].Wcet = Slots[i].Runs = Slots[i].MaxTime = Slots[i].Excess = 0;

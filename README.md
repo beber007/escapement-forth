@@ -53,7 +53,9 @@ slots that preempted it took; the kernel's entries and the interrupts are in it.
   where the loop returns, or, 5 ms later, through the NMI and a reset of core 0 alone,
   for interrupts masked or a fault. The kernel starts again; the dictionary, the pool and the console are
   kept in `.noinit`, and the word that held the core is stopped (`failed: stalled`). A
-  word that was preempted midway has done what it had done.
+  word that was preempted midway has done what it had done. The word stopped is the
+  one running on top when the restart lands: one of the 1 ms slot that held the core
+  as it ended, or in its task between two words, leaves another stopped, or none.
 - A word typed at the console that loops holds core 1, and with it the watch.
 - What the slots print goes through a ring of 256 bytes, which drops what it has no room
   for (`dropped`).
