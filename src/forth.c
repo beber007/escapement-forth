@@ -104,6 +104,19 @@ static void PExit(Context *c, const Word *w)
   c->IP = (const Cell *)back;
 } /* end of PExit */
 
+uint32_t ForthOwnTime(uint32_t start, const volatile uint32_t *excluded)
+{
+  uint32_t left, now;
+  /* Read again while a slot preempted between the readings: the time left out read
+  ** after the clock may hold more than the word spent, and the difference wraps; read
+  ** before, the slot counts against the word (two reviews, 2026-10-24). */
+  do {
+     left = *excluded;
+     now = ForthNow();
+  } while (*excluded != left);
+  return now - start - left;
+} /* end of ForthOwnTime */
+
 /* ForthExecute: The inner interpreter's NEXT, the one place every word of a definition
 ** goes through: where a budget is checked, words of C being short ones. */
 int ForthExecute(Context *c, const Word *w)
@@ -117,14 +130,10 @@ int ForthExecute(Context *c, const Word *w)
   while (c->IP != NULL && c->Error == FORTH_OK) {
      const Word *next = (const Word *)*c->IP++;
      next->Code(c,next);
-     /* The time left out read before the clock, as Measure reads them (slots.c): read
-     ** after, a slot that preempted in between left out more than the word had spent,
-     ** and the difference wrapped (a review, 2026-10-24). */
-     if (c->Budget != 0 && ++steps % FORTH_BUDGET_STEPS == 0) {
-        uint32_t excluded = *c->Excluded;
-        if (ForthNow() - c->Start - excluded > c->Budget)
-           c->Error = FORTH_BUDGET;
-     }
+     /* Not over an error of the word's, which stops it where the budget would not. */
+     if (c->Error == FORTH_OK && c->Budget != 0 && ++steps % FORTH_BUDGET_STEPS == 0 &&
+         ForthOwnTime(c->Start,c->Excluded) > c->Budget)
+        c->Error = FORTH_BUDGET;
   }
   c->ReturnDepth = returnDepth;
   c->IP = outer;

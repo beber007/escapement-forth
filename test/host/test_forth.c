@@ -235,7 +235,7 @@ static void Pool(void)
 
   /* A preemption between the check's reading of the clock and its reading of the time
   ** left out: not more than the time the word spent. */
-  Type(": early preempt 20 0 do loop ; ' early 100 every");
+  Type(": early 1 preempt 20 0 do loop ; ' early 100 every");
   Type(": inner 50 spend ; ' inner 1 every");
   Run(2,1);
   Type("slots");
@@ -243,6 +243,36 @@ static void Pool(void)
          "\n0 1000us inner trial runs 1 max 50 "
          "\n8 100000us early trial runs 1 max 0 \nload 0.9%  ok\n");
   Type("0 stop 8 stop");
+
+  /* Nor when it comes between the readings of the time left out and of the clock, at the
+  ** check, at the end of the run, or between the start and the time left out set to 0. */
+  Type(": inner 20000 spend ; ' inner 1 every");
+  Type(": late -1 preempt 20 0 do loop ; ' late 100 every");
+  Run(2,1);
+  Type(": last -1 preempt ; ' last 100 every");
+  Run(2,1);
+  Type(": a 2 preempt ; ' a 100 every");
+  Type(": b 20 0 do loop ; ' b 100 every");
+  Run(2,1);
+  Type("slots");
+  Expect("preempted between readings"," ok\nslot 0  ok\nslot 8  ok\nslot 9  ok\n"
+         "slot 10  ok\nslot 11  ok\n"
+         "\n0 1000us inner trial runs 6 max 20000 "
+         "\n8 100000us late trial runs 3 max 0 "
+         "\n9 100000us last trial runs 2 max 0 "
+         "\n10 100000us a trial runs 1 max 0 "
+         "\n11 100000us b trial runs 1 max 0 \nload 0.9%  ok\n");
+  Type("0 stop 8 stop 9 stop 10 stop 11 stop");
+
+  /* An error at the step of a check, the word over its budget: the error kept. */
+  Type(": bad 0 1 20000 spend dup drop dup drop dup drop dup drop dup drop swap / ;");
+  Type("' bad 100 every");
+  Run(2,3);
+  Type("slots");
+  Expect("error at a check"," ok\n ok\nslot 8  ok\n"
+         "\n8 100000us bad trial runs 1 max 20000 failed: division by zero"
+         "\nload 0.9%  ok\n");
+  Type("8 stop");
 
   /* A word on trial gets a tenth of its period: one that loops is cut short there, every
   ** release, counted, and is not promoted. */

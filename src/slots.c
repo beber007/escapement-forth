@@ -90,15 +90,21 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
   ** A restart in between finds -1, and blames none. */
   depth = RunningDepth;
   RunningDepth = depth + 1;
-  start = ForthNow();
-  Excluded[depth] = 0;
+  /* Read again while a slot preempted between the start and the time left out set to 0,
+  ** which lost it (a review, 2026-10-24). */
+  do {
+     Excluded[depth] = 0;
+     start = ForthNow();
+  } while (Excluded[depth] != 0);
   Running[depth] = (int8_t)(s - Slots);
   c->Start = start;
   c->Excluded = &Excluded[depth];
   c->Budget = state == SLOT_PROMOTED ? wcet : SlotPeriod[(s - Slots) / SLOT_ENTRIES] / 10;
   error = ForthExecute(c,w);
-  excluded = Excluded[depth];
-  end = ForthNow();
+  do {
+     excluded = Excluded[depth];
+     end = ForthNow();
+  } while (Excluded[depth] != excluded);
   if (depth > 0)
      Excluded[depth - 1] += end - start;
   Running[depth] = -1;

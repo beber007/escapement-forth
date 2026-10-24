@@ -88,6 +88,9 @@ void ForthInterpret(const char *line);
 ** left as the word left them. */
 int ForthExecute(Context *c, const Word *w);
 
+/* ForthOwnTime: The time since start less *excluded, both read at one instant. */
+uint32_t ForthOwnTime(uint32_t start, const volatile uint32_t *excluded);
+
 /* ForthFind: The word of that name, the last defined first, NULL for none. */
 const Word *ForthFind(const char *name, int length);
 

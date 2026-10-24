@@ -40,8 +40,8 @@ slots that preempted it took; the kernel's entries and the interrupts are in it.
   a word may run past its worst case, delaying the tasks of later deadlines all the
   same; an instance past its next release is an overrun, which the kernel lets go on and
   counts (`overruns`).
-- The check costs some 9 % at most on a loop of `do loop` with nothing in it: 1,000 turns
-  took 466 µs at the console, which has no budget, and 509 µs in a slot (Pico W,
+- The check costs some 12 % at most on a loop of `do loop` with nothing in it: 1,000 turns
+  took 466 µs at the console, which has no budget, and 522 µs in a slot (Pico W,
   2026-10-24, the two cores' work not quite the same).
 - `@` and `!` take any address, as in any Forth: a wrong one faults the core that ran
   it. So does a cell that is no word compiled into a definition, by an immediate word
