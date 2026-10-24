@@ -7,6 +7,7 @@
 */
 
 #include <stdio.h>
+#include <string.h>
 #include "forth.h"
 #include "forth_platform.h"
 #include "slots.h"
@@ -76,6 +77,42 @@ void ForthUnmask(uint32_t mask)
      SlotsRun(0);
   }
 } /* end of ForthUnmask */
+
+unsigned char StoredBytes[65536] __attribute__((aligned(16)));   /* as the header needs */
+size_t StoredRoom = sizeof StoredBytes;
+int StoreRuns;
+uint32_t HostBuild;
+
+uint32_t ForthBuild(void)
+{
+  return HostBuild;
+} /* end of ForthBuild */
+
+const void *ForthStored(size_t *room)
+{
+  *room = StoredRoom;
+  return StoredBytes;
+} /* end of ForthStored */
+
+/* ForthStore: The parts one after the other, emptied as flash is, to 0xFF; with
+** StoreRuns, the 1 ms slot's task run first, as core 0 may while the board writes. */
+int ForthStore(const void *const part[], const size_t size[], int parts)
+{
+  size_t total = 0, at = 0;
+  int i;
+  for (i = 0; i < parts; i += 1)
+     total += size[i];
+  if (total > StoredRoom)
+     return 0;
+  if (StoreRuns)   /* core 0 goes on as the flash is written */
+     SlotsRun(0);
+  memset(StoredBytes,0xFF,sizeof StoredBytes);
+  for (i = 0; i < parts; i += 1) {
+     memcpy(StoredBytes + at,part[i],size[i]);
+     at += size[i];
+  }
+  return 1;
+} /* end of ForthStore */
 
 void ForthBarrier(void)
 {

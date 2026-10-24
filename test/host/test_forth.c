@@ -417,6 +417,89 @@ static void Breaks(void)
   Break = 0;
 } /* end of Breaks */
 
+/* Stores: SAVE keeps the dictionary in the platform's store, which a cold start, the
+** next FORTH_INIT, loads: the words, their code and their data; UNSAVE empties it. A
+** store torn, or stamped by another firmware, is not loaded. */
+static void Stores(void)
+{
+  ForthInit();
+  Type("variable v 42 v ! : sq dup * ; defer d ' sq is d");
+  Expect("defined"," ok\n");
+  Type("save");
+  Expect("saved"," ok\n");
+  ForthInit();
+  Type("5 sq . v @ . 3 d .");
+  Expect("loaded","25 42 9  ok\n");
+  Type(": cube dup sq * ; 2 cube .");
+  Expect("defined after","8  ok\n");
+  ForthInit();
+  Type("2 cube .");
+  Expect("not saved since"," cube ?\n");
+
+  StoredBytes[24] ^= 1;   /* the first byte after the header */
+  ForthInit();
+  Type("5 sq .");
+  Expect("torn"," sq ?\n");
+  Type("variable v 42 v ! : sq dup * ; save");
+  Expect("saved again"," ok\n");
+  StoredBytes[4] ^= 1;    /* the stamp */
+  ForthInit();
+  Type("5 sq .");
+  Expect("another firmware"," sq ?\n");
+  Type("variable v 42 v ! : sq dup * ; save");
+  Expect("saved a third time"," ok\n");
+  HostBuild += 1;         /* a firmware of the same addresses, its code another */
+  ForthInit();
+  Type("5 sq .");
+  Expect("another firmware, the same addresses"," sq ?\n");
+  HostBuild -= 1;
+
+  Type(": sq dup * ; save");
+  Expect("saved a third time"," ok\n");
+  Type("unsave");
+  Expect("unsaved"," ok\n");
+  ForthInit();
+  Type("5 sq .");
+  Expect("emptied"," sq ?\n");
+
+  /* IMMEDIATE on the last built-in word, none defined yet: the store still loads. */
+  ForthInit();
+  Type("immediate : sq dup * ; save");
+  Expect("saved after immediate"," ok\n");
+  ForthInit();
+  Type("5 sq . unsave");
+  Expect("loaded after immediate","25  ok\n");
+  Type(": s! save ; immediate");
+  Expect("immediate save"," ok\n");
+  Type(": f s! ;");
+  Expect("not inside a definition"," s! inside a definition\n");
+
+  StoredRoom = 16;
+  Type("save");
+  Expect("no room"," save not stored\n");
+  StoredRoom = sizeof StoredBytes;
+  Type("' save 1 every");
+  Run(0,1);
+  Type("slots");
+  Expect("not from a slot","slot 0  ok\n\n0 1000us save trial runs 1 max 0 failed: bad argument\n"
+         "load 0.9%  ok\n");
+  Type("0 stop");
+  Expect("stopped"," ok\n");
+  /* A variable a slot writes as the store is written: the dictionary is loaded, the
+  ** variable as it was at some instant of the save. */
+  Type("variable n : inc 1 n +! ; ' inc 1 every");
+  Expect("bound","slot 0  ok\n");
+  StoreRuns = 1;
+  Type("save");
+  StoreRuns = 0;
+  Expect("saved as a slot ran"," ok\n");
+  ForthInit();
+  Type("n @ 2 < . 0 stop unsave");
+  Expect("loaded as a slot ran","-1  ok\n");
+  ForthInit();
+  Output[0] = 0, OutputLength = 0;
+} /* end of Stores */
+
 
 int main(void)
 {
@@ -425,6 +508,7 @@ int main(void)
   Pool();
   Breaks();
   Addresses();
+  Stores();
   printf("%d cases, %d failed\n",Cases,Failures);
   return Failures != 0;
 } /* end of main */

@@ -66,6 +66,7 @@
 #define VTOR                 *((volatile UINT32 *)0xE000ED08)
 #define TICK                 1000        /* us between two of core 1's interrupts */
 #define BREAK_CHAR           0x03        /* Ctrl-C */
+#define BOOT_WAIT            2000000     /* us for a Ctrl-C to skip BOOT */
 
 #define CLK_PERI_HZ          12000000u   /* as OSInitializeSystemClocks leaves it */
 #define BAUD_RATE            115200u
@@ -198,6 +199,10 @@ int ForthMemory(uintptr_t address, size_t size, int write)
      {0xE000E000, 0xE000F000, 1, 1}};  /* the core's own, its SCS: words alone */
   extern UINT32 _OSStackGuard, _OSStackGuardEnd;
   size_t i;
+  extern volatile int Storing;
+  /* The XIP while a save writes the flash (store.c). */
+  if (Storing && address < 0x11000000 && address + size > 0x10000000)
+     return 0;
   /* The guard at the bottom of core 0's stack, which its MPU forbids. */
   if (address < (uintptr_t)&_OSStackGuardEnd &&
       (address >= (uintptr_t)&_OSStackGuard || size > (uintptr_t)&_OSStackGuard - address))
@@ -454,6 +459,24 @@ void Console(void)
   InitUART();
   StartTick();
   ForthPrintText("\nEscapement Forth\n");
+  /* A word BOOT, saved, runs at a cold start, unless a Ctrl-C comes within BOOT_WAIT: one
+  ** that faults core 1 would hold it at every start. */
+  if (ForthFind("boot",4) != NULL) {
+     UINT32 start = TIMER_TIMERAWL, mask;
+     int skipped = 0;
+     ForthPrintText("boot, Ctrl-C to skip\n");
+     while (!skipped && TIMER_TIMERAWL - start < BOOT_WAIT)
+        skipped = ForthBreak();
+     mask = ForthMask();   /* what was typed meanwhile dropped, the interrupt held */
+     InputTail = InputHead;
+     Breaks = 0;
+     Break = 0;
+     ForthUnmask(mask);
+     if (!skipped) {
+        Send(' ');
+        ForthInterpret("boot");
+     }
+  }
   #ifdef SCRIPT
      {
         const char *p = Script;

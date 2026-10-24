@@ -27,6 +27,7 @@ static const char *In FORTH_KEEP;
 static int Compiling FORTH_KEEP;
 static Word *Defining FORTH_KEEP;
 static int DefinedWords FORTH_KEEP, DefinedHere FORTH_KEEP, DefinedNames FORTH_KEEP;
+static int BuiltWords FORTH_KEEP;   /* the built in words and the platform's */
 enum { CONTROL_IF = 1, CONTROL_ELSE, CONTROL_BEGIN, CONTROL_WHILE, CONTROL_DO };
 static struct { int Kind, At; } Control[FORTH_STACK] FORTH_KEEP;
 static int ControlDepth FORTH_KEEP;
@@ -38,7 +39,7 @@ static const char *const Errors[] = {
    "", "stack empty", "stack full", "return stack full", "division by zero",
    "dictionary full", "?", "compile only", "name expected", "unbalanced control",
    "bad argument", "stalled", "inside a definition", "over budget",
-   "interrupted", "bad address"
+   "interrupted", "bad address", "not stored"
 };
 
 
@@ -1072,6 +1073,132 @@ static void PLoopCompile(Context *c, const Word *w) { (void)w; CloseLoop(c,Loop)
 static void PPlusLoop(Context *c, const Word *w) { (void)w; CloseLoop(c,PlusLoop); }
 
 
+/* ---- The dictionary saved, across a reset (forth_platform.h, ForthStore). */
+
+/* What the store holds: this header, then Dictionary[0..Words), Code[0..Here) and
+** Names[0..Names), as they are in memory, pointers and all. The stamp is of what those
+** pointers point into, and to; a firmware built otherwise stamps otherwise. The sum is
+** of the dictionary and the names, which only the console's core writes: the code space
+** holds the variables too, which a slot may write as the store is, and each is stored
+** as it was at some instant of the save. A reset as the store is written leaves it with
+** no header, which the platform writes last. */
+#define STORED_MAGIC  0x48545246u   /* "FRTH" */
+typedef struct {
+   uint32_t Magic, Stamp, Sum;
+   int32_t Words, Here, Names;
+} Stored;
+
+#define FNV_START  2166136261u
+
+static uint32_t Hash(uint32_t h, const void *p, size_t size)
+{
+  const uint8_t *b = p;
+  while (size-- > 0)
+     h = (h ^ *b++) * 16777619u;
+  return h;
+} /* end of Hash */
+
+/* Stamp: The firmware's own (ForthBuild) and the layout of a word and of the header,
+** which move no address (reviews, 2026-10-24); the arrays, the built in words' count, the code of the words defined at
+** the console, and each built in word, field by field: its padding is not the same from
+** one start to the next. Not WORD_IMMEDIATE, which IMMEDIATE may set on the last built
+** in word, none defined yet. */
+static uint32_t Stamp(void)
+{
+  uint32_t h = FNV_START;
+  uintptr_t at[4];
+  const uintptr_t layout[] = {
+     sizeof(Cell), sizeof(Stored), sizeof(Word), offsetof(Word,Name),
+     offsetof(Word,Length), offsetof(Word,Flags), offsetof(Word,Code),
+     offsetof(Word,Body), offsetof(Word,Value)
+  };
+  uint32_t build = ForthBuild();
+  int i;
+  h = Hash(h,layout,sizeof layout);
+  h = Hash(h,&build,sizeof build);
+  at[0] = (uintptr_t)Dictionary, at[1] = (uintptr_t)Code, at[2] = (uintptr_t)Names;
+  at[3] = (uintptr_t)BuiltWords;
+  h = Hash(h,at,sizeof at);
+  at[0] = (uintptr_t)DoColon, at[1] = (uintptr_t)DoConstant;
+  at[2] = (uintptr_t)DoVariable, at[3] = (uintptr_t)DoDefer;
+  h = Hash(h,at,sizeof at);
+  for (i = 0; i < BuiltWords; i += 1) {
+     const Word *w = &Dictionary[i];
+     at[0] = (uintptr_t)w->Name, at[1] = (uintptr_t)w->Code;
+     at[2] = (uintptr_t)w->Length << 8 | (w->Flags & ~WORD_IMMEDIATE);
+     at[3] = (uintptr_t)w->Body;
+     h = Hash(h,at,sizeof at);
+  }
+  return h;
+} /* end of Stamp */
+
+static void Copy(void *to, const void *from, size_t size)
+{
+  uint8_t *t = to;
+  const uint8_t *f = from;
+  while (size-- > 0)
+     *t++ = *f++;
+} /* end of Copy */
+
+/* Load: At a cold start, the built in words in place. */
+static void Load(void)
+{
+  size_t room, words, here;
+  const Stored *s = ForthStored(&room);
+  const uint8_t *p;
+  if (s == NULL || room < sizeof *s || s->Magic != STORED_MAGIC || s->Stamp != Stamp() ||
+      s->Words < BuiltWords || s->Words > FORTH_WORDS || s->Here < 0 ||
+      s->Here > FORTH_CODE || s->Names < 0 || s->Names > FORTH_NAMES)
+     return;
+  words = (size_t)s->Words * sizeof(Word);
+  here = (size_t)s->Here * sizeof(Cell);
+  if (room - sizeof *s < words + here + (size_t)s->Names)
+     return;
+  p = (const uint8_t *)(s + 1);
+  if (Hash(Hash(FNV_START,p,words),p + words + here,(size_t)s->Names) != s->Sum)
+     return;
+  Copy(Dictionary,p,words);
+  Copy(Code,p + words,here);
+  Copy(Names,p + words + here,(size_t)s->Names);
+  Words = s->Words;
+  Here = s->Here;
+  NamesUsed = s->Names;
+} /* end of Load */
+
+/* SAVE ( -- ): The dictionary stored, in place of what was. */
+static void PSave(Context *c, const Word *w)
+{
+  Stored s;
+  const void *part[4];
+  size_t size[4];
+  (void)w;
+  CONSOLE_ONLY(c);
+  if (Compiling) {   /* an immediate word's: the definition is hidden yet */
+     c->Error = FORTH_DEFINING;
+     return;
+  }
+  s.Magic = STORED_MAGIC;
+  s.Stamp = Stamp();
+  s.Words = Words, s.Here = Here, s.Names = NamesUsed;
+  part[0] = &s, size[0] = sizeof s;
+  part[1] = Dictionary, size[1] = (size_t)Words * sizeof(Word);
+  part[2] = Code, size[2] = (size_t)Here * sizeof(Cell);
+  part[3] = Names, size[3] = (size_t)NamesUsed;
+  s.Sum = Hash(Hash(FNV_START,part[1],size[1]),part[3],size[3]);
+  if (!ForthStore(part,size,4))
+     c->Error = FORTH_STORE;
+} /* end of PSave */
+
+/* UNSAVE ( -- ): The store emptied: the next cold start has the built in words alone. */
+static void PUnsave(Context *c, const Word *w)
+{
+  (void)w;
+  CONSOLE_ONLY(c);
+  if (!ForthStore(NULL,NULL,0))
+     c->Error = FORTH_STORE;
+} /* end of PUnsave */
+
+
 /* ---- The outer interpreter. */
 
 static const struct { const char *Name; void (*Code)(Context *, const Word *); uint8_t Flags; }
@@ -1103,7 +1230,8 @@ static const struct { const char *Name; void (*Code)(Context *, const Word *); u
    {"until", PUntil, WORD_IMMEDIATE}, {"again", PAgain, WORD_IMMEDIATE},
    {"while", PWhile, WORD_IMMEDIATE}, {"repeat", PRepeat, WORD_IMMEDIATE},
    {"do", PDoCompile, WORD_IMMEDIATE}, {"loop", PLoopCompile, WORD_IMMEDIATE},
-   {"+loop", PPlusLoop, WORD_IMMEDIATE}, {"i", PI, 0}, {"j", PJ, 0}, {"now", PNow, 0}
+   {"+loop", PPlusLoop, WORD_IMMEDIATE}, {"i", PI, 0}, {"j", PJ, 0}, {"now", PNow, 0},
+   {"save", PSave, 0}, {"unsave", PUnsave, 0}
 };
 
 void ForthInit(void)
@@ -1125,6 +1253,8 @@ void ForthInit(void)
   DotQuote = &Dictionary[6];
   Exit = &Dictionary[7];
   ForthPlatformWords();
+  BuiltWords = Words;
+  Load();
 } /* end of ForthInit */
 
 /* Abandon: After an error, the stacks emptied and the definition under way undone. */

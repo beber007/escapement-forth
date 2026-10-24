@@ -37,6 +37,20 @@ run that ended as it was promoted counts against it. A word's time is taken on t
 clock, less what the slots that preempted it took in their words; the kernel's entries,
 the interrupts and those slots' own cost, which the load counts already, are in it.
 
+`save` keeps the dictionary, the words defined and the variables' values, in the last
+16 KB of the flash (`pico/store.c`), and the next cold start loads it; `unsave` empties
+it. A word named `boot`, saved, runs at a cold start, unless Ctrl-C comes within 2 s.
+What a store holds is for the firmware that wrote it: rebuilt with other code, other
+constants or its words laid out otherwise, the firmware starts with its built-in words
+alone. The bindings of the slots are not kept; `boot`
+can make them again.
+
+```forth
+: blink  1 15 lshift toggle ;
+: boot   1 15 lshift output  ['] blink 100 every ;
+save
+```
+
 ## Limits
 
 - The budget is the Forth's, not the kernel's (Escapement's issue #17): a word of C is
@@ -71,6 +85,11 @@ the interrupts and those slots' own cost, which the load counts already, are in 
   waits in the ring then, and what does not fit is dropped. A fault on core 1, which
   `fault` typed at the console makes, holds both: its HardFault loops, above the
   interrupt, and only a reset of the board brings it back.
+- A save takes some 45 ms on core 1, the sectors it needs erased then written while
+  core 0 goes on; a variable a slot writes meanwhile is stored as it was at some instant
+  of it. The flash is out of the XIP as it is written, and `@` refuses the XIP then, a
+  bad address; one a slot began just before may still meet it. Each save wears the
+  flash's sectors, rated for some 100,000 erases.
 - What the slots print goes through a ring of 256 bytes, which drops what it has no room
   for (`dropped`).
 

@@ -43,7 +43,7 @@ enum {
    FORTH_OK = 0, FORTH_UNDERFLOW, FORTH_OVERFLOW, FORTH_RETURN_OVERFLOW,
    FORTH_DIVISION, FORTH_FULL, FORTH_UNKNOWN, FORTH_COMPILE_ONLY, FORTH_NAME,
    FORTH_CONTROL, FORTH_ARGUMENT, FORTH_STALLED, FORTH_DEFINING, FORTH_BUDGET,
-   FORTH_BREAK, FORTH_ADDRESS
+   FORTH_BREAK, FORTH_ADDRESS, FORTH_STORE
 };
 
 typedef struct Word Word;
@@ -73,7 +73,8 @@ struct Context {
 };
 
 /* ForthInit: Builds the dictionary of the built in words, the platform's included
-** (ForthPlatformWords). Called once, before any other. */
+** (ForthPlatformWords), then adds what SAVE stored, if the store holds it whole and this
+** firmware wrote it. Called once, before any other. */
 void ForthInit(void);
 
 /* ForthAddWord: Adds a word of C to the dictionary, for a platform or the slots; FALSE,
