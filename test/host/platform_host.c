@@ -6,6 +6,7 @@
 ** that moves only when SPEND says so.
 */
 
+#include <stdio.h>
 #include "forth.h"
 #include "forth_platform.h"
 #include "slots.h"
@@ -99,8 +100,20 @@ static void PPreempt(Context *c, const Word *w)
   Preempt = (int)FORTH_POP(c);
 } /* end of PPreempt */
 
+/* PROMOTING ( n -- ): The console promotes entry n, as core 1 may while a slot's run
+** goes on. */
+static void PPromoting(Context *c, const Word *w)
+{
+  char line[32];
+  (void)w;
+  FORTH_NEED(c,1);
+  snprintf(line,sizeof line,"%ld promote",(long)FORTH_POP(c));
+  ForthInterpret(line);
+} /* end of PPromoting */
+
 void ForthPlatformWords(void)
 {
+  ForthAddWord("promoting",PPromoting,0);
   ForthAddWord("preempt",PPreempt,0);
   ForthAddWord("run0",PRun0,0);
   ForthAddWord("spend",PSpend,0);

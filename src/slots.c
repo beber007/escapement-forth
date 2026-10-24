@@ -101,7 +101,7 @@ static void Written(Slot *s)
 static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, uint32_t wcet,
                     Context *c)
 {
-  uint32_t start, end, excluded, time, mask;
+  uint32_t start, end, excluded, time, mask, budget, now;
   int error, depth;
   if (s->Generation != sequence) {
      mask = ForthMask();
@@ -142,9 +142,15 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
   ** next time, but for an error of its own. The figures written before the entry is let
   ** go, or a restart in between lost them; under Writing, for SLOTS and PROMOTE to read
   ** them of one run (two reviews, 2026-10-24). */
+  /* Promoted as it ran: judged against the worst case admitted (a review, 2026-10-24). */
+  budget = c->Budget;
+  now = s->Sequence;
+  ForthBarrier();
+  if (Carries(s,sequence,now))
+     budget = s->Wcet;
   Write(s);
   s->Runs += 1;
-  if (error == FORTH_BUDGET || time > c->Budget)
+  if (error == FORTH_BUDGET || time > budget)
      s->Excess += 1;
   if (error == FORTH_BUDGET)
      error = FORTH_OK;

@@ -345,6 +345,19 @@ static void Pool(void)
          "\n12 1000000us a promoted runs 10 max 0 wcet 1 over 0 \nload 0.9%  ok\n"
          "slot 12  ok\n"
          "\n12 1000000us c trial runs 1 max 0 \nload 0.9%  ok\n");
+
+  /* A run going on as its word is promoted is judged against the worst case admitted. */
+  Type("12 stop");
+  Type("variable g : d g @ if 12 promoting 50 spend then ;");
+  Type("' d 1000 every");
+  Run(3,10);
+  Type("-1 g !");
+  Run(3,1);
+  Type("0 g !");
+  Run(3,2);
+  Type("slots");
+  Expect("promoted as it ran"," ok\n ok\nslot 12  ok\n ok\npromoted, wcet 1 us, load 0.9%  ok\n ok\n"
+         "\n12 1000000us d promoted runs 13 max 50 wcet 1 over 1 \nload 0.9%  ok\n");
 }
 
 
