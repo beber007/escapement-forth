@@ -292,6 +292,7 @@ static void PEvery(Context *c, const Word *w)
 static void Read(const Slot *s, Figures *f)
 {
   uint32_t writing;
+  ForthBarrier();       /* after what this core stored before, Bind's sequence */
   do {
      writing = s->Writing;
      ForthBarrier();
@@ -337,12 +338,18 @@ static void PPromote(Context *c, const Word *w)
   ** running, counts against it, over or failed (a review, 2026-10-24). */
   s->Carried = s->Sequence;
   Bind(s,s->Bound,SLOT_PROMOTED,wcet);
-  /* A run that ended as it was weighed, past the worst case then admitted: back on trial,
-  ** anew (a review, 2026-10-24). */
+  /* A run that ended as it was weighed, past the worst case then admitted or failed: back
+  ** on trial, anew (two reviews, 2026-10-24). */
   Read(s,&f);
-  if (f.MaxTime > wcet || f.Excess != 0) {
+  if (f.MaxTime > wcet || f.Excess != 0 || f.Error != FORTH_OK) {
      Bind(s,s->Bound,SLOT_TRIAL,0);
-     ForthPrintText("over budget ");
+     if (f.Error != FORTH_OK) {
+        ForthPrintText("failed: ");
+        ForthPrintText(ForthErrorText(f.Error));
+        ForthEmit(' ');
+     }
+     else
+        ForthPrintText("over budget ");
      return;
   }
   ForthPrintText("promoted, wcet ");
