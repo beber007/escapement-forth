@@ -500,6 +500,115 @@ static void Stores(void)
   Output[0] = 0, OutputLength = 0;
 } /* end of Stores */
 
+/* Standard: CATCH and THROW, the strings, the return stack and a few more of the standard
+** words; an error of the Forth's own caught as its standard code, but a budget, a break
+** and a stall, which must stop the word. */
+static void Standard(void)
+{
+  CASE("catch none","0 1  ok\n",": f 1 ; ' f catch . .");
+  CASE("throw caught","7  ok\n",": f 7 throw 99 ; ' f catch .");
+  CASE("throw 0"," ok\n0 2  ok\n",": f 0 throw 2 ;","' f catch . .");
+  CASE("depth restored","8 1  ok\n",": f 5 6 7 8 throw ; 1 ' f catch . .");
+  CASE("own error caught","-10  ok\n",": f 1 0 / ; ' f catch .");
+  CASE("underflow caught","-4  ok\n",": f drop ; ' f catch .");
+  CASE("standard code thrown"," throw division by zero\n","-10 throw");
+  CASE("uncaught"," throw thrown 5\n","5 throw");
+  CASE("nested","3 9  ok\n",": g 9 throw ; : f ['] g catch 3 ; ' f catch drop . .");
+  CASE("in a loop","1  ok\n",": g 3 = if 1 throw then ; : f 0 10 0 do i ['] g catch if drop 1+ then loop ; f .");
+  CASE("rethrow","4  ok\n",": g 4 throw ; : f ['] g catch throw ; ' f catch .");
+  CASE("abort"," abort aborted\n","abort");
+  CASE("abort caught","-1  ok\n",": f abort ; ' f catch .");
+  CASE("catch needs a word"," catch bad argument\n","5 catch");
+  CASE("strings","hello, world ok\n",": f s\" hello, world\" type ; f");
+  CASE("string at the console","abc3  ok\n","s\" abc\" 2dup type . drop");
+  CASE("string length","0  ok\n",": f s\" \" nip ; f .");
+  CASE("char","65 66  ok\n","char A . : f [char] B ; f .");
+  CASE("return stack","3 3 2 1  ok\n",": f >r 2 r@ r> ; 1 3 f . . . .");
+  CASE("left on >r's stack"," ok\n ok\n",": f 1 >r ;","f");
+  CASE("more words","0 3 3 3 1 5 2 5 2 0  ok\n",
+       "0 ?dup . 3 ?dup . . 7 2 /mod . . 2 5 2dup . . . . 1 2 2drop depth .");
+  CASE("0<>","-1 0  ok\n","5 0<> . 0 0<> .");
+  CASE("type bad address"," type bad address\n","$C0000000 4 type");
+  /* What >R holds is no return, nor a loop's mark; EXIT in a CATCH returns from it. */
+  CASE(">r a variable"," ok\n7  ok\n","variable v : t v >r ; t","7 .");
+  CASE(">r a zero","1  ok\n",": a 0 >r ; : b a 1 . ; b");
+  CASE("r> in a loop"," w return stack empty\n",": w 1 0 do r> drop loop 3 . ; w");
+  CASE("exit caught","0 5 6  ok\n",": a ['] exit catch . 5 . ; : b a 6 . ; b");
+  CASE("r> caught","-6  ok\n",": f ['] r> catch . ; f");
+  CASE("catch gives >r's stack back","5  ok\n",
+       ": g r> drop 9 >r 1 throw ; : f 5 >r ['] g catch drop r> ; f .");
+  CASE("exit by execute","6  ok\n",": a ['] exit execute 5 . ; : b a 6 . ; b");
+  CASE("s\" past Pad"," s\" bad argument\n","s\" xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\" nip .");
+  CASE("a name too long","-19  ok\n","' variable catch nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn .");
+  CASE("/mod on a full stack","3 1 14  ok\n",
+       "1 2 3 4 5 6 7 8 9 10 11 12 13 14 7 2 /mod . . .");
+  CASE("a loop's index in a catch","0  ok\n",": f 1 0 do ['] i catch drop . loop ; f");
+
+  /* TYPE, a word of C that may be long, checks the break as NEXT does. */
+  ForthInit();
+  OutputLength = 0;
+  Output[0] = 0;
+  Break = 1;
+  Type("variable v 2000 allot v 2000 type");
+  Cases += 1;
+  if (OutputLength > 100 || OutputLength < 17 ||
+      strcmp(Output + OutputLength - 17,"type interrupted\n") != 0) {
+     Failures += 1;
+     printf("FAIL type broken\n  printed %d bytes\n",OutputLength);
+  }
+  Break = 0;
+
+  /* Not caught: a budget, which only the slot's run stops. */
+  OutputLength = 0;
+  Output[0] = 0;
+  Type("variable z : spin begin 10 spend again ; : f ['] spin catch z ! ; ' f 1 every");
+  Expect("bound","slot 0  ok\n");
+  Run(0,1);
+  Type("z @ . slots 0 stop");
+  Expect("budget not caught","0 \n0 1000us f trial runs 1 max 160 over 1 \nload 0.9%  ok\n");
+  /* A word of the compiler caught as it finds the code full: the structure it closes is
+  ** left open, not a branch to 0 that ended the run unseen (a review, 2026-10-24). */
+  ForthInit();
+  Type("variable v : m ['] else catch . ; immediate defer d : g d 7 . ;");
+  Type("v 16384 + here - 40 - allot");
+  Type(": f 0 if m ;");
+  Expect("else caught, the code full"," ok\n ok\n-8  ; unbalanced control\n");
+  ForthInit();
+  Type("variable v : m ['] again catch . ; immediate");
+  Type("v 16384 + here - 8 - allot");   /* a cell left, for EXIT */
+  Type(": f begin m ;");
+  Expect("again caught, the code full"," ok\n ok\n-8  ; unbalanced control\n");
+  ForthInit();
+  Type("variable v : m ['] loop catch . ; immediate");
+  Type("v 16384 + here - 48 - allot");
+  Type(": f 10 0 do m ;");
+  Expect("loop caught, the code full"," ok\n ok\n-8  ; unbalanced control\n");
+  ForthInit();
+  Type("variable v : m ['] until catch . ; immediate");
+  Type("v 16384 + here - 8 - allot");
+  Type(": f begin m ;");
+  Expect("until caught, the code full"," ok\n ok\n-8  ; unbalanced control\n");
+  ForthInit();
+
+  /* Under CATCHes nested, each word of fewer steps than a check's: the steps of all
+  ** count, and the budget cuts the run (a review, 2026-10-24). */
+  Type(": l4 1 spend 1 spend 1 spend 1 spend 1 spend 1 spend 1 spend ;");
+  Type(": l3 ['] l4 catch ['] l4 catch ['] l4 catch ['] l4 catch ['] l4 catch 2drop 2drop drop ;");
+  Type(": l2 ['] l3 catch ['] l3 catch ['] l3 catch ['] l3 catch ['] l3 catch 2drop 2drop drop ;");
+  Type(": l1 ['] l2 catch ['] l2 catch ['] l2 catch ['] l2 catch ['] l2 catch 2drop 2drop drop ;");
+  Type(": top ['] l1 catch ['] l1 catch ['] l1 catch ['] l1 catch ['] l1 catch 2drop 2drop drop ;");
+  OutputLength = 0;
+  Output[0] = 0;
+  Type("' top 1 every");
+  Run(0,1);
+  Type("slots 0 stop");
+  Expect("budget under catches nested","slot 0  ok\n\n0 1000us top trial runs 1 max 105 over 1 "
+         "\nload 0.9%  ok\n");
+  Break = 1;
+  Type(": g begin again ; : h ['] g catch 99 ; h");
+  Expect("break not caught"," h interrupted\n");
+} /* end of Standard */
+
 
 int main(void)
 {
@@ -508,6 +617,7 @@ int main(void)
   Pool();
   Breaks();
   Addresses();
+  Standard();
   Stores();
   printf("%d cases, %d failed\n",Cases,Failures);
   return Failures != 0;

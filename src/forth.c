@@ -33,13 +33,26 @@ static struct { int Kind, At; } Control[FORTH_STACK] FORTH_KEEP;
 static int ControlDepth FORTH_KEEP;
 
 static const Word *Lit FORTH_KEEP, *Branch FORTH_KEEP, *ZeroBranch FORTH_KEEP, *Do FORTH_KEEP,
-                  *Loop FORTH_KEEP, *PlusLoop FORTH_KEEP, *DotQuote FORTH_KEEP, *Exit FORTH_KEEP;
+                  *Loop FORTH_KEEP, *PlusLoop FORTH_KEEP, *DotQuote FORTH_KEEP, *Exit FORTH_KEEP,
+                  *SQuote FORTH_KEEP;
+/* What S" gives at the console, outside a definition: until the next S" there. */
+static char Pad[FORTH_LINE] FORTH_KEEP;
 
 static const char *const Errors[] = {
    "", "stack empty", "stack full", "return stack full", "division by zero",
    "dictionary full", "?", "compile only", "name expected", "unbalanced control",
    "bad argument", "stalled", "inside a definition", "over budget",
-   "interrupted", "bad address", "not stored"
+   "interrupted", "bad address", "not stored", "thrown", "return stack empty", "name too long"
+};
+
+/* The standard's codes for the errors that CATCH takes (Forth 2012, 9.3.5); those it
+** does not take, a budget, a break and a stall, which must stop the word, have none. */
+static const struct { int Error; Cell Code; } Codes[] = {
+   {FORTH_UNDERFLOW, -4}, {FORTH_OVERFLOW, -3}, {FORTH_RETURN_OVERFLOW, -5},
+   {FORTH_DIVISION, -10}, {FORTH_FULL, -8}, {FORTH_UNKNOWN, -13},
+   {FORTH_COMPILE_ONLY, -14}, {FORTH_NAME, -16}, {FORTH_CONTROL, -22},
+   {FORTH_ARGUMENT, -24}, {FORTH_DEFINING, -29}, {FORTH_ADDRESS, -9},
+   {FORTH_RETURN_UNDERFLOW, -6}, {FORTH_NAME_LONG, -19}, {FORTH_STORE, -256}
 };
 
 
@@ -91,7 +104,10 @@ static void PExit(Context *c, const Word *w)
 {
   Cell back;
   (void)w;
-  if (c->ReturnDepth == 0) {
+  /* A word ForthExecute runs, from CATCH or the console: EXECUTE runs its word in place,
+  ** and an EXIT it runs returns from the definition that holds the EXECUTE, as an EXIT
+  ** there would (the standard leaves it ambiguous). */
+  if (c->ReturnDepth <= c->Base) {
      c->IP = NULL;
      return;
   }
@@ -119,29 +135,41 @@ uint32_t ForthOwnTime(uint32_t start, const volatile uint32_t *excluded)
   return now - start - left;
 } /* end of ForthOwnTime */
 
+/* Check: The budget, then the console's break, Ctrl-C on the board; the error set. */
+static void Check(Context *c)
+{
+  if (c->Budget != 0 && ForthOwnTime(c->Start,c->Excluded) > c->Budget)
+     c->Error = FORTH_BUDGET;
+  else if (c == &Console && ForthBreak())
+     c->Error = FORTH_BREAK;
+} /* end of Check */
+
 /* ForthExecute: The inner interpreter's NEXT, the one place every word of a definition
-** goes through: where a budget is checked, words of C being short ones. */
+** goes through: where a budget is checked, the words of C being short ones, or, as TYPE,
+** checking it themselves. */
 int ForthExecute(Context *c, const Word *w)
 {
   const Cell *outer = c->IP;
-  int returnDepth = c->ReturnDepth;
-  unsigned steps = 0;
+  int returnDepth = c->ReturnDepth, base = c->Base, saved = c->SavedDepth;
+  int savedBase = c->SavedBase;
   c->Error = FORTH_OK;
   c->IP = NULL;
+  c->Base = returnDepth;
+  c->SavedBase = saved;
   w->Code(c,w);
   while (c->IP != NULL && c->Error == FORTH_OK) {
      const Word *next = (const Word *)*c->IP++;
      next->Code(c,next);
      /* Not over an error of the word's, which stops it where the budget would not. The
-     ** console's has no budget, but a break, Ctrl-C on the board. */
-     if (c->Error == FORTH_OK && ++steps % FORTH_BUDGET_STEPS == 0) {
-        if (c->Budget != 0 && ForthOwnTime(c->Start,c->Excluded) > c->Budget)
-           c->Error = FORTH_BUDGET;
-        else if (c == &Console && ForthBreak())
-           c->Error = FORTH_BREAK;
-     }
+     ** steps of the context, which a CATCH's ForthExecute goes on counting: each of its
+     ** own, under the check's, would leave it unchecked (a review, 2026-10-24). */
+     if (c->Error == FORTH_OK && ++c->Steps % FORTH_BUDGET_STEPS == 0)
+        Check(c);
   }
   c->ReturnDepth = returnDepth;
+  c->Base = base;
+  c->SavedDepth = saved;
+  c->SavedBase = savedBase;
   c->IP = outer;
   return c->Error;
 } /* end of ForthExecute */
@@ -292,7 +320,7 @@ static Word *Create(Context *c, void (*code)(Context *, const Word *), uint8_t f
      return NULL;
   }
   if (length == 0 || length > 31) {
-     c->Error = FORTH_NAME;
+     c->Error = length == 0 ? FORTH_NAME : FORTH_NAME_LONG;
      return NULL;
   }
   if (NamesUsed + length > FORTH_NAMES) {
@@ -365,6 +393,7 @@ UNARY(POnePlus,a + 1)
 UNARY(POneMinus,a - 1)
 UNARY(PZeroEqual,a == 0 ? -1 : 0)
 UNARY(PZeroLess,a < 0 ? -1 : 0)
+UNARY(PZeroNotEqual,a != 0 ? -1 : 0)
 UNARY(PCells,a * (Cell)sizeof(Cell))
 
 static void Divide(Context *c, int remainder)
@@ -437,6 +466,86 @@ static void PNip(Context *c, const Word *w)
   c->Depth -= 1;
 } /* end of PNip */
 
+static void PQuestionDup(Context *c, const Word *w)
+{
+  (void)w;
+  FORTH_NEED(c,1);
+  if (FORTH_TOP(c) != 0) {
+     FORTH_ROOM(c,1);
+     FORTH_PUSH(c,FORTH_TOP(c));
+  }
+} /* end of PQuestionDup */
+
+static void PTwoDup(Context *c, const Word *w)
+{
+  (void)w;
+  FORTH_NEED(c,2);
+  FORTH_ROOM(c,2);
+  c->Data[c->Depth] = c->Data[c->Depth - 2];
+  c->Data[c->Depth + 1] = c->Data[c->Depth - 1];
+  c->Depth += 2;
+} /* end of PTwoDup */
+
+static void PTwoDrop(Context *c, const Word *w)
+{
+  (void)w;
+  FORTH_NEED(c,2);
+  c->Depth -= 2;
+} /* end of PTwoDrop */
+
+/* /MOD ( n1 n2 -- rem quot ): As MOD and /, truncated. */
+static void PSlashMod(Context *c, const Word *w)
+{
+  Cell a, b, q;
+  (void)w;
+  FORTH_NEED(c,2);
+  a = c->Data[c->Depth - 2];
+  b = FORTH_TOP(c);
+  Divide(c,0);
+  if (c->Error != FORTH_OK)
+     return;
+  q = FORTH_TOP(c);
+  FORTH_TOP(c) = b == -1 ? 0 : a % b;
+  FORTH_PUSH(c,q);   /* in the cell the divisor left */
+} /* end of PSlashMod */
+
+/* >R R> R@: A stack of their own, apart from the returns and the loops' marks, which a
+** cell put there in their place would have the core run what it points to (a review,
+** 2026-10-24); emptied as the word ForthExecute runs ends, CATCH's included, and R> and
+** R@ do not reach below where it began, so that a CATCH gives it back whole. */
+static void PToR(Context *c, const Word *w)
+{
+  (void)w;
+  FORTH_NEED(c,1);
+  if (c->SavedDepth >= FORTH_STACK) {
+     c->Error = FORTH_RETURN_OVERFLOW;
+     return;
+  }
+  c->Saved[c->SavedDepth++] = FORTH_POP(c);
+} /* end of PToR */
+
+static void PRFrom(Context *c, const Word *w)
+{
+  (void)w;
+  FORTH_ROOM(c,1);
+  if (c->SavedDepth <= c->SavedBase) {
+     c->Error = FORTH_RETURN_UNDERFLOW;
+     return;
+  }
+  FORTH_PUSH(c,c->Saved[--c->SavedDepth]);
+} /* end of PRFrom */
+
+static void PRFetch(Context *c, const Word *w)
+{
+  (void)w;
+  FORTH_ROOM(c,1);
+  if (c->SavedDepth <= c->SavedBase) {
+     c->Error = FORTH_RETURN_UNDERFLOW;
+     return;
+  }
+  FORTH_PUSH(c,c->Saved[c->SavedDepth - 1]);
+} /* end of PRFetch */
+
 static void PDepth(Context *c, const Word *w)
 {
   (void)w;
@@ -454,6 +563,8 @@ static int Reach(Context *c, Cell a, size_t size, int write)
   if (p % size == 0 &&
       ((p >= (uintptr_t)Code && p <= (uintptr_t)&Code[FORTH_CODE] &&
         size <= (uintptr_t)&Code[FORTH_CODE] - p) ||
+       (p >= (uintptr_t)Pad && p <= (uintptr_t)&Pad[FORTH_LINE] &&
+        size <= (uintptr_t)&Pad[FORTH_LINE] - p) ||
        ForthMemory(p,size,write)))
      return 1;
   c->Error = FORTH_ADDRESS;
@@ -617,6 +728,101 @@ static void PDotQuote(Context *c, const Word *w)
   Here += (length + sizeof(Cell) - 1) / sizeof(Cell);
 } /* end of PDotQuote */
 
+/* PSQuoteRun: The address and the length of the text compiled after it, as (.") has it. */
+static void PSQuoteRun(Context *c, const Word *w)
+{
+  Cell length = *c->IP;
+  (void)w;
+  FORTH_ROOM(c,2);
+  FORTH_PUSH(c,c->IP + 1);
+  FORTH_PUSH(c,length);
+  c->IP += 1 + (length + sizeof(Cell) - 1) / sizeof(Cell);
+} /* end of PSQuoteRun */
+
+/* S" ( "text" -- c-addr u ): Compiled, the text kept in the definition; at the console, in
+** Pad until the next. */
+static void PSQuote(Context *c, const Word *w)
+{
+  const char *text;
+  Cell length = 0, i;
+  (void)w;
+  CONSOLE_ONLY(c);
+  if (*In == ' ')
+     In += 1;
+  text = In;
+  while (*In != 0 && *In != '"') {
+     In += 1;
+     length += 1;
+  }
+  if (*In == '"')
+     In += 1;
+  if (!Compiling) {
+     FORTH_ROOM(c,2);
+     if (length > FORTH_LINE) {   /* the console's lines fit, not every caller's */
+        c->Error = FORTH_ARGUMENT;
+        return;
+     }
+     for (i = 0; i < length; i += 1)
+        Pad[i] = text[i];
+     FORTH_PUSH(c,Pad);
+     FORTH_PUSH(c,length);
+     return;
+  }
+  if (Here + 2 + (length + (Cell)sizeof(Cell) - 1) / (Cell)sizeof(Cell) > FORTH_CODE) {
+     c->Error = FORTH_FULL;
+     return;
+  }
+  Comma(c,(Cell)SQuote);
+  Comma(c,length);
+  for (i = 0; i < length; i += 1)
+     ((char *)&Code[Here])[i] = text[i];
+  Here += (length + sizeof(Cell) - 1) / sizeof(Cell);
+} /* end of PSQuote */
+
+/* TYPE ( c-addr u -- ): Each byte where @ would reach it; the budget and the break
+** checked every FORTH_BUDGET_STEPS, as NEXT does: u may be long (a review, 2026-10-24). */
+static void PType(Context *c, const Word *w)
+{
+  Cell a, n, i;
+  (void)w;
+  FORTH_NEED(c,2);
+  n = FORTH_POP(c);
+  a = FORTH_POP(c);
+  for (i = 0; i < n; i += 1) {
+     if (i % FORTH_BUDGET_STEPS == FORTH_BUDGET_STEPS - 1 && (Check(c), c->Error != FORTH_OK))
+        return;
+     if (!Reach(c,a + i,1,0))
+        return;
+     ForthEmit(*(const volatile char *)(a + i));
+  }
+} /* end of PType */
+
+/* CHAR ( "name" -- char ), [CHAR]: The first byte of the next word of the input. */
+static void Char(Context *c, int compile)
+{
+  const char *name;
+  CONSOLE_ONLY(c);
+  if (compile && !Compiling) {
+     c->Error = FORTH_COMPILE_ONLY;
+     return;
+  }
+  if (Token(&name) == 0) {
+     c->Error = FORTH_NAME;
+     return;
+  }
+  if (compile) {
+     Comma(c,(Cell)Lit);
+     Comma(c,(Cell)(unsigned char)name[0]);
+  }
+  else {
+     FORTH_ROOM(c,1);
+     FORTH_PUSH(c,(unsigned char)name[0]);
+  }
+} /* end of Char */
+
+static void PChar(Context *c, const Word *w) { (void)w; Char(c,0); }
+static void PBracketChar(Context *c, const Word *w) { (void)w; Char(c,1); }
+
 
 /* ---- Definitions. */
 
@@ -756,6 +962,71 @@ static void PExecute(Context *c, const Word *w)
   x = (const Word *)FORTH_POP(c);
   x->Code(c,x);
 } /* end of PExecute */
+
+/* CATCH ( i*x xt -- j*x 0 | i*x n ): Runs xt; a THROW of n, or an error of the Forth's as
+** its standard code, comes back here, the data stack as deep as before. A budget and a
+** break go on to stop the word; a stall comes only with a restart of core 0, which no
+** CATCH outlives. Each CATCH under way is on the C stack, FORTH_CATCHES of them at most. */
+static void PCatch(Context *c, const Word *w)
+{
+  const Word *x;
+  int depth, error;
+  size_t i;
+  (void)w;
+  FORTH_NEED(c,1);
+  if (!ForthIsWord(FORTH_TOP(c))) {
+     c->Error = FORTH_ARGUMENT;
+     return;
+  }
+  if (c->Catches >= FORTH_CATCHES) {
+     c->Error = FORTH_RETURN_OVERFLOW;
+     return;
+  }
+  x = (const Word *)FORTH_POP(c);
+  depth = c->Depth;
+  c->Catches += 1;
+  error = ForthExecute(c,x);
+  c->Catches -= 1;
+  if (error == FORTH_BUDGET || error == FORTH_BREAK)
+     return;
+  c->Error = FORTH_OK;
+  if (error == FORTH_OK) {
+     FORTH_ROOM(c,1);
+     FORTH_PUSH(c,0);
+     return;
+  }
+  c->Depth = depth;
+  if (error == FORTH_THROW)
+     FORTH_PUSH(c,c->Thrown);
+  else
+     for (i = 0; i < sizeof Codes / sizeof Codes[0]; i += 1)
+        if (Codes[i].Error == error)
+           FORTH_PUSH(c,Codes[i].Code);
+} /* end of PCatch */
+
+/* THROW ( k*x n -- k*x | i*x n ): Nothing for 0; a standard code the error it stands for. */
+static void Throw(Context *c, Cell n)
+{
+  size_t i;
+  if (n == 0)
+     return;
+  for (i = 0; i < sizeof Codes / sizeof Codes[0]; i += 1)
+     if (Codes[i].Code == n) {
+        c->Error = Codes[i].Error;
+        return;
+     }
+  c->Thrown = n;
+  c->Error = FORTH_THROW;
+} /* end of Throw */
+
+static void PThrow(Context *c, const Word *w)
+{
+  (void)w;
+  FORTH_NEED(c,1);
+  Throw(c,FORTH_POP(c));
+} /* end of PThrow */
+
+static void PAbort(Context *c, const Word *w) { (void)w; Throw(c,-1); }
 
 static void PImmediate(Context *c, const Word *w)
 {
@@ -959,6 +1230,19 @@ static int Closes(Context *c, int kind, int other)
   return Control[--ControlDepth].At;
 } /* end of Closes */
 
+/* Room: Whether the code space has cells for a branch, the error set if not: checked
+** before a structure is closed, which a CATCH of the word that closes it, immediate,
+** would otherwise leave closed with its branch to 0, ending the run unseen (a review,
+** 2026-10-24). */
+static int Room(Context *c)
+{
+  if (Here + 2 > FORTH_CODE) {
+     c->Error = FORTH_FULL;
+     return 0;
+  }
+  return 1;
+} /* end of Room */
+
 /* Forward: Compiles a branch whose target the structure fills in later. */
 static void Forward(Context *c, const Word *branch, int kind)
 {
@@ -989,7 +1273,7 @@ static void PElse(Context *c, const Word *w)
   int at;
   (void)w;
   CONSOLE_ONLY(c);
-  if ((at = Closes(c,CONTROL_IF,CONTROL_IF)) < 0)
+  if (!Room(c) || (at = Closes(c,CONTROL_IF,CONTROL_IF)) < 0)
      return;
   Forward(c,Branch,CONTROL_ELSE);
   if (c->Error == FORTH_OK)
@@ -1012,7 +1296,7 @@ static void PUntil(Context *c, const Word *w)
   int at;
   (void)w;
   CONSOLE_ONLY(c);
-  if ((at = Closes(c,CONTROL_BEGIN,CONTROL_BEGIN)) >= 0)
+  if (Room(c) && (at = Closes(c,CONTROL_BEGIN,CONTROL_BEGIN)) >= 0)
      Backward(c,ZeroBranch,at);
 } /* end of PUntil */
 
@@ -1021,7 +1305,7 @@ static void PAgain(Context *c, const Word *w)
   int at;
   (void)w;
   CONSOLE_ONLY(c);
-  if ((at = Closes(c,CONTROL_BEGIN,CONTROL_BEGIN)) >= 0)
+  if (Room(c) && (at = Closes(c,CONTROL_BEGIN,CONTROL_BEGIN)) >= 0)
      Backward(c,Branch,at);
 } /* end of PAgain */
 
@@ -1041,6 +1325,13 @@ static void PRepeat(Context *c, const Word *w)
   int exit, at;
   (void)w;
   CONSOLE_ONLY(c);
+  if (!Room(c))
+     return;
+  /* Both seen before either is closed, as for the room. */
+  if (Compiling && (ControlDepth < 2 || Control[ControlDepth - 2].Kind != CONTROL_BEGIN)) {
+     c->Error = FORTH_CONTROL;
+     return;
+  }
   if ((exit = Closes(c,CONTROL_WHILE,CONTROL_WHILE)) < 0 ||
       (at = Closes(c,CONTROL_BEGIN,CONTROL_BEGIN)) < 0)
      return;
@@ -1065,7 +1356,7 @@ static void CloseLoop(Context *c, const Word *loop)
 {
   int at;
   CONSOLE_ONLY(c);
-  if ((at = Closes(c,CONTROL_DO,CONTROL_DO)) >= 0)
+  if (Room(c) && (at = Closes(c,CONTROL_DO,CONTROL_DO)) >= 0)
      Backward(c,loop,at);
 } /* end of CloseLoop */
 
@@ -1207,6 +1498,7 @@ static const struct { const char *Name; void (*Code)(Context *, const Word *); u
    {"(0branch)", PZeroBranch, WORD_HIDDEN}, {"(do)", PDo, WORD_HIDDEN},
    {"(loop)", PLoop, WORD_HIDDEN}, {"(+loop)", PPlusLoopRun, WORD_HIDDEN},
    {"(.\")", PDotQuoteRun, WORD_HIDDEN}, {"exit", PExit, 0},
+   {"(s\")", PSQuoteRun, WORD_HIDDEN},
    {"+", PAdd, 0}, {"-", PSub, 0}, {"*", PMul, 0}, {"/", PDiv, 0}, {"mod", PMod, 0},
    {"and", PAnd, 0}, {"or", POr, 0}, {"xor", PXor, 0}, {"invert", PInvert, 0},
    {"negate", PNegate, 0}, {"abs", PAbs, 0}, {"min", PMin, 0}, {"max", PMax, 0},
@@ -1231,7 +1523,12 @@ static const struct { const char *Name; void (*Code)(Context *, const Word *); u
    {"while", PWhile, WORD_IMMEDIATE}, {"repeat", PRepeat, WORD_IMMEDIATE},
    {"do", PDoCompile, WORD_IMMEDIATE}, {"loop", PLoopCompile, WORD_IMMEDIATE},
    {"+loop", PPlusLoop, WORD_IMMEDIATE}, {"i", PI, 0}, {"j", PJ, 0}, {"now", PNow, 0},
-   {"save", PSave, 0}, {"unsave", PUnsave, 0}
+   {"save", PSave, 0}, {"unsave", PUnsave, 0},
+   {"catch", PCatch, 0}, {"throw", PThrow, 0}, {"abort", PAbort, 0},
+   {"s\"", PSQuote, WORD_IMMEDIATE}, {"type", PType, 0}, {"char", PChar, 0},
+   {"[char]", PBracketChar, WORD_IMMEDIATE}, {">r", PToR, 0}, {"r>", PRFrom, 0},
+   {"r@", PRFetch, 0}, {"?dup", PQuestionDup, 0}, {"2dup", PTwoDup, 0},
+   {"2drop", PTwoDrop, 0}, {"0<>", PZeroNotEqual, 0}, {"/mod", PSlashMod, 0}
 };
 
 void ForthInit(void)
@@ -1239,7 +1536,9 @@ void ForthInit(void)
   unsigned i;
   Words = Here = NamesUsed = 0;
   Compiling = ControlDepth = 0;
-  Console.Depth = Console.ReturnDepth = 0;
+  Console.Depth = Console.ReturnDepth = Console.Base = Console.SavedDepth = 0;
+  Console.SavedBase = 0;
+  Console.Steps = 0;
   Console.IP = NULL;
   Console.Budget = 0;
   for (i = 0; i < sizeof BuiltIn / sizeof BuiltIn[0]; i += 1)
@@ -1252,6 +1551,7 @@ void ForthInit(void)
   PlusLoop = &Dictionary[5];
   DotQuote = &Dictionary[6];
   Exit = &Dictionary[7];
+  SQuote = &Dictionary[8];
   ForthPlatformWords();
   BuiltWords = Words;
   Load();
@@ -1276,6 +1576,7 @@ void ForthInterpret(const char *line)
   int length = 0;
   In = line;
   Console.Error = FORTH_OK;
+  Console.Catches = 0;
   while (Console.Error == FORTH_OK && (length = Token(&name)) > 0) {
      const Word *w = ForthFind(name,length);
      Cell n;
@@ -1302,7 +1603,14 @@ void ForthInterpret(const char *line)
      for (i = 0; i < length; i += 1)
         ForthEmit(name[i]);
      ForthEmit(' ');
-     ForthPrintText(Errors[Console.Error]);
+     if (Console.Error == FORTH_THROW && Console.Thrown == -1)   /* ABORT's */
+        ForthPrintText("aborted");
+     else
+        ForthPrintText(Errors[Console.Error]);
+     if (Console.Error == FORTH_THROW && Console.Thrown != -1) {
+        ForthEmit(' ');
+        ForthPrintDigits(Console.Thrown);
+     }
      ForthEmit('\n');
      Abandon();
   }

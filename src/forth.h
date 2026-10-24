@@ -34,6 +34,7 @@ typedef intptr_t Cell;
 #define FORTH_CODE    2048   /* cells of the code space, colon definitions and data */
 #define FORTH_NAMES   1536   /* bytes of the names of the words defined at the console */
 #define FORTH_LINE    128    /* bytes of a line of input */
+#define FORTH_CATCHES 4      /* CATCHes under way at once in a context */
 
 #define WORD_IMMEDIATE  0x01
 #define WORD_HIDDEN     0x02   /* a definition under way, found only once it ends */
@@ -43,7 +44,8 @@ enum {
    FORTH_OK = 0, FORTH_UNDERFLOW, FORTH_OVERFLOW, FORTH_RETURN_OVERFLOW,
    FORTH_DIVISION, FORTH_FULL, FORTH_UNKNOWN, FORTH_COMPILE_ONLY, FORTH_NAME,
    FORTH_CONTROL, FORTH_ARGUMENT, FORTH_STALLED, FORTH_DEFINING, FORTH_BUDGET,
-   FORTH_BREAK, FORTH_ADDRESS, FORTH_STORE
+   FORTH_BREAK, FORTH_ADDRESS, FORTH_STORE, FORTH_THROW, FORTH_RETURN_UNDERFLOW,
+   FORTH_NAME_LONG
 };
 
 typedef struct Word Word;
@@ -68,6 +70,13 @@ struct Context {
    int Depth, ReturnDepth, Error;
    uint32_t Budget, Start;   /* us */
    const volatile uint32_t *Excluded;   /* us not the word's, the preemptions */
+   Cell Thrown;              /* what THROW gave, with FORTH_THROW */
+   int Catches;              /* CATCHes under way, each on the C stack */
+   unsigned Steps;           /* words run, CATCH's included, for the checks */
+   int Base;                 /* the return stack's depth where ForthExecute began */
+   int SavedDepth;           /* of Saved, >R's stack, apart from the returns */
+   int SavedBase;            /* and its depth where ForthExecute began */
+   Cell Saved[FORTH_STACK];
    Cell Data[FORTH_STACK];
    Cell Return[FORTH_STACK];
 };
@@ -85,9 +94,11 @@ int ForthAddWord(const char *name, void (*code)(Context *, const Word *), uint8_
 ** and prints " ok" after it, or the error that stopped it. */
 void ForthInterpret(const char *line);
 
-/* ForthExecute: Runs a word in a context of the caller's, from a task or the console,
-** until it returns or fails; returns FORTH_OK or the error. The context's stacks are
-** left as the word left them. */
+/* ForthExecute: Runs a word in a context of the caller's, from a task, the console or
+** CATCH, until it returns or fails; returns FORTH_OK or the error. The data stack is left
+** as the word left it; the returns and >R's stack as they were before: the word takes
+** nothing from them below where it began, though I and J, the word CATCH runs, read the
+** loop the CATCH is in. */
 int ForthExecute(Context *c, const Word *w);
 
 /* ForthOwnTime: The time since start less *excluded, both read at one instant. */

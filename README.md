@@ -37,6 +37,17 @@ run that ended as it was promoted counts against it. A word's time is taken on t
 clock, less what the slots that preempted it took in their words; the kernel's entries,
 the interrupts and those slots' own cost, which the load counts already, are in it.
 
+`catch` and `throw` take the standard's codes (Forth 2012, 9.3.5): an error of the Forth's,
+`division by zero` and the like, is caught as its code, -10; a budget, a break and a
+stall are not caught, and stop the word. Besides: `abort`, `s"`, `type`, `char`,
+`[char]`, `>r`, `r>`, `r@`, `?dup`, `2dup`, `2drop`, `0<>`, `/mod`. At the console, `s"`
+keeps its text until the next one there. `>r` has a stack of its own, apart from the
+returns and the loops: `r>` gives no return, and what is left there goes as the word run
+from the console or a slot ends, or a `catch`, which gives back what was there before it
+whole: `r>` and `r@` in the word it runs do not reach below, though `i` and `j`, when they
+are what it runs, read the loop the `catch` is in. A slot stopped by a `throw` shows `failed: thrown`,
+without its number.
+
 `save` keeps the dictionary, the words defined and the variables' values, in the last
 16 KB of the flash (`pico/store.c`), and the next cold start loads it; `unsave` empties
 it. A word named `boot`, saved, runs at a cold start, unless Ctrl-C comes within 2 s.

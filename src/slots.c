@@ -116,7 +116,8 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
   }
   if (s->Error != FORTH_OK)
      return;
-  c->Depth = c->ReturnDepth = 0;
+  c->Depth = c->ReturnDepth = c->Catches = c->Base = c->SavedDepth = c->SavedBase = 0;
+  c->Steps = 0;
   c->IP = NULL;
   /* The depth, the start, the time left out and the entry run, as the end and what the
   ** slot below is told, at one instant: a slot that preempted in between counted against
