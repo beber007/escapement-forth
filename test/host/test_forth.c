@@ -257,7 +257,7 @@ static void Pool(void)
   Type("slots");
   Expect("preempted between readings"," ok\nslot 0  ok\nslot 8  ok\nslot 9  ok\n"
          "slot 10  ok\nslot 11  ok\n"
-         "\n0 1000us inner trial runs 6 max 20000 "
+         "\n0 1000us inner trial runs 6 max 20000 over 6 "
          "\n8 100000us late trial runs 3 max 0 "
          "\n9 100000us last trial runs 2 max 0 "
          "\n10 100000us a trial runs 1 max 0 "
@@ -273,7 +273,7 @@ static void Pool(void)
   Run(2,1);
   Type("slots");
   Expect("preempted as a slot starts"," ok\nslot 0  ok\nslot 8  ok\nslot 9  ok\n"
-         "\n0 1000us mid trial runs 6 max 20000 "
+         "\n0 1000us mid trial runs 6 max 20000 over 6 "
          "\n8 100000us outer trial runs 2 max 0 "
          "\n9 100000us outer2 trial runs 1 max 0 \nload 0.9%  ok\n");
   Type("0 stop 8 stop 9 stop");
@@ -284,7 +284,7 @@ static void Pool(void)
   Run(2,3);
   Type("slots");
   Expect("error at a check"," ok\n ok\nslot 8  ok\n"
-         "\n8 100000us bad trial runs 1 max 20000 failed: division by zero"
+         "\n8 100000us bad trial runs 1 max 20000 over 1 failed: division by zero"
          "\nload 0.9%  ok\n");
   Type("8 stop");
 
@@ -300,13 +300,32 @@ static void Pool(void)
   Type("4 stop");
   Expect("stopped hog"," ok\n");
 
+  /* A promoted word that fails past its worst case, before a check: its error kept. */
+  Type("variable f : p f @ if 100 spend 1 0 / then ; ' p 100 every");
+  Run(2,10);
+  Type("8 promote");
+  Type("-1 f !");
+  Run(2,3);
+  Type("slots");
+  Expect("error past the worst case","slot 8  ok\npromoted, wcet 1 us, load 0.9%  ok\n ok\n"
+         "\n8 100000us p promoted runs 1 max 100 wcet 1 over 1 failed: division by zero"
+         "\nload 0.9%  ok\n");
+  Type("8 stop");
+
+  /* A word on trial past its budget, ended before a check: counted, not promoted. */
+  Type(": big 150000 spend ; ' big 1000 every");
+  Run(3,10);
+  Type("12 promote");
+  Expect("over budget, not cut"," ok\nslot 12  ok\nover budget  ok\n");
+  Type("12 stop");
+
   /* At each release, the promoted words run first, then those on trial. */
   Type(": a 97 emit ;");
   Type(": b 98 emit ;");
   Type("' a 1000 every ' b 1000 every");
   Run(3,10);
   Type("13 promote");
-  Expect("promote b"," ok\n ok\nslot 12 slot 13  ok\n"
+  Expect("promote b"," ok\n ok\n ok\nslot 12 slot 13  ok\n"
          "ababababababababababpromoted, wcet 1 us, load 0.9%  ok\n");
   Run(3,2);
   Expect("b first","baba");

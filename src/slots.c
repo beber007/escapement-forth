@@ -107,12 +107,13 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
   RunningDepth = depth;
   ForthUnmask(mask);
   time = end - start - excluded;
-  /* Over its budget, the run was cut short: counted, the word run again next time.
-  ** Counted before its time is written, which PROMOTE reads first (PPromote). */
-  if (error == FORTH_BUDGET || (state == SLOT_PROMOTED && time > wcet)) {
+  /* Over its budget, cut short or ended before a check: counted, the word run again
+  ** next time, but for an error of its own. Counted before its time is written, which
+  ** PROMOTE reads first (PPromote). */
+  if (error == FORTH_BUDGET || time > c->Budget)
      s->Excess += 1;
+  if (error == FORTH_BUDGET)
      error = FORTH_OK;
-  }
   s->Runs += 1;
   if (time > s->MaxTime)
      s->MaxTime = time;
