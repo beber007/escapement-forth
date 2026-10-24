@@ -84,8 +84,9 @@ static char Line[FORTH_LINE] FORTH_KEEP;
 /* What core 1's interrupt received, and saw; its vector table. */
 static volatile UINT8 Input[INPUT] FORTH_KEEP;
 static volatile UINT32 InputHead FORTH_KEEP, InputTail FORTH_KEEP;
-static volatile int Break FORTH_KEEP;
-static volatile UINT32 Breaks FORTH_KEEP;   /* the Ctrl-Cs in the ring */
+/* The Ctrl-Cs typed: Breaks of them in the ring, Break not yet taken by a word, the
+** latest of those in the ring; Break <= Breaks. */
+static volatile UINT32 Break FORTH_KEEP, Breaks FORTH_KEEP;
 static volatile UINT32 Restarted[RESTART_FAILED + 1] FORTH_KEEP;   /* each outcome, counted */
 static UINT32 Core1Table[48] FORTH_KEEP __attribute__((aligned(256)));
 
@@ -158,17 +159,19 @@ static void Tick(void)
      /* A Ctrl-C into the ring too: the break holds for what runs until the console
      ** meets it there, which then clears it, before the lines that follow; one that
      ** comes with the end of a line before it, in the same tick, is for that line's word
-     ** (a review, 2026-10-24). The ring full, it takes the place of the last byte, a
-     ** line typed too fast lost anyway: a break the console never met would stop a line
-     ** typed long after. */
+     ** (a review, 2026-10-24). The ring full, it takes the place of the last byte, and
+     ** the line that byte ended, if it did, is lost with it: a break the console never
+     ** met would stop a line typed long after. */
      head = InputHead;
      if (c == BREAK_CHAR) {
-        Break = 1;
-        if (head - InputTail >= INPUT) {
-           head -= 1, InputHead = head;
-           if (Input[head % INPUT] == BREAK_CHAR)
-              Breaks -= 1;
+        if (head - InputTail >= INPUT && Input[(head - 1) % INPUT] == BREAK_CHAR) {
+           if (Break == 0)   /* in its place, untaken */
+              Break = 1;
+           continue;
         }
+        if (head - InputTail >= INPUT)
+           head -= 1, InputHead = head;
+        Break += 1;
         Breaks += 1;
      }
      if (head - InputTail < INPUT) {   /* full, the byte is lost: a line typed too fast */
@@ -205,9 +208,9 @@ int ForthMemory(uintptr_t address, size_t size, int write)
   return 0;
 } /* end of ForthMemory */
 
-/* Take: The next byte of the ring, which is not empty; with a Ctrl-C, the break cleared
-** at once, unless another waits in the ring, which is for the lines before it: the break
-** the console's word took may have been that one's (a review, 2026-10-24). */
+/* Take: The next byte of the ring, which is not empty. A Ctrl-C met there not taken by a
+** word, the earliest are those taken, has its break dropped with it, at once: the others
+** stand for the lines before them (two reviews, 2026-10-24). */
 static char Take(void)
 {
   UINT32 primask;
@@ -215,8 +218,11 @@ static char Take(void)
   __asm volatile ("mrs %0, primask\n cpsid i" : "=r" (primask) :: "memory");
   c = (char)Input[InputTail % INPUT];
   InputTail += 1;
-  if (c == BREAK_CHAR && --Breaks == 0)
-     Break = 0;
+  if (c == BREAK_CHAR) {
+     if (Breaks <= Break)
+        Break -= 1;
+     Breaks -= 1;
+  }
   __asm volatile ("msr primask, %0" :: "r" (primask) : "memory");
   return c;
 } /* end of Take */
@@ -226,8 +232,9 @@ int ForthBreak(void)
   UINT32 primask;
   int asked;
   __asm volatile ("mrs %0, primask\n cpsid i" : "=r" (primask) :: "memory");
-  asked = Break;
-  Break = 0;
+  asked = Break > 0;
+  if (asked)
+     Break -= 1;
   __asm volatile ("msr primask, %0" :: "r" (primask) : "memory");
   return asked;
 } /* end of ForthBreak */
@@ -467,9 +474,13 @@ void Console(void)
   #endif
   while (TRUE) {
      char c;
-     Drain();
-     if (InputTail == InputHead)
+     /* All that came, between two sends of what the slots printed, which a slot that
+     ** prints fast makes 22 ms each: a byte between, and a pasted line overflowed the
+     ** ring (a review, 2026-10-24). */
+     if (InputTail == InputHead) {
+        Drain();
         continue;
+     }
      c = Take();
      if (c == '\n' && last == '\r') {   /* the second half of CR LF */
         last = 0;
@@ -479,6 +490,7 @@ void Console(void)
         if (length > 0)
            ForthPrintText(" ^C\n");
         length = 0;
+        last = 0;
         continue;
      }
      last = c;
@@ -486,6 +498,7 @@ void Console(void)
         line[length] = 0;
         Send(' ');
         ForthInterpret(line);
+        Drain();
         length = 0;
      }
      else if (c == 0x08 || c == 0x7F) {
