@@ -21,13 +21,11 @@ jobs:
         with:
           submodules: true
 
-      # gcc as well as clang: gcc's -Wsequence-point found a push that read the depth it
-      # moved, which clang and the sanitizers had let through (2026-10-24).
-      - name: Host tests, gcc
-        run: make -C test/host run CC=gcc BUILD=build-gcc
-
-      - name: Host tests, clang
-        run: make -C test/host clean run CC=clang
+      # gcc, where the Mac runs them with clang: gcc's -Wsequence-point found a push that
+      # read the depth it moved, which clang and the sanitizers had let through
+      # (2026-10-24).
+      - name: Host tests
+        run: make -C test/host run CC=gcc
 
       - name: Pico image
         run: |
