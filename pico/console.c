@@ -144,6 +144,18 @@ void ForthBarrier(void)
   __asm volatile ("dmb" ::: "memory");
 } /* end of ForthBarrier */
 
+uint32_t ForthMask(void)
+{
+  uint32_t primask;
+  __asm volatile ("mrs %0, primask\n cpsid i" : "=r" (primask) :: "memory");
+  return primask;
+} /* end of ForthMask */
+
+void ForthUnmask(uint32_t mask)
+{
+  __asm volatile ("msr primask, %0" :: "r" (mask) : "memory");
+} /* end of ForthUnmask */
+
 
 /* ---- The words of the board. Pins are given as masks: 1 15 lshift is GP15. */
 

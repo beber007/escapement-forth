@@ -22,6 +22,11 @@ uint32_t ForthNow(void);
 ** other core: a word compiled before the store that binds it. */
 void ForthBarrier(void);
 
+/* ForthMask, ForthUnmask: Hold the interrupts of the core that calls, a slot's task
+** not preempted in between, then let them be as ForthMask found them. */
+uint32_t ForthMask(void);
+void ForthUnmask(uint32_t mask);
+
 /* ForthPlatformWords: Adds the words of the platform, the pins of the board, to the
 ** dictionary, through ForthAddWord. */
 void ForthPlatformWords(void);

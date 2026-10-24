@@ -16,7 +16,7 @@ jmp_buf Restart;
 char Output[4096];
 int OutputLength;
 uint32_t Clock;
-static int Preempt;
+static int Preempt, Masked, Pending;
 
 void ForthEmit(char c)
 {
@@ -25,16 +25,41 @@ void ForthEmit(char c)
   Output[OutputLength] = 0;
 } /* end of ForthEmit */
 
+/* Preempted: The 1 ms slot's task run now, or once the interrupts are let be. */
+static void Preempted(void)
+{
+  if (Masked)
+     Pending = 1;
+  else
+     SlotsRun(0);
+} /* end of Preempted */
+
 uint32_t ForthNow(void)
 {
   uint32_t now;
   if (Preempt < 0 && ++Preempt == 0)
-     SlotsRun(0);
+     Preempted();
   now = Clock;
   if (Preempt > 0 && --Preempt == 0)
-     SlotsRun(0);
+     Preempted();
   return now;
 } /* end of ForthNow */
+
+uint32_t ForthMask(void)
+{
+  uint32_t mask = (uint32_t)Masked;
+  Masked = 1;
+  return mask;
+} /* end of ForthMask */
+
+void ForthUnmask(uint32_t mask)
+{
+  Masked = (int)mask;
+  if (!Masked && Pending) {
+     Pending = 0;
+     SlotsRun(0);
+  }
+} /* end of ForthUnmask */
 
 void ForthBarrier(void)
 {

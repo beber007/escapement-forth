@@ -264,6 +264,20 @@ static void Pool(void)
          "\n11 100000us b trial runs 1 max 0 \nload 0.9%  ok\n");
   Type("0 stop 8 stop 9 stop 10 stop 11 stop");
 
+  /* Nor against the word it preempts when it preempts a slot that preempted that word,
+  ** as that slot starts. */
+  Type(": mid 20000 spend ; ' mid 1 every");
+  Type(": outer 1 preempt run0 20 0 do loop ; ' outer 100 every");
+  Run(2,1);
+  Type(": outer2 -1 preempt run0 ; ' outer2 100 every");
+  Run(2,1);
+  Type("slots");
+  Expect("preempted as a slot starts"," ok\nslot 0  ok\nslot 8  ok\nslot 9  ok\n"
+         "\n0 1000us mid trial runs 6 max 20000 "
+         "\n8 100000us outer trial runs 2 max 0 "
+         "\n9 100000us outer2 trial runs 1 max 0 \nload 0.9%  ok\n");
+  Type("0 stop 8 stop 9 stop");
+
   /* An error at the step of a check, the word over its budget: the error kept. */
   Type(": bad 0 1 20000 spend dup drop dup drop dup drop dup drop dup drop swap / ;");
   Type("' bad 100 every");

@@ -68,13 +68,12 @@ void SlotsRun(int period)
 /* Measure: Runs the word once within its budget, the worst case admitted or, on trial,
 ** a tenth of its period; its time taken on the clock, less what the slots that preempted
 ** it took (Excluded): the kernel's entries and the interrupts are in it.
-** The order of the stores keeps a slot that preempts at any point from being counted
-** against this one: the depth moves first, then the start is taken, then the slots
-** before it are left out; at the end what was left out is read before the clock. */
+** The interrupts held at its start and at its end keep a slot that preempts from being
+** counted against this one or the one below; in its run, ForthOwnTime reads again. */
 static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, uint32_t wcet,
                     Context *c)
 {
-  uint32_t start, end, excluded, time;
+  uint32_t start, end, excluded, time, mask;
   int error, depth;
   if (s->Generation != sequence) {
      s->Runs = s->MaxTime = s->Excess = 0;
@@ -85,30 +84,28 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
      return;
   c->Depth = c->ReturnDepth = 0;
   c->IP = NULL;
-  /* The depth moved before the entry is written: a slot that preempted in between found
-  ** the old depth and wrote its own entry where this one goes (a review, 2026-10-24).
-  ** A restart in between finds -1, and blames none. */
+  /* The depth, the start, the time left out and the entry run, as the end and what the
+  ** slot below is told, at one instant: a slot that preempted in between counted against
+  ** this one, or against the one below, or was lost (three reviews, 2026-10-24). */
+  mask = ForthMask();
   depth = RunningDepth;
   RunningDepth = depth + 1;
-  /* Read again while a slot preempted between the start and the time left out set to 0,
-  ** which lost it (a review, 2026-10-24). */
-  do {
-     Excluded[depth] = 0;
-     start = ForthNow();
-  } while (Excluded[depth] != 0);
+  start = ForthNow();
+  Excluded[depth] = 0;
   Running[depth] = (int8_t)(s - Slots);
+  ForthUnmask(mask);
   c->Start = start;
   c->Excluded = &Excluded[depth];
   c->Budget = state == SLOT_PROMOTED ? wcet : SlotPeriod[(s - Slots) / SLOT_ENTRIES] / 10;
   error = ForthExecute(c,w);
-  do {
-     excluded = Excluded[depth];
-     end = ForthNow();
-  } while (Excluded[depth] != excluded);
+  mask = ForthMask();
+  excluded = Excluded[depth];
+  end = ForthNow();
   if (depth > 0)
      Excluded[depth - 1] += end - start;
   Running[depth] = -1;
   RunningDepth = depth;
+  ForthUnmask(mask);
   time = end - start - excluded;
   /* Over its budget, the run was cut short: counted, the word run again next time.
   ** Counted before its time is written, which PROMOTE reads first (PPromote). */
