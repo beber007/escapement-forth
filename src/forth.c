@@ -37,7 +37,7 @@ static const Word *Lit FORTH_KEEP, *Branch FORTH_KEEP, *ZeroBranch FORTH_KEEP, *
 static const char *const Errors[] = {
    "", "stack empty", "stack full", "return stack full", "division by zero",
    "dictionary full", "?", "compile only", "name expected", "unbalanced control",
-   "bad argument", "stalled", "inside a definition"
+   "bad argument", "stalled", "inside a definition", "over budget"
 };
 
 
@@ -104,16 +104,22 @@ static void PExit(Context *c, const Word *w)
   c->IP = (const Cell *)back;
 } /* end of PExit */
 
+/* ForthExecute: The inner interpreter's NEXT, the one place every word of a definition
+** goes through: where a budget is checked, words of C being short ones. */
 int ForthExecute(Context *c, const Word *w)
 {
   const Cell *outer = c->IP;
   int returnDepth = c->ReturnDepth;
+  unsigned steps = 0;
   c->Error = FORTH_OK;
   c->IP = NULL;
   w->Code(c,w);
   while (c->IP != NULL && c->Error == FORTH_OK) {
      const Word *next = (const Word *)*c->IP++;
      next->Code(c,next);
+     if (c->Budget != 0 && ++steps % FORTH_BUDGET_STEPS == 0 &&
+         ForthNow() - c->Start - *c->Excluded > c->Budget)
+        c->Error = FORTH_BUDGET;
   }
   c->ReturnDepth = returnDepth;
   c->IP = outer;
@@ -1052,6 +1058,7 @@ void ForthInit(void)
   Compiling = ControlDepth = 0;
   Console.Depth = Console.ReturnDepth = 0;
   Console.IP = NULL;
+  Console.Budget = 0;
   for (i = 0; i < sizeof BuiltIn / sizeof BuiltIn[0]; i += 1)
      ForthAddWord(BuiltIn[i].Name,BuiltIn[i].Code,BuiltIn[i].Flags);
   Lit = &Dictionary[0];

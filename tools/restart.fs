@@ -1,12 +1,12 @@
-\ A word that loops, then one that faults: core 1 restarts core 0 each time, softly
-\ then hard, and the pool goes on without them.
+\ A word that loops is cut short by its budget, each release, and core 0 goes on; one
+\ that faults has core 1 restart core 0, hard, and the pool goes on without it.
 variable n
 : tick 1 n +! ;
 ' tick 1 every
 : spin begin again ;
 ' spin 1000 every
 3000 ms slots
-restarts . . n @ .
+starts . restarts . . n @ .
 : crash 1 $C0000000 ! ;
 ' crash 100 every
 1000 ms slots

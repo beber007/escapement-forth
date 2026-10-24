@@ -27,24 +27,31 @@ a worst case of what was measured, a quarter more and 1 µs, if the promoted wor
 pool's own cost (8 µs a release, measured at 6.6 to 7.3 µs on the Pico, issue #40 step 1)
 then take at most 70 % of the processor.
 
+Each run has a budget: its worst case once promoted, a tenth of its period on trial. The
+inner interpreter checks it every 16 words, at its `NEXT`, and cuts the run short there;
+the run is counted over (`slots`), and the word runs again at its next release. A word on
+trial that went over is not promoted. A word's time is taken on the clock, less what the
+slots that preempted it took; the kernel's entries and the interrupts are in it.
+
 ## Limits
 
-- The kernel enforces no budget (Escapement's issue #17): a word that runs past its
-  worst case delays the tasks of later deadlines all the same. Its runs over are counted
-  (`slots`), and a word past its next release is an overrun, which the kernel lets go on
-  and counts (`overruns`).
-- A word's time is measured on the clock, preemptions included: an upper bound of what
-  it held the processor.
+- The budget is the Forth's, not the kernel's (Escapement's issue #17): a word of C is
+  not stopped midway, and a run cut short has done what it had done. Between two checks
+  a word may run past its worst case, delaying the tasks of later deadlines all the
+  same; an instance past its next release is an overrun, which the kernel lets go on and
+  counts (`overruns`).
+- The check costs some 9 % at most on a loop of `do loop` with nothing in it: 1,000 turns
+  took 466 µs at the console, which has no budget, and 509 µs in a slot (Pico W,
+  2026-10-24, the two cores' work not quite the same).
 - `@` and `!` take any address, as in any Forth: a wrong one faults the core that ran
   it. So does a cell that is no word compiled into a definition, by an immediate word
   doing `,`. A cell given to `execute`, `is` or `every` is checked against the
   dictionary first.
-- Core 1 holds no budget either: a word that loops for ever holds core 0, and under EDF
-  only once its deadline has passed does it hold it whole. Core 1 then sees the 1 ms
-  slot stop beating, and after 3 ms restarts core 0 (`pico/restart.c`, step 2 of the
-  issue): softly, through an interrupt that rewrites where the loop returns, or, 5 ms
-  later, through the NMI and a reset of core 0 alone, for a loop with interrupts masked
-  or a fault. The kernel starts again; the dictionary, the pool and the console are
+- What the budget does not reach, a word of C that does not return or a fault, holds
+  core 0. Core 1 then sees the 1 ms slot stop beating, and after 3 ms restarts core 0
+  (`pico/restart.c`, step 2 of the issue): softly, through an interrupt that rewrites
+  where the loop returns, or, 5 ms later, through the NMI and a reset of core 0 alone,
+  for interrupts masked or a fault. The kernel starts again; the dictionary, the pool and the console are
   kept in `.noinit`, and the word that held the core is stopped (`failed: stalled`). A
   word that was preempted midway has done what it had done.
 - A word typed at the console that loops holds core 1, and with it the watch.

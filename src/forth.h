@@ -42,7 +42,7 @@ typedef intptr_t Cell;
 enum {
    FORTH_OK = 0, FORTH_UNDERFLOW, FORTH_OVERFLOW, FORTH_RETURN_OVERFLOW,
    FORTH_DIVISION, FORTH_FULL, FORTH_UNKNOWN, FORTH_COMPILE_ONLY, FORTH_NAME,
-   FORTH_CONTROL, FORTH_ARGUMENT, FORTH_STALLED, FORTH_DEFINING
+   FORTH_CONTROL, FORTH_ARGUMENT, FORTH_STALLED, FORTH_DEFINING, FORTH_BUDGET
 };
 
 typedef struct Word Word;
@@ -57,9 +57,16 @@ struct Word {
    volatile Cell Value;      /* a constant's value, the word a defer runs */
 };
 
+/* A context's budget: with Budget not 0, ForthExecute stops the word, FORTH_BUDGET, once
+** the time since Start less *Excluded passes Budget, checked every FORTH_BUDGET_STEPS
+** words; the console's context has none. */
+#define FORTH_BUDGET_STEPS  16
+
 struct Context {
    const Cell *IP;           /* the next cell of the definition under way, NULL out */
    int Depth, ReturnDepth, Error;
+   uint32_t Budget, Start;   /* us */
+   const volatile uint32_t *Excluded;   /* us not the word's, the preemptions */
    Cell Data[FORTH_STACK];
    Cell Return[FORTH_STACK];
 };

@@ -34,6 +34,7 @@ static Slot Slots[SLOTS] FORTH_KEEP;
 /* The entries running on the kernel's core, the one holding it last: slots of shorter
 ** periods preempt the others, one stack, so they nest. Written by that core alone. */
 static volatile int8_t Running[SLOT_PERIODS] FORTH_KEEP;
+static volatile uint32_t Excluded[SLOT_PERIODS] FORTH_KEEP;   /* us of the slots above */
 static volatile int RunningDepth FORTH_KEEP;
 
 static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, uint32_t wcet,
@@ -64,12 +65,16 @@ void SlotsRun(int period)
      }
 } /* end of SlotsRun */
 
-/* Measure: Runs the word once, its time taken from the clock: preemptions included, an
-** upper bound of what it held the processor. */
+/* Measure: Runs the word once within its budget, the worst case admitted or, on trial,
+** a tenth of its period; its time taken on the clock, less what the slots that preempted
+** it took (Excluded): the kernel's entries and the interrupts are in it.
+** The order of the stores keeps a slot that preempts at any point from being counted
+** against this one: the depth moves first, then the start is taken, then the slots
+** before it are left out; at the end what was left out is read before the clock. */
 static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, uint32_t wcet,
                     Context *c)
 {
-  uint32_t start, time;
+  uint32_t start, end, excluded, time;
   int error, depth;
   if (s->Generation != sequence) {
      s->Runs = s->MaxTime = s->Excess = 0;
@@ -85,17 +90,28 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
   ** A restart in between finds -1, and blames none. */
   depth = RunningDepth;
   RunningDepth = depth + 1;
-  Running[depth] = (int8_t)(s - Slots);
   start = ForthNow();
+  Excluded[depth] = 0;
+  Running[depth] = (int8_t)(s - Slots);
+  c->Start = start;
+  c->Excluded = &Excluded[depth];
+  c->Budget = state == SLOT_PROMOTED ? wcet : SlotPeriod[(s - Slots) / SLOT_ENTRIES] / 10;
   error = ForthExecute(c,w);
-  time = ForthNow() - start;
+  excluded = Excluded[depth];
+  end = ForthNow();
+  if (depth > 0)
+     Excluded[depth - 1] += end - start;
   Running[depth] = -1;
   RunningDepth = depth;
+  time = end - start - excluded;
   s->Runs += 1;
   if (time > s->MaxTime)
      s->MaxTime = time;
-  if (state == SLOT_PROMOTED && time > wcet)
+  /* Over its budget, the run was cut short: counted, the word run again next time. */
+  if (error == FORTH_BUDGET || (state == SLOT_PROMOTED && time > wcet)) {
      s->Excess += 1;
+     error = FORTH_OK;
+  }
   s->Error = (uint8_t)error;
 } /* end of Measure */
 
@@ -226,6 +242,10 @@ static void PPromote(Context *c, const Word *w)
      ForthPrintText("not on trial ");
      return;
   }
+  if (s->Excess != 0) {
+     ForthPrintText("over budget ");
+     return;
+  }
   if (s->Runs < SLOT_MIN_RUNS) {
      ForthPrintText("too few runs ");
      return;
@@ -286,6 +306,8 @@ static void PSlots(Context *c, const Word *w)
      if (s->State == SLOT_PROMOTED) {
         ForthPrintText("wcet ");
         ForthPrintNumber(s->Wcet);
+     }
+     if (s->State == SLOT_PROMOTED || (current && s->Excess != 0)) {
         ForthPrintText("over ");
         ForthPrintNumber(current ? s->Excess : 0);
      }

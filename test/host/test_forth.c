@@ -222,6 +222,29 @@ static void Pool(void)
   Type("0 stop");
   Expect("stopped"," ok\n");
 
+  /* A word's time leaves out the slots that preempted it. */
+  Type("4 stop 5 stop 8 stop 9 stop");
+  Type(": inner 50 spend ; ' inner 1 every");
+  Type(": outer 5 spend run0 5 spend ; ' outer 100 every");
+  Run(2,1);
+  Type("slots");
+  Expect("preemptions left out"," ok\nslot 0  ok\nslot 8  ok\n"
+         "\n0 1000us inner trial runs 1 max 50 "
+         "\n8 100000us outer trial runs 1 max 10 \nload 0.9%  ok\n");
+  Type("0 stop 8 stop");
+
+  /* A word on trial gets a tenth of its period: one that loops is cut short there, every
+  ** release, counted, and is not promoted. */
+  Type(": hog begin 1 spend again ; ' hog 10 every");
+  Run(1,3);
+  Type("slots");
+  Type("4 promote");
+  Expect("over budget"," ok\nslot 4  ok\n"
+         "\n4 10000us hog trial runs 3 max 1003 over 3 \nload 0.9%  ok\n"
+         "over budget  ok\n");
+  Type("4 stop");
+  Expect("stopped hog"," ok\n");
+
   /* At each release, the promoted words run first, then those on trial. */
   Type(": a 97 emit ;");
   Type(": b 98 emit ;");
@@ -229,7 +252,7 @@ static void Pool(void)
   Run(3,10);
   Type("13 promote");
   Expect("promote b"," ok\n ok\nslot 12 slot 13  ok\n"
-         "ababababababababababpromoted, wcet 1 us, load 1.0%  ok\n");
+         "ababababababababababpromoted, wcet 1 us, load 0.9%  ok\n");
   Run(3,2);
   Expect("b first","baba");
 }
