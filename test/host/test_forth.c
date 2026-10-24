@@ -90,6 +90,10 @@ static void Interpreter(void)
        "a .");
   CASE("undone after an error"," frob ?\n<0>  ok\n","1 2 frob",".s");
   CASE("name expected"," : name expected\n",":");
+  CASE("dot quote at the end of the code space"," ok\n .\" dictionary full\n<0>  ok\n",
+       "2046 cells allot",": x .\" abc\" ;",".s");
+  CASE("exit inside a loop"," ok\n f unbalanced control\n",": f 10 5 do exit loop ;","f");
+  CASE("a defer bound to itself"," ok\n ok\n d bad argument\n","defer d","' d is d","d");
   CASE("allot"," ok\n ok\n7  ok\n","variable a 2 cells allot","7 a 2 cells + !","a 2 cells + @ .");
 }
 
@@ -112,6 +116,15 @@ static void Expect(const char *name, const char *expected)
 } /* end of Expect */
 
 /* What a slot runs here takes the time it SPENDs on the clock. */
+/* A hidden word of the inner interpreter, reached by arithmetic on a word's address. */
+static void HiddenWords(void)
+{
+  static char line[64];
+  const char *lines[] = {line, NULL};
+  snprintf(line,sizeof line,"' exit %d - execute",(int)sizeof(Word));
+  Check("a hidden word is no word",lines," execute bad argument\n");
+} /* end of HiddenWords */
+
 static void Pool(void)
 {
   CASE("every needs a period of the pool"," ok\n every bad argument\n",": w ;","' w 3 every");
@@ -182,6 +195,18 @@ static void Pool(void)
          "\n8 100000us w promoted runs 5 max 60 wcet 51 over 2 "
          "\n9 100000us t trial runs 0 max 0 \nload 1.0%  ok\n");
 
+  /* Bound anew, an entry shows nothing of the word before until it runs. */
+  Type("0 stop ' t 1 every");
+  Type("slots");
+  Expect("bound anew","slot 0  ok\n"
+         "\n0 1000us t trial runs 0 max 0 "
+         "\n4 10000us stuck trial runs 2 max 0 failed: stalled"
+         "\n5 10000us fine trial runs 4 max 0 "
+         "\n8 100000us w promoted runs 5 max 60 wcet 51 over 2 "
+         "\n9 100000us t trial runs 0 max 0 \nload 1.0%  ok\n");
+  Type("0 stop");
+  Expect("stopped"," ok\n");
+
   /* At each release, the promoted words run first, then those on trial. */
   Type(": a 97 emit ;");
   Type(": b 98 emit ;");
@@ -198,6 +223,7 @@ static void Pool(void)
 int main(void)
 {
   Interpreter();
+  HiddenWords();
   Pool();
   printf("%d cases, %d failed\n",Cases,Failures);
   return Failures != 0;

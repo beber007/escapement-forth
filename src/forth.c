@@ -65,22 +65,43 @@ static void DoVariable(Context *c, const Word *w)
   FORTH_PUSH(c,w->Body);
 } /* end of DoVariable */
 
-/* DoDefer: Runs the word last bound to it, read once: the other core may bind another
-** meanwhile. */
+/* DoDefer: Runs the word last bound to it, each read once: the other core may bind
+** another meanwhile. A defer bound to a defer is followed in a loop, not by calling it,
+** which on the board recursed on the C stack, and a chain of more than FORTH_STACK is
+** taken for a cycle. */
 static void DoDefer(Context *c, const Word *w)
 {
   const Word *t = (const Word *)w->Value;
-  if (t == NULL) {
+  int links = 0;
+  while (t != NULL && t->Code == DoDefer && links++ < FORTH_STACK)
+     t = (const Word *)t->Value;
+  if (t == NULL || t->Code == DoDefer) {
      c->Error = FORTH_ARGUMENT;
      return;
   }
   t->Code(c,t);
 } /* end of DoDefer */
 
+/* PExit: Returns to the definition that called, whose cell DoColon pushed: inside a
+** DO loop, the top of the return stack is the loop's index instead, which no cell of
+** the code space is. */
 static void PExit(Context *c, const Word *w)
 {
+  Cell back;
   (void)w;
-  c->IP = c->ReturnDepth > 0 ? (const Cell *)c->Return[--c->ReturnDepth] : NULL;
+  if (c->ReturnDepth == 0) {
+     c->IP = NULL;
+     return;
+  }
+  back = c->Return[c->ReturnDepth - 1];
+  if (back != 0 && ((uintptr_t)back < (uintptr_t)Code ||
+                    (uintptr_t)back >= (uintptr_t)&Code[FORTH_CODE] ||
+                    ((uintptr_t)back - (uintptr_t)Code) % sizeof(Cell) != 0)) {
+     c->Error = FORTH_CONTROL;
+     return;
+  }
+  c->ReturnDepth -= 1;
+  c->IP = (const Cell *)back;
 } /* end of PExit */
 
 int ForthExecute(Context *c, const Word *w)
@@ -188,8 +209,10 @@ int ForthAddWord(const char *name, void (*code)(Context *, const Word *), uint8_
 int ForthIsWord(Cell x)
 {
   uintptr_t offset = (uintptr_t)x - (uintptr_t)Dictionary;
+  /* Nor a hidden one: those of the inner interpreter read the cells after them. */
   return (uintptr_t)x >= (uintptr_t)Dictionary && offset % sizeof(Word) == 0 &&
-         offset / sizeof(Word) < (uintptr_t)Words;
+         offset / sizeof(Word) < (uintptr_t)Words &&
+         !(Dictionary[offset / sizeof(Word)].Flags & WORD_HIDDEN);
 } /* end of ForthIsWord */
 
 int ForthOnConsole(const Context *c)
@@ -502,7 +525,8 @@ static void PDotQuote(Context *c, const Word *w)
         ForthEmit(text[i]);
      return;
   }
-  if (Here + 1 + (length + (Cell)sizeof(Cell) - 1) / (Cell)sizeof(Cell) > FORTH_CODE) {
+  /* (."), the length, then the text. */
+  if (Here + 2 + (length + (Cell)sizeof(Cell) - 1) / (Cell)sizeof(Cell) > FORTH_CODE) {
      c->Error = FORTH_FULL;
      return;
   }

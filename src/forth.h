@@ -84,8 +84,8 @@ int ForthExecute(Context *c, const Word *w);
 /* ForthFind: The word of that name, the last defined first, NULL for none. */
 const Word *ForthFind(const char *name, int length);
 
-/* ForthIsWord: TRUE, 1, if x is a word of the dictionary: a cell taken for one, run,
-** would fault the core. */
+/* ForthIsWord: TRUE, 1, if x is a word of the dictionary that can be found: a cell taken
+** for one, run, would fault the core. */
 int ForthIsWord(Cell x);
 
 /* ForthOnConsole: TRUE, 1, for the console's context: the words that parse its input

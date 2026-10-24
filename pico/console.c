@@ -212,6 +212,10 @@ static void PMs(Context *c, const Word *w)
      return;
   }
   FORTH_NEED(c,1);
+  if (FORTH_TOP(c) < 0 || FORTH_TOP(c) > 3600000) {   /* an hour at most */
+     c->Error = FORTH_ARGUMENT;
+     return;
+  }
   wait = (UINT32)FORTH_POP(c) * 1000;
   while (TIMER_TIMERAWL - start < wait)
      Drain();

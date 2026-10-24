@@ -70,7 +70,7 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
                     Context *c)
 {
   uint32_t start, time;
-  int error;
+  int error, depth;
   if (s->Generation != sequence) {
      s->Runs = s->MaxTime = s->Excess = 0;
      s->Error = FORTH_OK;
@@ -80,12 +80,17 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
      return;
   c->Depth = c->ReturnDepth = 0;
   c->IP = NULL;
-  Running[RunningDepth] = (int8_t)(s - Slots);
-  RunningDepth += 1;
+  /* The depth moved before the entry is written: a slot that preempted in between found
+  ** the old depth and wrote its own entry where this one goes (a review, 2026-10-24).
+  ** A restart in between finds -1, and blames none. */
+  depth = RunningDepth;
+  RunningDepth = depth + 1;
+  Running[depth] = (int8_t)(s - Slots);
   start = ForthNow();
   error = ForthExecute(c,w);
   time = ForthNow() - start;
-  RunningDepth -= 1;
+  Running[depth] = -1;
+  RunningDepth = depth;
   s->Runs += 1;
   if (time > s->MaxTime)
      s->MaxTime = time;
@@ -97,7 +102,7 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
 
 void SlotsRestarted(void)
 {
-  if (RunningDepth > 0)
+  if (RunningDepth > 0 && Running[RunningDepth - 1] >= 0)
      Slots[Running[RunningDepth - 1]].Error = FORTH_STALLED;
   RunningDepth = 0;
 } /* end of SlotsRestarted */
@@ -256,6 +261,7 @@ static void PSlots(Context *c, const Word *w)
   for (i = 0; i < SLOTS; i += 1) {
      const Slot *s = &Slots[i];
      const Word *b = s->Bound;
+     int current;
      if (s->State == SLOT_FREE || b == NULL)
         continue;
      ForthEmit('\n');
@@ -266,17 +272,19 @@ static void PSlots(Context *c, const Word *w)
         ForthEmit(b->Name[j]);
      ForthEmit(' ');
      ForthPrintText(States[s->State]);
+     /* The figures of the word bound before, until the kernel's core first runs this one. */
+     current = s->Generation == s->Sequence;
      ForthPrintText(" runs ");
-     ForthPrintNumber(s->Generation == s->Sequence ? s->Runs : 0);
+     ForthPrintNumber(current ? s->Runs : 0);
      ForthPrintText("max ");
-     ForthPrintNumber(s->MaxTime);
+     ForthPrintNumber(current ? s->MaxTime : 0);
      if (s->State == SLOT_PROMOTED) {
         ForthPrintText("wcet ");
         ForthPrintNumber(s->Wcet);
         ForthPrintText("over ");
-        ForthPrintNumber(s->Excess);
+        ForthPrintNumber(current ? s->Excess : 0);
      }
-     if (s->Error != FORTH_OK) {
+     if (current && s->Error != FORTH_OK) {
         ForthPrintText("failed: ");
         ForthPrintText(ForthErrorText(s->Error));
      }
@@ -297,6 +305,8 @@ void SlotsWords(void)
      Slots[i].Error = FORTH_OK;
   }
   RunningDepth = 0;
+  for (i = 0; i < SLOT_PERIODS; i += 1)
+     Running[i] = -1;
   ForthAddWord("every",PEvery,0);
   ForthAddWord("promote",PPromote,0);
   ForthAddWord("stop",PStop,0);
