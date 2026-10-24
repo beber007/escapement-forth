@@ -142,13 +142,15 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
   ** next time, but for an error of its own. The figures written before the entry is let
   ** go, or a restart in between lost them; under Writing, for SLOTS and PROMOTE to read
   ** them of one run (two reviews, 2026-10-24). */
-  /* Promoted as it ran: judged against the worst case admitted (a review, 2026-10-24). */
+  /* Promoted as it ran: judged against the worst case admitted. The sequence read under
+  ** Writing, for PROMOTE, reading again once it has bound, to see the run unless it saw
+  ** the promotion (two reviews, 2026-10-24). */
+  Write(s);
   budget = c->Budget;
   now = s->Sequence;
   ForthBarrier();
   if (Carries(s,sequence,now))
      budget = s->Wcet;
-  Write(s);
   s->Runs += 1;
   if (error == FORTH_BUDGET || time > budget)
      s->Excess += 1;
@@ -335,6 +337,14 @@ static void PPromote(Context *c, const Word *w)
   ** running, counts against it, over or failed (a review, 2026-10-24). */
   s->Carried = s->Sequence;
   Bind(s,s->Bound,SLOT_PROMOTED,wcet);
+  /* A run that ended as it was weighed, past the worst case then admitted: back on trial,
+  ** anew (a review, 2026-10-24). */
+  Read(s,&f);
+  if (f.MaxTime > wcet || f.Excess != 0) {
+     Bind(s,s->Bound,SLOT_TRIAL,0);
+     ForthPrintText("over budget ");
+     return;
+  }
   ForthPrintText("promoted, wcet ");
   ForthPrintNumber(wcet);
   ForthPrintText("us, load ");
