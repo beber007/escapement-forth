@@ -104,14 +104,15 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
   Running[depth] = -1;
   RunningDepth = depth;
   time = end - start - excluded;
-  s->Runs += 1;
-  if (time > s->MaxTime)
-     s->MaxTime = time;
-  /* Over its budget, the run was cut short: counted, the word run again next time. */
+  /* Over its budget, the run was cut short: counted, the word run again next time.
+  ** Counted before its time is written, which PROMOTE reads first (PPromote). */
   if (error == FORTH_BUDGET || (state == SLOT_PROMOTED && time > wcet)) {
      s->Excess += 1;
      error = FORTH_OK;
   }
+  s->Runs += 1;
+  if (time > s->MaxTime)
+     s->MaxTime = time;
   s->Error = (uint8_t)error;
 } /* end of Measure */
 
@@ -142,9 +143,9 @@ static void Bind(Slot *s, const Word *w, uint8_t state, uint32_t wcet)
 
 /* Admitted: The worst case a word is promoted with: what was measured, a quarter more,
 ** and a microsecond for the clock's grain. */
-static uint32_t Admitted(const Slot *s)
+static uint32_t Admitted(uint32_t max)
 {
-  return s->MaxTime + s->MaxTime / 4 + 1;
+  return max + max / 4 + 1;
 } /* end of Admitted */
 
 static uint32_t Share(uint32_t time, uint32_t period)
@@ -234,10 +235,13 @@ static void PEvery(Context *c, const Word *w)
 static void PPromote(Context *c, const Word *w)
 {
   Slot *s;
-  uint32_t wcet, load;
+  uint32_t max, wcet, load;
   (void)w;
   if ((s = Entry(c)) == NULL)
      return;
+  /* The longest time read before what Measure counts ahead of it: a run cut short in
+  ** between is not admitted at its cut (a review, 2026-10-24). */
+  max = s->MaxTime;
   if (s->State != SLOT_TRIAL || s->Generation != s->Sequence || s->Error != FORTH_OK) {
      ForthPrintText("not on trial ");
      return;
@@ -250,7 +254,7 @@ static void PPromote(Context *c, const Word *w)
      ForthPrintText("too few runs ");
      return;
   }
-  wcet = Admitted(s);
+  wcet = Admitted(max);
   load = SlotsLoad() + Share(wcet,SlotPeriod[(s - Slots) / SLOT_ENTRIES]);
   if (load > SLOT_BOUND) {
      ForthPrintText("refused, load ");

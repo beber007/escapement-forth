@@ -117,9 +117,14 @@ int ForthExecute(Context *c, const Word *w)
   while (c->IP != NULL && c->Error == FORTH_OK) {
      const Word *next = (const Word *)*c->IP++;
      next->Code(c,next);
-     if (c->Budget != 0 && ++steps % FORTH_BUDGET_STEPS == 0 &&
-         ForthNow() - c->Start - *c->Excluded > c->Budget)
-        c->Error = FORTH_BUDGET;
+     /* The time left out read before the clock, as Measure reads them (slots.c): read
+     ** after, a slot that preempted in between left out more than the word had spent,
+     ** and the difference wrapped (a review, 2026-10-24). */
+     if (c->Budget != 0 && ++steps % FORTH_BUDGET_STEPS == 0) {
+        uint32_t excluded = *c->Excluded;
+        if (ForthNow() - c->Start - excluded > c->Budget)
+           c->Error = FORTH_BUDGET;
+     }
   }
   c->ReturnDepth = returnDepth;
   c->IP = outer;

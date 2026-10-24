@@ -16,6 +16,7 @@ jmp_buf Restart;
 char Output[4096];
 int OutputLength;
 uint32_t Clock;
+static int Preempt;
 
 void ForthEmit(char c)
 {
@@ -26,7 +27,12 @@ void ForthEmit(char c)
 
 uint32_t ForthNow(void)
 {
-  return Clock;
+  uint32_t now = Clock;
+  if (Preempt) {
+     Preempt = 0;
+     SlotsRun(0);
+  }
+  return now;
 } /* end of ForthNow */
 
 void ForthBarrier(void)
@@ -58,8 +64,17 @@ static void PRun0(Context *c, const Word *w)
   SlotsRun(0);
 } /* end of PRun0 */
 
+/* PREEMPT ( -- ): The 1 ms slot's task run just after the next reading of the clock, as
+** core 0 may preempt between that reading and the next. */
+static void PPreempt(Context *c, const Word *w)
+{
+  (void)c; (void)w;
+  Preempt = 1;
+} /* end of PPreempt */
+
 void ForthPlatformWords(void)
 {
+  ForthAddWord("preempt",PPreempt,0);
   ForthAddWord("run0",PRun0,0);
   ForthAddWord("spend",PSpend,0);
   ForthAddWord("stall",PStall,0);

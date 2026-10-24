@@ -233,6 +233,17 @@ static void Pool(void)
          "\n8 100000us outer trial runs 1 max 10 \nload 0.9%  ok\n");
   Type("0 stop 8 stop");
 
+  /* A preemption between the check's reading of the clock and its reading of the time
+  ** left out: not more than the time the word spent. */
+  Type(": early preempt 20 0 do loop ; ' early 100 every");
+  Type(": inner 50 spend ; ' inner 1 every");
+  Run(2,1);
+  Type("slots");
+  Expect("preempted at the check"," ok\nslot 8  ok\nslot 0  ok\n"
+         "\n0 1000us inner trial runs 1 max 50 "
+         "\n8 100000us early trial runs 1 max 0 \nload 0.9%  ok\n");
+  Type("0 stop 8 stop");
+
   /* A word on trial gets a tenth of its period: one that loops is cut short there, every
   ** release, counted, and is not promoted. */
   Type(": hog begin 1 spend again ; ' hog 10 every");
