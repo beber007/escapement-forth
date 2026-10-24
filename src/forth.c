@@ -729,6 +729,11 @@ static void PAllot(Context *c, const Word *w)
   (void)w;
   CONSOLE_ONLY(c);
   FORTH_NEED(c,1);
+  /* Not into a definition, which would run the cells left as words. */
+  if (Compiling && Defining != NULL) {
+     c->Error = FORTH_DEFINING;
+     return;
+  }
   n = (FORTH_TOP(c) + (Cell)sizeof(Cell) - 1) / (Cell)sizeof(Cell);
   if (n < 0 || n > FORTH_CODE - Here) {
      c->Error = FORTH_FULL;
@@ -741,16 +746,20 @@ static void PAllot(Context *c, const Word *w)
 
 /* ---- Comments. */
 
+/* Both move the console's place in its line: run by a slot, they would skip what the
+** console had yet to read (a review, 2026-10-24). */
 static void PBackslash(Context *c, const Word *w)
 {
-  (void)c; (void)w;
+  (void)w;
+  CONSOLE_ONLY(c);
   while (*In != 0)
      In += 1;
 } /* end of PBackslash */
 
 static void PParen(Context *c, const Word *w)
 {
-  (void)c; (void)w;
+  (void)w;
+  CONSOLE_ONLY(c);
   while (*In != 0 && *In != ')')
      In += 1;
   if (*In == ')')

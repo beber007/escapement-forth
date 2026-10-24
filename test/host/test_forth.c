@@ -93,6 +93,8 @@ static void Interpreter(void)
   CASE("dot quote at the end of the code space"," ok\n .\" dictionary full\n<0>  ok\n",
        "2046 cells allot",": x .\" abc\" ;",".s");
   CASE("exit inside a loop"," ok\n f unbalanced control\n",": f 10 5 do exit loop ;","f");
+  CASE("allot inside a definition"," ok\n a inside a definition\n",": a 8 allot ; immediate",
+       ": x a ;");
   CASE("variable in a full code space"," ok\n variable dictionary full\n b ?\n",
        "variable a 2047 cells allot","variable b","5 b !");
   CASE("exit inside a loop from 0"," ok\n ok\n g unbalanced control\n",
@@ -139,6 +141,7 @@ static void HiddenWords(void)
 static void Pool(void)
 {
   CASE("every needs a period of the pool"," ok\n every bad argument\n",": w ;","' w 3 every");
+  CASE("a comment run by a slot"," ok\nslot 0  ok\n3  ok\n",": w ;","' \\ 1 every","run0 1 2 + .");
   CASE("every a number"," every bad argument\n","5 10 every");
   CASE("every binds on trial"," ok\nslot 4  ok\nslot 5  ok\n",": w ;","' w 10 every",
        "' w 10 every");

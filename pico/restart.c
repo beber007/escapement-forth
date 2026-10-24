@@ -87,7 +87,7 @@ void __attribute__((noreturn, used)) RestartCore0(void)
   while (SIO_FIFO_ST & SIO_FIFO_VLD)
      (void)SIO_FIFO_RD;
   SIO_FIFO_ST = 0xFF;                /* clears the error flags */
-  for (p = &_data; p < &_edata; p += 1)
+  for (p = &_data; p < &_edata && i < 64; p += 1)   /* as many as RestartInit saved */
      *p = SavedData[i++];
   Restarting = RESTARTING;
   _OSResetHandler();
@@ -163,6 +163,8 @@ int RestartInit(void)
   UINT32 i, *p;
   int restarted = Restarting == RESTARTING;
   Restarting = 0;
+  if ((UINT32)(&_edata - &_data) > 64)   /* more than SavedData keeps */
+     while (TRUE);
   if (!restarted) {
      /* .data as loaded, for the restarts to put back. */
      i = 0;

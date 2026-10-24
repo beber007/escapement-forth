@@ -50,8 +50,17 @@ static void PStall(Context *c, const Word *w)
   longjmp(Restart,1);
 } /* end of PStall */
 
+/* RUN0 ( -- ): The 1 ms slot's task, run in the middle of a console's line, as core 0 may
+** run it on the board. */
+static void PRun0(Context *c, const Word *w)
+{
+  (void)c; (void)w;
+  SlotsRun(0);
+} /* end of PRun0 */
+
 void ForthPlatformWords(void)
 {
+  ForthAddWord("run0",PRun0,0);
   ForthAddWord("spend",PSpend,0);
   ForthAddWord("stall",PStall,0);
   SlotsWords();
