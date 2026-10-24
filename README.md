@@ -63,7 +63,9 @@ the interrupts and those slots' own cost, which the load counts already, are in 
   as it ended, or in its task between two words, leaves another stopped, or none.
 - A word typed at the console that loops holds the console until Ctrl-C (`interrupted`);
   the watch of core 0 goes on meanwhile, in core 1's interrupt. What the slots print
-  waits in the ring then, and what does not fit is dropped.
+  waits in the ring then, and what does not fit is dropped. A fault on core 1, which
+  `fault` typed at the console makes, holds both: its HardFault loops, above the
+  interrupt, and only a reset of the board brings it back.
 - What the slots print goes through a ring of 256 bytes, which drops what it has no room
   for (`dropped`).
 

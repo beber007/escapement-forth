@@ -8,7 +8,8 @@
 ** Core 1 runs no kernel. It takes one interrupt, the timer's alarm 3 every millisecond,
 ** which watches core 0 (restart.c) and moves what UART0 received into a ring, a Ctrl-C a
 ** break of the word the console runs (ForthBreak): a word typed at the console that loops
-** holds neither the watch nor the console. UART0 is on GP0 (TX) and GP1 (RX), 115200 baud,
+** holds neither the watch nor the console. A fault on core 1 holds both: its HardFault loops,
+** above the interrupt. UART0 is on GP0 (TX) and GP1 (RX), 115200 baud,
 ** 8N1, the pins and settings of Escapement's UART driver. What a slot prints
 ** on core 0 goes into a ring that core 1 empties between its own lines; full, the ring
 ** drops the bytes and counts them, since a task must not wait for the console. Slots of
@@ -83,7 +84,8 @@ static char Line[FORTH_LINE] FORTH_KEEP;
 /* What core 1's interrupt received, and saw; its vector table. */
 static volatile UINT8 Input[INPUT] FORTH_KEEP;
 static volatile UINT32 InputHead FORTH_KEEP, InputTail FORTH_KEEP;
-static volatile int Break FORTH_KEEP, Restarted FORTH_KEEP;
+static volatile int Break FORTH_KEEP;
+static volatile UINT32 Restarted[RESTART_FAILED + 1] FORTH_KEEP;   /* each outcome, counted */
 static UINT32 Core1Table[48] FORTH_KEEP __attribute__((aligned(256)));
 
 extern volatile uint32_t Overruns;
@@ -116,13 +118,16 @@ static void Drain(void)
                                      "\n[core 0 restarted, hard]\n",
                                      "\n[core 0 did not restart]\n"};
   UINT32 tail, primask;
-  int restart;
-  __asm volatile ("mrs %0, primask\n cpsid i" : "=r" (primask) :: "memory");
-  restart = Restarted;
-  Restarted = 0;
-  __asm volatile ("msr primask, %0" :: "r" (primask) : "memory");
-  if (restart != 0)
-     ForthPrintText(Said[restart]);
+  UINT32 seen;
+  int i;
+  for (i = RESTART_SOFT; i <= RESTART_FAILED; i += 1) {
+     __asm volatile ("mrs %0, primask\n cpsid i" : "=r" (primask) :: "memory");
+     seen = Restarted[i];
+     Restarted[i] = 0;
+     __asm volatile ("msr primask, %0" :: "r" (primask) : "memory");
+     while (seen-- > 0)
+        ForthPrintText(Said[i]);
+  }
   tail = RingTail;
   while (tail != RingHead) {
      ForthBarrier();
@@ -143,7 +148,7 @@ static void Tick(void)
   TIMER_INTR = ALARM3_BIT;
   TIMER_ALARM3 = TIMER_TIMERAWL + TICK;
   if ((restart = Watch()) != 0)
-     Restarted = restart;
+     Restarted[restart] += 1;
   while ((UART_FR & FR_RXFE) == 0) {
      char c = (char)UART_DR;
      if (c == BREAK_CHAR) {
@@ -181,8 +186,12 @@ int ForthMemory(uintptr_t address, size_t size, int write)
 
 int ForthBreak(void)
 {
-  int asked = Break;
+  UINT32 primask;
+  int asked;
+  __asm volatile ("mrs %0, primask\n cpsid i" : "=r" (primask) :: "memory");
+  asked = Break;
   Break = 0;
+  __asm volatile ("msr primask, %0" :: "r" (primask) : "memory");
   return asked;
 } /* end of ForthBreak */
 
@@ -384,7 +393,8 @@ void ConsoleInit(void)
 {
   RingHead = RingTail = Dropped = 0;
   InputHead = InputTail = 0;
-  Break = Restarted = 0;
+  Break = 0;
+  Restarted[RESTART_SOFT] = Restarted[RESTART_HARD] = Restarted[RESTART_FAILED] = 0;
   #ifdef SCRIPT
      LogLength = ScriptDone = 0;
   #endif
