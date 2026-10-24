@@ -63,6 +63,7 @@
 
 volatile uint32_t Beat FORTH_KEEP;
 volatile uint32_t SoftRestarts FORTH_KEEP, HardRestarts FORTH_KEEP, FailedRestarts FORTH_KEEP;
+volatile uint32_t Starts FORTH_KEEP;       /* core 0's starts, the first included */
 static volatile UINT32 Restarting FORTH_KEEP;
 static UINT32 SavedData[64] FORTH_KEEP;     /* .data as the image had it */
 
@@ -170,8 +171,9 @@ int RestartInit(void)
      i = 0;
      for (p = &_data; p < &_edata && i < 64; p += 1)
         SavedData[i++] = *p;
-     Beat = SoftRestarts = HardRestarts = FailedRestarts = 0;
+     Beat = SoftRestarts = HardRestarts = FailedRestarts = Starts = 0;
   }
+  Starts += 1;
   /* The vector table in RAM, the SIO FIFO's interrupt ours, of the highest priority. */
   for (i = 0; i < 64; i += 1)
      RamTable[i] = (UINT32)CortexMxVectorTable[i];

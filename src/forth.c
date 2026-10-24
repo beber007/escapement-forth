@@ -269,12 +269,19 @@ static Word *Create(Context *c, void (*code)(Context *, const Word *), uint8_t f
      c->Error = FORTH_NAME;
      return NULL;
   }
-  if (NamesUsed + length > FORTH_NAMES || (w = NewWord(&Names[NamesUsed],length,code,flags)) == NULL) {
+  if (NamesUsed + length > FORTH_NAMES) {
      c->Error = FORTH_FULL;
      return NULL;
   }
+  /* The name in place before the word is counted, which WORDS on the other core may
+  ** list meanwhile. */
   for (i = 0; i < length; i += 1)
-     Names[NamesUsed++] = name[i];
+     Names[NamesUsed + i] = name[i];
+  if ((w = NewWord(&Names[NamesUsed],length,code,flags)) == NULL) {
+     c->Error = FORTH_FULL;
+     return NULL;
+  }
+  NamesUsed += length;
   return w;
 } /* end of Create */
 

@@ -10,4 +10,4 @@ restarts . . n @ .
 : crash 1 $C0000000 ! ;
 ' crash 100 every
 1000 ms slots
-restarts . . n @ . overruns .
+restarts . . n @ . overruns . starts .

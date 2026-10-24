@@ -11,7 +11,7 @@
 
 /* Beat: Counted by the 1 ms slot's task at each instance, watched by core 1. */
 extern volatile uint32_t Beat;
-extern volatile uint32_t SoftRestarts, HardRestarts, FailedRestarts;
+extern volatile uint32_t SoftRestarts, HardRestarts, FailedRestarts, Starts;
 
 /* RestartInit: On core 0, from main, before the kernel starts: the restarts' interrupts
 ** set up. Returns 1 when core 0 starts again after a restart, 0 at the first start. */

@@ -185,7 +185,9 @@ static void POverruns(Context *c, const Word *w)
   FORTH_PUSH(c,Overruns);
 } /* end of POverruns */
 
-/* RESTARTS ( -- soft hard ): The restarts of core 0 that brought its beat back. */
+/* RESTARTS ( -- soft hard ): The restarts of core 0 that brought its beat back. STARTS
+** ( -- n ): core 0's starts, the first included: one more than the restarts, unless one
+** came that the watch did not ask for. */
 static void PRestarts(Context *c, const Word *w)
 {
   (void)w;
@@ -193,6 +195,13 @@ static void PRestarts(Context *c, const Word *w)
   FORTH_PUSH(c,SoftRestarts);
   FORTH_PUSH(c,HardRestarts);
 } /* end of PRestarts */
+
+static void PStarts(Context *c, const Word *w)
+{
+  (void)w;
+  FORTH_ROOM(c,1);
+  FORTH_PUSH(c,Starts);
+} /* end of PStarts */
 
 static void PDropped(Context *c, const Word *w)
 {
@@ -232,6 +241,7 @@ void ForthPlatformWords(void)
   ForthAddWord("dropped",PDropped,0);
   ForthAddWord("ms",PMs,0);
   ForthAddWord("restarts",PRestarts,0);
+  ForthAddWord("starts",PStarts,0);
   SlotsWords();
 } /* end of ForthPlatformWords */
 
