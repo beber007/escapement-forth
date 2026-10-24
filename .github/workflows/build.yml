@@ -1,0 +1,35 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Escapement's image of the CI (its ci/Dockerfile): the ARM toolchain and the host's
+# compilers, nothing to install.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+    container:
+      image: ghcr.io/beber007/escapement-ci:3
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      # gcc as well as clang: gcc's -Wsequence-point found a push that read the depth it
+      # moved, which clang and the sanitizers had let through (2026-10-24).
+      - name: Host tests, gcc
+        run: make -C test/host run CC=gcc BUILD=build-gcc
+
+      - name: Host tests, clang
+        run: make -C test/host clean run CC=clang
+
+      - name: Pico image
+        run: |
+          make -C pico
+          arm-none-eabi-size pico/build/EscapementForth.elf

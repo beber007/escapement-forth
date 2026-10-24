@@ -1,0 +1,3 @@
+[submodule "escapement"]
+	path = escapement
+	url = https://github.com/beber007/escapement.git
