@@ -4,9 +4,10 @@
 
 # The Forth and the pool of slots on the host, under AddressSanitizer and
 # UndefinedBehaviorSanitizer:  make run
+# -fwrapv as on the board: the Forth's arithmetic is modulo the cell.
 CC ?= cc
 SANITIZE ?= address,undefined
-CFLAGS = -std=c99 -Wall -Wextra -Werror -g -O1 -fsanitize=$(SANITIZE) \
+CFLAGS = -std=c99 -Wall -Wextra -Werror -g -O1 -fwrapv -fsanitize=$(SANITIZE) \
          -fno-sanitize-recover=all -I../../src -I.
 B = $(or $(BUILD),build)
 

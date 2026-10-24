@@ -37,7 +37,7 @@ static const Word *Lit FORTH_KEEP, *Branch FORTH_KEEP, *ZeroBranch FORTH_KEEP, *
 static const char *const Errors[] = {
    "", "stack empty", "stack full", "return stack full", "division by zero",
    "dictionary full", "?", "compile only", "name expected", "unbalanced control",
-   "bad argument", "stalled"
+   "bad argument", "stalled", "inside a definition"
 };
 
 
@@ -257,6 +257,14 @@ static Word *Create(Context *c, void (*code)(Context *, const Word *))
   const char *name;
   int length = Token(&name), i;
   Word *w;
+  /* None while a definition is under way, which an immediate word could ask for: an
+  ** error then undoes the definition and every word after it, and one of those, bound
+  ** meanwhile by IS or EVERY, would be left pointing at what the next one writes (a
+  ** review, 2026-10-24). */
+  if (Compiling && Defining != NULL) {
+     c->Error = FORTH_DEFINING;
+     return NULL;
+  }
   if (length == 0 || length > 31) {
      c->Error = FORTH_NAME;
      return NULL;

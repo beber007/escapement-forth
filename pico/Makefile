@@ -53,11 +53,12 @@ $(B)/%.o: $(E)/CORTEX-Mx/%.c
 	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $<
 $(B)/%.o: $(E)/%.c
 	$(CC) $(CFLAGS) $(INCLUDE) -o $@ $<
-# Ours with -Wextra too, the kernel's as Escapement builds it.
+# Ours with -Wextra too, the kernel's as Escapement builds it; -fwrapv for the Forth's
+# arithmetic, modulo the cell as Forth has it.
 $(B)/%.o: ../src/%.c
-	$(CC) $(CFLAGS) -Wextra -Werror $(INCLUDE) -o $@ $<
+	$(CC) $(CFLAGS) -Wextra -Werror -fwrapv $(INCLUDE) -o $@ $<
 $(B)/%.o: %.c
-	$(CC) $(CFLAGS) -Wextra -Werror $(INCLUDE) -o $@ $<
+	$(CC) $(CFLAGS) -Wextra -Werror -fwrapv $(INCLUDE) -o $@ $<
 
 clean:
 	rm -rf $(B)
