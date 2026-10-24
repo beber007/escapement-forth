@@ -11,7 +11,9 @@
 #       pico/build-script/EscapementForth.elf 10
 #
 # The chip is reset whole first through the rescue debug port, which only Raspberry Pi's
-# OpenOCD does. The probe's lock is taken as the bench's tools take it. Run from the root
+# OpenOCD does, and last: the console routes alarm 2 to core 0's NMI (pico/restart.c),
+# which SYSCFG keeps through the bench's next reset halt, and its TestTimerEventPico,
+# whose events alarm 2 gives, stopped at the first (2026-10-24). The probe's lock is taken as the bench's tools take it. Run from the root
 # of this repository, the submodule checked out (escapement/tools/probe.sh); arm-none-eabi-nm
 # or NM gives the addresses.
 O=${OPENOCD:-openocd}
@@ -38,3 +40,4 @@ for l in sys.stdin:
     if l.startswith(\"D \"): d, n = map(lambda x: int(x, 0), l.split()[1:3]); print(\"done\", d, \"length\", n)
     if l.startswith(\"L \"): b = bytes(int(x, 0) for x in l.split()[1:]); print(b[:n].decode(errors=\"replace\").replace(chr(13), \"\"))
 "
+timeout 20 $O -f interface/cmsis-dap.cfg -c "$P" -c "set RESCUE 1" -f target/rp2040.cfg >/dev/null 2>&1
