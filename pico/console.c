@@ -67,8 +67,23 @@ static volatile UINT32 Dropped;
 
 extern volatile UINT32 Overruns;
 
+#ifdef SCRIPT
+   /* make SCRIPT=file: core 1 types the file's lines at start, and keeps what the console
+   ** prints in Log as well, for a probe to read with no UART wired (tools/smoke_board.sh). */
+   volatile char Log[8192];
+   volatile UINT32 LogLength, ScriptDone;
+   static const char Script[] = {
+      #include "script.inc"
+      0
+   };
+#endif
+
 static void Send(char c)
 {
+  #ifdef SCRIPT
+     if (LogLength < sizeof Log)
+        Log[LogLength++] = c;
+  #endif
   while (UART_FR & FR_TXFF);
   UART_DR = (UINT8)c;
 } /* end of Send */
@@ -167,6 +182,22 @@ static void PDropped(Context *c, const Word *w)
   FORTH_PUSH(c,Dropped);
 } /* end of PDropped */
 
+/* MS ( n -- ): Waits n milliseconds, at the console alone, sending what the slots print
+** meanwhile: a slot that waited would hold its task. */
+static void PMs(Context *c, const Word *w)
+{
+  UINT32 start = TIMER_TIMERAWL, wait;
+  (void)w;
+  if (!ForthOnConsole(c)) {
+     c->Error = FORTH_ARGUMENT;
+     return;
+  }
+  FORTH_NEED(c,1);
+  wait = (UINT32)FORTH_POP(c) * 1000;
+  while (TIMER_TIMERAWL - start < wait)
+     Drain();
+} /* end of PMs */
+
 void ForthPlatformWords(void)
 {
   ForthAddWord("output",POutput,0);
@@ -176,6 +207,7 @@ void ForthPlatformWords(void)
   ForthAddWord("pins",PPins,0);
   ForthAddWord("overruns",POverruns,0);
   ForthAddWord("dropped",PDropped,0);
+  ForthAddWord("ms",PMs,0);
   SlotsWords();
 } /* end of ForthPlatformWords */
 
@@ -206,6 +238,24 @@ void Console(void)
   char last = 0;
   InitUART();
   ForthPrintText("\nEscapement Forth\n");
+  #ifdef SCRIPT
+     {
+        const char *p = Script;
+        while (*p != 0) {
+           for (length = 0; *p != 0 && *p != '\n' && length < FORTH_LINE - 1; length += 1)
+              line[length] = *p++;
+           if (*p == '\n')
+              p += 1;
+           line[length] = 0;
+           ForthPrintText(line);
+           Send(' ');
+           ForthInterpret(line);
+           Drain();
+        }
+        length = 0;
+        ScriptDone = 1;
+     }
+  #endif
   while (TRUE) {
      char c;
      Drain();

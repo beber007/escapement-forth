@@ -20,6 +20,16 @@ AFLAGS = -mcpu=cortex-m0plus -mthumb -Wall -c -g -MMD -MP
 
 $(shell mkdir -p $(B))
 
+# make SCRIPT=file.fs: the console types the file at start and logs what it prints
+# (console.c), in build-script/.
+ifdef SCRIPT
+   B = build-script
+   CFLAGS += -DSCRIPT -I$(B)
+   $(shell mkdir -p $(B))
+   $(shell od -An -v -tx1 $(SCRIPT) | sed 's/\([0-9a-f][0-9a-f]\)/0x\1,/g' > $(B)/script.inc.new; \
+           cmp -s $(B)/script.inc.new $(B)/script.inc || mv $(B)/script.inc.new $(B)/script.inc)
+endif
+
 KERNEL = $(B)/Escapement_RamEntry.o $(B)/Escapement_CortexMx.o $(B)/Escapement_CortexMx_a.o \
          $(B)/Escapement_Atomic.o $(B)/Escapement_Interrupts.o $(B)/Escapement_Timer.o \
          $(B)/Escapement_Processor.o $(B)/Escapement_Core1.o $(B)/EscapementHard.o

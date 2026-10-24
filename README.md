@@ -48,6 +48,10 @@ make -C test/host run      # the Forth and the pool on the host, under the sanit
 make -C pico               # pico/build/EscapementForth.elf, loaded into SRAM over SWD
 ```
 
+With no UART wired, `make -C pico SCRIPT=tools/smoke.fs` builds an image whose console
+types that file at start and keeps what it prints in RAM, which `tools/smoke_board.sh`
+reads over SWD on Escapement's bench.
+
 The image loads as Escapement's examples do (its `docs/rp2040.md`), with OpenOCD's
 `set USE_CORE 0`: core 1 runs. Escapement is a submodule, pinned to the commit the
 prototype was built on.
