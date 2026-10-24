@@ -361,6 +361,29 @@ static void Pool(void)
 }
 
 
+/* Addresses: @ ! +! c@ c! reach the Forth's memory and what the platform says is there,
+** a cell at a cell's boundary; the host says nothing else is. */
+static void Addresses(void)
+{
+  Type("variable v 7 v ! v @ . 1 v +! v @ . 65 v c! v c@ .");
+  Expect("own memory","7 8 65  ok\n");
+  Type("$C0000000 @");
+  Expect("fetch"," @ bad address\n");
+  Type("1 $C0000000 !");
+  Expect("store"," ! bad address\n");
+  Type("1 $C0000000 +!");
+  Expect("add"," +! bad address\n");
+  Type("$C0000000 c@");
+  Expect("byte fetch"," c@ bad address\n");
+  Type("1 $C0000000 c!");
+  Expect("byte store"," c! bad address\n");
+  Type("v 1 + @");
+  Expect("unaligned"," @ bad address\n");
+  Type("v 1 + c@ .");
+  Expect("unaligned byte","0  ok\n");
+} /* end of Addresses */
+
+
 /* Break: A word typed at the console that loops, stopped by a break, Ctrl-C on the board,
 ** which ForthExecute takes as it takes a budget; the console goes on. */
 static void Breaks(void)
@@ -381,6 +404,7 @@ int main(void)
   HiddenWords();
   Pool();
   Breaks();
+  Addresses();
   printf("%d cases, %d failed\n",Cases,Failures);
   return Failures != 0;
 } /* end of main */

@@ -48,6 +48,12 @@ uint32_t ForthNow(void)
 
 int Break;
 
+int ForthMemory(uintptr_t address, size_t size, int write)
+{
+  (void)address; (void)size; (void)write;
+  return 0;
+} /* end of ForthMemory */
+
 int ForthBreak(void)
 {
   int asked = Break;

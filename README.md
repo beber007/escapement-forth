@@ -14,7 +14,7 @@ of Escapement's issue #40.
 
 ```forth
 \ words of the board: output high low toggle pins ( masks: 1 15 lshift is GP15 ),
-\ ms, overruns, restarts, dropped
+\ ms, overruns, restarts, starts, dropped, fault ( a HardFault, to try the restart )
 variable n
 : tick  1 n +! ;
 ' tick 10 every      \ slot 4, on trial: run every 10 ms, its time measured
@@ -46,9 +46,11 @@ the interrupts and those slots' own cost, which the load counts already, are in 
 - The check costs some 13 % at most on a loop of `do loop` with nothing in it: 1,000 turns
   took 466 µs at the console, which has no budget, and 529 µs in a slot (Pico W,
   2026-10-24, the two cores' work not quite the same).
-- `@` and `!` take any address, as in any Forth: a wrong one faults the core that ran
-  it. So does a cell that is no word compiled into a definition, by an immediate word
-  doing `,`. A cell given to `execute`, `is` or `every` is checked against the
+- `@`, `!`, `+!`, `c@` and `c!` reach the Forth's memory and the RP2040's map, the
+  ROM and the flash read only (`pico/console.c`, `ForthMemory`), a cell at a cell's
+  boundary: past it, `bad address` rather than a fault. Within it they may still write
+  over the kernel's memory, or a peripheral's register. A cell that is no word compiled
+  into a definition, by an immediate word doing `,`, faults the core that runs it. A cell given to `execute`, `is` or `every` is checked against the
   dictionary first.
 - What the budget does not reach, a word of C that does not return or a fault, holds
   core 0. Core 1 then sees the 1 ms slot stop beating, and after 3 ms restarts core 0

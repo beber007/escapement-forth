@@ -158,6 +158,27 @@ static void Tick(void)
   }
 } /* end of Tick */
 
+/* ForthMemory: The RP2040's map (datasheet 2.2): the ROM and the flash through the XIP
+** read only, the SRAM, the peripherals of APB and AHB-Lite, the SIO and the private
+** peripherals of the core; past what each holds, or into the XIP's flash with no image
+** of it, an access faults. */
+int ForthMemory(uintptr_t address, size_t size, int write)
+{
+  static const struct { uintptr_t Start, End; int Write; } Map[] = {
+     {0x00000000, 0x00004000, 0},   /* ROM */
+     {0x10000000, 0x11000000, 0},   /* XIP, the flash */
+     {0x20000000, 0x20042000, 1},   /* SRAM */
+     {0x40000000, 0x40070000, 1},   /* APB */
+     {0x50000000, 0x50400000, 1},   /* AHB-Lite */
+     {0xD0000000, 0xD0000180, 1},   /* SIO */
+     {0xE0000000, 0xE0100000, 1}};  /* the core's own */
+  size_t i;
+  for (i = 0; i < sizeof Map / sizeof Map[0]; i += 1)
+     if (address >= Map[i].Start && address + size <= Map[i].End)
+        return !write || Map[i].Write;
+  return 0;
+} /* end of ForthMemory */
+
 int ForthBreak(void)
 {
   int asked = Break;
@@ -299,8 +320,17 @@ static void PMs(Context *c, const Word *w)
         Drain();
 } /* end of PMs */
 
+/* FAULT ( -- ): An undefined instruction, a HardFault on the core that runs it: what the
+** restart of core 0 is tried with, @ and ! no longer faulting. */
+static void PFault(Context *c, const Word *w)
+{
+  (void)c; (void)w;
+  __asm volatile ("udf #0");
+} /* end of PFault */
+
 void ForthPlatformWords(void)
 {
+  ForthAddWord("fault",PFault,0);
   ForthAddWord("output",POutput,0);
   ForthAddWord("high",PHigh,0);
   ForthAddWord("low",PLow,0);

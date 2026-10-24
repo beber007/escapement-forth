@@ -7,7 +7,7 @@ variable n
 ' spin 1000 every
 3000 ms slots
 starts . restarts . . n @ .
-: crash 1 $C0000000 ! ;
+: crash fault ;
 ' crash 100 every
 1000 ms slots
 restarts . . n @ . overruns . starts .

@@ -38,7 +38,7 @@ static const char *const Errors[] = {
    "", "stack empty", "stack full", "return stack full", "division by zero",
    "dictionary full", "?", "compile only", "name expected", "unbalanced control",
    "bad argument", "stalled", "inside a definition", "over budget",
-   "interrupted"
+   "interrupted", "bad address"
 };
 
 
@@ -364,8 +364,6 @@ UNARY(POnePlus,a + 1)
 UNARY(POneMinus,a - 1)
 UNARY(PZeroEqual,a == 0 ? -1 : 0)
 UNARY(PZeroLess,a < 0 ? -1 : 0)
-UNARY(PFetch,*(const volatile Cell *)a)
-UNARY(PCFetch,*(const volatile uint8_t *)a)
 UNARY(PCells,a * (Cell)sizeof(Cell))
 
 static void Divide(Context *c, int remainder)
@@ -445,11 +443,43 @@ static void PDepth(Context *c, const Word *w)
   FORTH_PUSH(c,c->Depth);
 } /* end of PDepth */
 
+/* Reach: Whether the size bytes at a are the Forth's memory, or what the platform says
+** may be read or written there, a cell at a cell's boundary, which the M0+ needs; or the
+** error set, FORTH_ADDRESS, rather than a fault. */
+static int Reach(Context *c, Cell a, size_t size, int write)
+{
+  uintptr_t p = (uintptr_t)a;
+  if (p % size == 0 &&
+      ((p >= (uintptr_t)Code && p + size <= (uintptr_t)&Code[FORTH_CODE]) ||
+       ForthMemory(p,size,write)))
+     return 1;
+  c->Error = FORTH_ADDRESS;
+  return 0;
+} /* end of Reach */
+
+static void PFetch(Context *c, const Word *w)
+{
+  (void)w;
+  FORTH_NEED(c,1);
+  if (Reach(c,FORTH_TOP(c),sizeof(Cell),0))
+     FORTH_TOP(c) = *(const volatile Cell *)FORTH_TOP(c);
+} /* end of PFetch */
+
+static void PCFetch(Context *c, const Word *w)
+{
+  (void)w;
+  FORTH_NEED(c,1);
+  if (Reach(c,FORTH_TOP(c),1,0))
+     FORTH_TOP(c) = *(const volatile uint8_t *)FORTH_TOP(c);
+} /* end of PCFetch */
+
 static void PStore(Context *c, const Word *w)
 {
   Cell *a;
   (void)w;
   FORTH_NEED(c,2);
+  if (!Reach(c,FORTH_TOP(c),sizeof(Cell),1))
+     return;
   a = (Cell *)FORTH_POP(c);
   *(volatile Cell *)a = FORTH_POP(c);
 } /* end of PStore */
@@ -459,6 +489,8 @@ static void PCStore(Context *c, const Word *w)
   uint8_t *a;
   (void)w;
   FORTH_NEED(c,2);
+  if (!Reach(c,FORTH_TOP(c),1,1))
+     return;
   a = (uint8_t *)FORTH_POP(c);
   *(volatile uint8_t *)a = (uint8_t)FORTH_POP(c);
 } /* end of PCStore */
@@ -468,6 +500,8 @@ static void PPlusStore(Context *c, const Word *w)
   Cell *a;
   (void)w;
   FORTH_NEED(c,2);
+  if (!Reach(c,FORTH_TOP(c),sizeof(Cell),1))
+     return;
   a = (Cell *)FORTH_POP(c);
   *(volatile Cell *)a += FORTH_POP(c);
 } /* end of PPlusStore */

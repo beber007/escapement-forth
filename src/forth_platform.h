@@ -9,6 +9,7 @@
 #ifndef FORTH_PLATFORM_H
 #define FORTH_PLATFORM_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 /* ForthEmit: Sends a byte to the console. Called from either core on the board: from a
@@ -21,6 +22,11 @@ uint32_t ForthNow(void);
 /* ForthBarrier: Orders the stores before it to memory before those after it, for the
 ** other core: a word compiled before the store that binds it. */
 void ForthBarrier(void);
+
+/* ForthMemory: Whether the size bytes at address may be read, or written, besides the
+** Forth's own memory, which @ ! +! c@ c! reach without asking: what is there, and does
+** not fault on the board. */
+int ForthMemory(uintptr_t address, size_t size, int write);
 
 /* ForthBreak: Whether a break was asked at the console since it was last asked, Ctrl-C
 ** on the board: the word the console runs then stops, FORTH_BREAK. */
