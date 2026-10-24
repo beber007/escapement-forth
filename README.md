@@ -49,8 +49,9 @@ the interrupts and those slots' own cost, which the load counts already, are in 
 - `@`, `!`, `+!`, `c@` and `c!` reach the Forth's memory and the RP2040's map, the
   ROM and the flash read only (`pico/console.c`, `ForthMemory`), a cell at a cell's
   boundary: past it, `bad address` rather than a fault. Within it they may still write
-  over the kernel's memory, or a peripheral's register. A cell that is no word compiled
-  into a definition, by an immediate word doing `,`, faults the core that runs it. A cell given to `execute`, `is` or `every` is checked against the
+  over the kernel's memory, a peripheral's register, or the cells of a definition. A
+  cell that is no word in a definition, written there by `!` or compiled by an immediate
+  word doing `,`, faults the core that runs it. A cell given to `execute`, `is` or `every` is checked against the
   dictionary first.
 - What the budget does not reach, a word of C that does not return or a fault, holds
   core 0. Core 1 then sees the 1 ms slot stop beating, and after 3 ms restarts core 0

@@ -381,6 +381,13 @@ static void Addresses(void)
   Expect("unaligned"," @ bad address\n");
   Type("v 1 + c@ .");
   Expect("unaligned byte","0  ok\n");
+  /* The address and the size wrapping past the top of memory to the Forth's own. */
+  Type("-8 @");
+  Expect("wrapping"," @ bad address\n");
+  Type("-1 c@");
+  Expect("wrapping byte"," c@ bad address\n");
+  Type("5 -8 !");
+  Expect("wrapping store"," ! bad address\n");
 } /* end of Addresses */
 
 

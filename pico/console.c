@@ -151,10 +151,11 @@ static void Tick(void)
      Restarted[restart] += 1;
   while ((UART_FR & FR_RXFE) == 0) {
      char c = (char)UART_DR;
-     if (c == BREAK_CHAR) {
+     /* A Ctrl-C into the ring too: the console, meeting it there, knows it came before
+     ** the lines after it, and not for them; one taken in the same tick as the end of a
+     ** line before it is for that line's word (a review, 2026-10-24). */
+     if (c == BREAK_CHAR)
         Break = 1;
-        continue;
-     }
      head = InputHead;
      if (head - InputTail < INPUT) {   /* full, the byte is lost: a line typed too fast */
         Input[head % INPUT] = (UINT8)c;
@@ -164,9 +165,9 @@ static void Tick(void)
 } /* end of Tick */
 
 /* ForthMemory: The RP2040's map (datasheet 2.2): the ROM and the flash through the XIP
-** read only, the SRAM, the peripherals of APB and AHB-Lite, the SIO and the private
-** peripherals of the core; past what each holds, or into the XIP's flash with no image
-** of it, an access faults. */
+** read only, the SRAM but the guard of core 0's stack, the peripherals of APB and
+** AHB-Lite, the SIO and the core's System Control Space; past what each holds, or into
+** the XIP's flash with no image of it, an access faults. */
 int ForthMemory(uintptr_t address, size_t size, int write)
 {
   static const struct { uintptr_t Start, End; int Write; } Map[] = {
@@ -176,10 +177,15 @@ int ForthMemory(uintptr_t address, size_t size, int write)
      {0x40000000, 0x40070000, 1},   /* APB */
      {0x50000000, 0x50400000, 1},   /* AHB-Lite */
      {0xD0000000, 0xD0000180, 1},   /* SIO */
-     {0xE0000000, 0xE0100000, 1}};  /* the core's own */
+     {0xE000E000, 0xE000F000, 1}};  /* the core's own, its SCS */
+  extern UINT32 _OSStackGuard, _OSStackGuardEnd;
   size_t i;
+  /* The guard at the bottom of core 0's stack, which its MPU forbids. */
+  if (address < (uintptr_t)&_OSStackGuardEnd &&
+      (address >= (uintptr_t)&_OSStackGuard || size > (uintptr_t)&_OSStackGuard - address))
+     return 0;
   for (i = 0; i < sizeof Map / sizeof Map[0]; i += 1)
-     if (address >= Map[i].Start && address + size <= Map[i].End)
+     if (address >= Map[i].Start && address <= Map[i].End && size <= Map[i].End - address)
         return !write || Map[i].Write;
   return 0;
 } /* end of ForthMemory */
@@ -438,11 +444,14 @@ void Console(void)
         last = 0;
         continue;
      }
+     if (c == BREAK_CHAR) {   /* for the word before, done, or none */
+        (void)ForthBreak();
+        continue;
+     }
      last = c;
      if (c == '\r' || c == '\n') {
         line[length] = 0;
         Send(' ');
-        Break = 0;   /* one typed before the line is not for it */
         ForthInterpret(line);
         length = 0;
      }

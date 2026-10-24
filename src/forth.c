@@ -445,12 +445,14 @@ static void PDepth(Context *c, const Word *w)
 
 /* Reach: Whether the size bytes at a are the Forth's memory, or what the platform says
 ** may be read or written there, a cell at a cell's boundary, which the M0+ needs; or the
-** error set, FORTH_ADDRESS, rather than a fault. */
+** error set, FORTH_ADDRESS, rather than a fault. Measured from a, not summed with it,
+** which wraps past the top of memory (a review, 2026-10-24). */
 static int Reach(Context *c, Cell a, size_t size, int write)
 {
   uintptr_t p = (uintptr_t)a;
   if (p % size == 0 &&
-      ((p >= (uintptr_t)Code && p + size <= (uintptr_t)&Code[FORTH_CODE]) ||
+      ((p >= (uintptr_t)Code && p <= (uintptr_t)&Code[FORTH_CODE] &&
+        size <= (uintptr_t)&Code[FORTH_CODE] - p) ||
        ForthMemory(p,size,write)))
      return 1;
   c->Error = FORTH_ADDRESS;
