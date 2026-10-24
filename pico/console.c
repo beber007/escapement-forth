@@ -151,12 +151,18 @@ static void Tick(void)
      Restarted[restart] += 1;
   while ((UART_FR & FR_RXFE) == 0) {
      char c = (char)UART_DR;
-     /* A Ctrl-C into the ring too: the console, meeting it there, knows it came before
-     ** the lines after it, and not for them; one taken in the same tick as the end of a
-     ** line before it is for that line's word (a review, 2026-10-24). */
-     if (c == BREAK_CHAR)
-        Break = 1;
+     /* A Ctrl-C into the ring too: the break holds for what runs until the console
+     ** meets it there, which then clears it, before the lines that follow; one that
+     ** comes with the end of a line before it, in the same tick, is for that line's word
+     ** (a review, 2026-10-24). The ring full, it takes the place of the last byte, a
+     ** line typed too fast lost anyway: a break the console never met would stop a line
+     ** typed long after. */
      head = InputHead;
+     if (c == BREAK_CHAR) {
+        Break = 1;
+        if (head - InputTail >= INPUT)
+           head -= 1, InputHead = head;
+     }
      if (head - InputTail < INPUT) {   /* full, the byte is lost: a line typed too fast */
         Input[head % INPUT] = (UINT8)c;
         InputHead = head + 1;
@@ -166,18 +172,19 @@ static void Tick(void)
 
 /* ForthMemory: The RP2040's map (datasheet 2.2): the ROM and the flash through the XIP
 ** read only, the SRAM but the guard of core 0's stack, the peripherals of APB and
-** AHB-Lite, the SIO and the core's System Control Space; past what each holds, or into
-** the XIP's flash with no image of it, an access faults. */
+** AHB-Lite, the SIO and the core's System Control Space, which takes words alone (a byte
+** read there gave 0, on the board, 2026-10-24); past what each holds, or into the XIP's
+** flash with no image of it, an access faults. */
 int ForthMemory(uintptr_t address, size_t size, int write)
 {
-  static const struct { uintptr_t Start, End; int Write; } Map[] = {
-     {0x00000000, 0x00004000, 0},   /* ROM */
-     {0x10000000, 0x11000000, 0},   /* XIP, the flash */
-     {0x20000000, 0x20042000, 1},   /* SRAM */
-     {0x40000000, 0x40070000, 1},   /* APB */
-     {0x50000000, 0x50400000, 1},   /* AHB-Lite */
-     {0xD0000000, 0xD0000180, 1},   /* SIO */
-     {0xE000E000, 0xE000F000, 1}};  /* the core's own, its SCS */
+  static const struct { uintptr_t Start, End; int Write, Words; } Map[] = {
+     {0x00000000, 0x00004000, 0, 0},   /* ROM */
+     {0x10000000, 0x11000000, 0, 0},   /* XIP, the flash */
+     {0x20000000, 0x20042000, 1, 0},   /* SRAM */
+     {0x40000000, 0x40070000, 1, 0},   /* APB */
+     {0x50000000, 0x50400000, 1, 0},   /* AHB-Lite */
+     {0xD0000000, 0xD0000180, 1, 0},   /* SIO */
+     {0xE000E000, 0xE000F000, 1, 1}};  /* the core's own, its SCS: words alone */
   extern UINT32 _OSStackGuard, _OSStackGuardEnd;
   size_t i;
   /* The guard at the bottom of core 0's stack, which its MPU forbids. */
@@ -186,9 +193,24 @@ int ForthMemory(uintptr_t address, size_t size, int write)
      return 0;
   for (i = 0; i < sizeof Map / sizeof Map[0]; i += 1)
      if (address >= Map[i].Start && address <= Map[i].End && size <= Map[i].End - address)
-        return !write || Map[i].Write;
+        return (!write || Map[i].Write) && (!Map[i].Words || size == 4);
   return 0;
 } /* end of ForthMemory */
+
+/* Take: The next byte of the ring, which is not empty; a Ctrl-C's break cleared with
+** it, at once: another the interrupt took meanwhile is for the lines after. */
+static char Take(void)
+{
+  UINT32 primask;
+  char c;
+  __asm volatile ("mrs %0, primask\n cpsid i" : "=r" (primask) :: "memory");
+  c = (char)Input[InputTail % INPUT];
+  InputTail += 1;
+  if (c == BREAK_CHAR)
+     Break = 0;
+  __asm volatile ("msr primask, %0" :: "r" (primask) : "memory");
+  return c;
+} /* end of Take */
 
 int ForthBreak(void)
 {
@@ -438,16 +460,13 @@ void Console(void)
      Drain();
      if (InputTail == InputHead)
         continue;
-     c = (char)Input[InputTail % INPUT];
-     InputTail += 1;
+     c = Take();
      if (c == '\n' && last == '\r') {   /* the second half of CR LF */
         last = 0;
         continue;
      }
-     if (c == BREAK_CHAR) {   /* for the word before, done, or none */
-        (void)ForthBreak();
+     if (c == BREAK_CHAR)   /* for the word before, done, or none: Take cleared it */
         continue;
-     }
      last = c;
      if (c == '\r' || c == '\n') {
         line[length] = 0;

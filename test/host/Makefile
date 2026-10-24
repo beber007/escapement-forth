@@ -18,7 +18,7 @@ $(B)/test_forth: $(SOURCES) ../../src/forth.h ../../src/forth_platform.h ../../s
 	$(CC) $(CFLAGS) -o $@ $(SOURCES)
 
 run: $(B)/test_forth
-	./$(B)/test_forth
+	$(abspath $(B))/test_forth
 
 clean:
 	rm -rf $(B)

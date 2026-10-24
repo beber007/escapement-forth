@@ -402,6 +402,19 @@ static void Breaks(void)
   Expect("interrupted"," l interrupted\n");
   Type("1 2 + .");
   Expect("after a break","3  ok\n");
+  /* A slot's word runs on, the break the console's alone. */
+  Type("variable k : twenty 20 0 do 1 k +! loop ; ' twenty 1 every");
+  Expect("bound","slot 0  ok\n");
+  Break = 1;
+  Run(0,1);
+  Type("k @ . 0 stop");
+  Expect("a slot not broken","20  ok\n");
+  Cases += 1;
+  if (Break != 1) {
+     Failures += 1;
+     printf("FAIL the break left for the console\n");
+  }
+  Break = 0;
 } /* end of Breaks */
 
 
