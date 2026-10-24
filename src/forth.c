@@ -83,8 +83,8 @@ static void DoDefer(Context *c, const Word *w)
 } /* end of DoDefer */
 
 /* PExit: Returns to the definition that called, whose cell DoColon pushed: inside a
-** DO loop, the top of the return stack is the loop's index instead, which no cell of
-** the code space is. */
+** DO loop, the top of the return stack is the loop's mark instead (PDo), which no cell
+** of the code space is. */
 static void PExit(Context *c, const Word *w)
 {
   Cell back;
@@ -183,13 +183,16 @@ static Word *NewWord(const char *name, int length, void (*code)(Context *, const
   Word *w;
   if (Words >= FORTH_WORDS)
      return NULL;
-  w = &Dictionary[Words++];
+  /* Filled before it is counted: the other core may look a word up meanwhile. */
+  w = &Dictionary[Words];
   w->Name = name;
   w->Length = (uint8_t)length;
   w->Flags = flags;
   w->Code = code;
   w->Body = &Code[Here];
   w->Value = 0;
+  ForthBarrier();
+  Words += 1;
   return w;
 } /* end of NewWord */
 
@@ -766,16 +769,23 @@ static void PZeroBranch(Context *c, const Word *w)
      c->IP += 1;
 } /* end of PZeroBranch */
 
+/* PDo: The limit, the index, then a mark on top: the address of the dictionary, which is
+** neither 0 nor a cell of the code space, for EXIT to refuse. The index alone would not
+** do: 0, or an address in the code space as a loop over an array has, looked like a
+** cell to return to (a review, 2026-10-24). */
+#define LOOP_MARK  ((Cell)Dictionary)
+
 static void PDo(Context *c, const Word *w)
 {
   (void)w;
   FORTH_NEED(c,2);
-  if (c->ReturnDepth + 2 > FORTH_STACK) {
+  if (c->ReturnDepth + 3 > FORTH_STACK) {
      c->Error = FORTH_RETURN_OVERFLOW;
      return;
   }
   c->Return[c->ReturnDepth++] = c->Data[c->Depth - 2];   /* the limit */
   c->Return[c->ReturnDepth++] = FORTH_TOP(c);            /* the index */
+  c->Return[c->ReturnDepth++] = LOOP_MARK;
   c->Depth -= 2;
 } /* end of PDo */
 
@@ -783,14 +793,14 @@ static void PDo(Context *c, const Word *w)
 ** (the test of Forth 2012 for +LOOP, on the index less the limit). */
 static void LoopBy(Context *c, Cell n)
 {
-  Cell before = c->Return[c->ReturnDepth - 1] - c->Return[c->ReturnDepth - 2];
+  Cell before = c->Return[c->ReturnDepth - 2] - c->Return[c->ReturnDepth - 3];
   Cell after = (Cell)((uintptr_t)before + (uintptr_t)n);
   if (((before ^ after) & (before ^ n)) < 0) {
-     c->ReturnDepth -= 2;
+     c->ReturnDepth -= 3;
      c->IP += 1;
   }
   else {
-     c->Return[c->ReturnDepth - 1] += n;
+     c->Return[c->ReturnDepth - 2] += n;
      c->IP = (const Cell *)*c->IP;
   }
 } /* end of LoopBy */
@@ -808,22 +818,23 @@ static void PI(Context *c, const Word *w)
 {
   (void)w;
   FORTH_ROOM(c,1);
-  if (c->ReturnDepth < 2) {
+  if (c->ReturnDepth < 3 || c->Return[c->ReturnDepth - 1] != LOOP_MARK) {
      c->Error = FORTH_CONTROL;
      return;
   }
-  FORTH_PUSH(c,c->Return[c->ReturnDepth - 1]);
+  FORTH_PUSH(c,c->Return[c->ReturnDepth - 2]);
 } /* end of PI */
 
 static void PJ(Context *c, const Word *w)
 {
   (void)w;
   FORTH_ROOM(c,1);
-  if (c->ReturnDepth < 4) {
+  if (c->ReturnDepth < 6 || c->Return[c->ReturnDepth - 1] != LOOP_MARK ||
+      c->Return[c->ReturnDepth - 4] != LOOP_MARK) {
      c->Error = FORTH_CONTROL;
      return;
   }
-  FORTH_PUSH(c,c->Return[c->ReturnDepth - 3]);
+  FORTH_PUSH(c,c->Return[c->ReturnDepth - 5]);
 } /* end of PJ */
 
 static int Opens(Context *c, int kind, int at)

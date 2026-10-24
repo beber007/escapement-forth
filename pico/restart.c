@@ -205,7 +205,8 @@ int Watch(void)
   UINT32 now = TIMER_TIMERAWL, beat = Beat;
   int back = 0;
   if (beat != Last) {
-     if (State == SOFT || State == HARD) {
+     /* Back after GAVE_UP too, late: watched again from here. */
+     if (State != WATCHING) {
         back = State == SOFT ? RESTART_SOFT : RESTART_HARD;
         if (State == SOFT)
            SoftRestarts += 1;
