@@ -103,21 +103,22 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
   end = ForthNow();
   if (depth > 0)
      Excluded[depth - 1] += end - start;
-  Running[depth] = -1;
-  RunningDepth = depth;
-  ForthUnmask(mask);
   time = end - start - excluded;
   /* Over its budget, cut short or ended before a check: counted, the word run again
-  ** next time, but for an error of its own. Counted before its time is written, which
-  ** PROMOTE reads first (PPromote). */
+  ** next time, but for an error of its own. The figures written before the entry is let
+  ** go, or a restart in between lost them (a review, 2026-10-24); in the order SLOTS and
+  ** PROMOTE read them backwards, the time last. */
+  s->Runs += 1;
   if (error == FORTH_BUDGET || time > c->Budget)
      s->Excess += 1;
   if (error == FORTH_BUDGET)
      error = FORTH_OK;
-  s->Runs += 1;
   if (time > s->MaxTime)
      s->MaxTime = time;
   s->Error = (uint8_t)error;
+  Running[depth] = -1;
+  RunningDepth = depth;
+  ForthUnmask(mask);
 } /* end of Measure */
 
 
@@ -294,6 +295,7 @@ static void PSlots(Context *c, const Word *w)
   for (i = 0; i < SLOTS; i += 1) {
      const Slot *s = &Slots[i];
      const Word *b = s->Bound;
+     uint32_t max, excess, runs;
      int current;
      if (s->State == SLOT_FREE || b == NULL)
         continue;
@@ -307,17 +309,19 @@ static void PSlots(Context *c, const Word *w)
      ForthPrintText(States[s->State]);
      /* The figures of the word bound before, until the kernel's core first runs this one. */
      current = s->Generation == s->Sequence;
+     /* Read backwards from the order Measure writes them: no more over than runs. */
+     max = s->MaxTime, excess = s->Excess, runs = s->Runs;
      ForthPrintText(" runs ");
-     ForthPrintNumber(current ? s->Runs : 0);
+     ForthPrintNumber(current ? runs : 0);
      ForthPrintText("max ");
-     ForthPrintNumber(current ? s->MaxTime : 0);
+     ForthPrintNumber(current ? max : 0);
      if (s->State == SLOT_PROMOTED) {
         ForthPrintText("wcet ");
         ForthPrintNumber(s->Wcet);
      }
-     if (s->State == SLOT_PROMOTED || (current && s->Excess != 0)) {
+     if (s->State == SLOT_PROMOTED || (current && excess != 0)) {
         ForthPrintText("over ");
-        ForthPrintNumber(current ? s->Excess : 0);
+        ForthPrintNumber(current ? excess : 0);
      }
      if (current && s->Error != FORTH_OK) {
         ForthPrintText("failed: ");
