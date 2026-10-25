@@ -8,94 +8,166 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Escapement Forth</title>
 <style>
+  /* The system's theme, light or dark, as GitHub follows it. */
   :root {
-    --bg: #f6f5f1; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a64; --line: #dcdad2;
-    --term-bg: #15171a; --term-ink: #d8dccf; --term-dim: #8a9187; --accent: #2f7d5b;
-    --led-off: #c9c7bf; --led-on: #e2a12c; --led-glow: rgba(226, 161, 44, 0.55);
+    color-scheme: light dark;
+    --bg: #f6f7f9; --bg-glow: rgba(47, 125, 91, 0.10); --panel: #ffffff;
+    --ink: #1f2328; --muted: #59636e; --line: #d8dee4; --chip: #eef1f4;
+    --accent: #1f7a55; --accent-ink: #ffffff;
+    --term-bg: #0f1419; --term-bar: #1a2027; --term-ink: #d6dde3; --term-dim: #7f8b96;
+    --term-typed: #ffffff; --term-line: #26303a;
+    --pcb: #1d5a3c; --pcb-edge: #154530; --pad: #d8b25a;
+    --led-off: #2c4a3b; --led-on: #ffb13b; --led-glow: rgba(255, 177, 59, 0.65);
+    --shadow: 0 1px 2px rgba(31, 35, 40, 0.06), 0 8px 24px rgba(31, 35, 40, 0.08);
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #101113; --panel: #181a1d; --ink: #e6e4dc; --muted: #9a988f; --line: #2b2e32;
-      --term-bg: #0b0c0e; --term-ink: #d8dccf; --term-dim: #7d847a; --accent: #5cb98c;
-      --led-off: #34373b; --led-on: #f0b64a; --led-glow: rgba(240, 182, 74, 0.5);
+      --bg: #0d1117; --bg-glow: rgba(63, 185, 128, 0.10); --panel: #151b23;
+      --ink: #e6edf3; --muted: #9198a1; --line: #2a313c; --chip: #1c232c;
+      --accent: #3fb980; --accent-ink: #0d1117;
+      --term-bg: #090c10; --term-bar: #131920; --term-ink: #d6dde3; --term-dim: #76828e;
+      --term-typed: #ffffff; --term-line: #1e262f;
+      --pcb: #15402b; --pcb-edge: #0e2f1f; --pad: #b8954a;
+      --led-off: #1f3a2c; --led-on: #ffb13b; --led-glow: rgba(255, 177, 59, 0.6);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
     }
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0; color: var(--ink);
+    background: radial-gradient(1200px 500px at 15% -10%, var(--bg-glow), transparent 70%), var(--bg);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
   }
-  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
-  h1 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.01em; }
-  .lede { color: var(--muted); margin: 0 0 20px; max-width: 70ch; }
-  a { color: var(--accent); }
-  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; }
-  @media (max-width: 760px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  code, .mono { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; }
+  code { font-size: 0.9em; background: var(--chip); padding: 0.1em 0.35em; border-radius: 4px; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  main { max-width: 1080px; margin: 0 auto; padding: 40px 16px 56px; }
+
+  header { margin-bottom: 28px; }
+  .eyebrow { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+             color: var(--accent); margin: 0 0 8px; }
+  h1 { font-size: clamp(2rem, 4vw, 2.8rem); line-height: 1.1; margin: 0 0 12px; letter-spacing: -0.02em; }
+  .lede { color: var(--muted); margin: 0 0 18px; max-width: 68ch; font-size: 1.05rem; }
+  .badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .badges li { font-size: 0.8rem; color: var(--ink); background: var(--panel); border: 1px solid var(--line);
+               border-radius: 999px; padding: 4px 11px; }
+  .badges li b { color: var(--accent); font-weight: 600; }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+  @media (max-width: 820px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+  .window { border-radius: 12px; overflow: hidden; background: var(--term-bg);
+            box-shadow: var(--shadow); border: 1px solid var(--term-line); }
+  .bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--term-bar);
+         border-bottom: 1px solid var(--term-line); }
+  .dot { width: 11px; height: 11px; border-radius: 50%; background: #3a434d; }
+  .dot:nth-child(1) { background: #ff5f57; } .dot:nth-child(2) { background: #febc2e; }
+  .dot:nth-child(3) { background: #28c840; }
+  .bar .title { flex: 1; text-align: center; font-size: 0.8rem; color: var(--term-dim); margin-right: 41px; }
   .terminal {
-    background: var(--term-bg); color: var(--term-ink); border-radius: 10px;
-    padding: 12px 14px; height: 440px; overflow-y: auto; cursor: text;
-    font: 14px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color: var(--term-ink); padding: 14px 16px; height: 460px; overflow-y: auto; cursor: text;
+    font: 14px/1.5 ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    scrollbar-color: var(--term-line) transparent;
   }
   #output { white-space: pre-wrap; word-break: break-word; }
-  .terminal .typed { color: #ffffff; }
+  .terminal .typed { color: var(--term-typed); }
+  .terminal .typed::before { content: "› "; color: var(--led-on); }
   .terminal .note { color: var(--term-dim); }
-  .prompt { display: flex; gap: 6px; }
+  .prompt { display: flex; gap: 8px; }
+  .prompt::before { content: "›"; color: var(--led-on); }
   .prompt input {
     flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; padding: 0;
-    color: #ffffff; font: inherit; caret-color: var(--led-on);
+    color: var(--term-typed); font: inherit; caret-color: var(--led-on);
   }
+  .status { display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--muted);
+            margin-top: 12px; }
+  .status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .status.ready::before { background: #2fbf71; box-shadow: 0 0 0 3px rgba(47, 191, 113, 0.18); }
+  .status.failed::before { background: #e5534b; }
+
   .side { display: flex; flex-direction: column; gap: 16px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
-  .card h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em;
-             color: var(--muted); margin: 0 0 10px; font-weight: 600; }
-  .pins { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px 6px; }
-  .pin { display: flex; flex-direction: column; align-items: center; gap: 3px;
-         font: 11px ui-monospace, Menlo, monospace; color: var(--muted); }
-  .led { width: 16px; height: 16px; border-radius: 50%; background: var(--led-off);
-         transition: background 60ms, box-shadow 60ms; }
-  .led.on { background: var(--led-on); box-shadow: 0 0 8px 2px var(--led-glow); }
-  .examples { display: flex; flex-direction: column; gap: 6px; }
-  button {
-    font: 13px/1.3 ui-monospace, Menlo, monospace; text-align: left; cursor: pointer;
-    background: transparent; color: var(--ink); border: 1px solid var(--line);
-    border-radius: 6px; padding: 6px 8px;
-  }
-  button:hover { border-color: var(--accent); }
-  button.plain { font-family: inherit; text-align: center; }
-  .status { font-size: 0.85rem; color: var(--muted); margin-top: 8px; }
-  .honest { margin-top: 24px; color: var(--muted); font-size: 0.95rem; max-width: 75ch; }
-  .honest h2 { font-size: 1rem; color: var(--ink); margin: 0 0 6px; }
-  .honest ul { margin: 0 0 12px; padding-left: 20px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+          box-shadow: var(--shadow); }
+  .card h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+             margin: 0 0 12px; font-weight: 600; display: flex; justify-content: space-between; }
+  .card h2 span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+  /* The pins the words may drive, on a strip of board. */
+  .board { background: linear-gradient(160deg, var(--pcb), var(--pcb-edge)); border-radius: 8px;
+           padding: 12px 10px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+  .pins { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px 4px; }
+  .pin { display: flex; flex-direction: column; align-items: center; gap: 4px;
+         font: 10px ui-monospace, Menlo, monospace; color: rgba(255, 255, 255, 0.75); }
+  .led { width: 14px; height: 14px; border-radius: 50%; background: var(--led-off);
+         box-shadow: 0 0 0 2px var(--pad), inset 0 -2px 3px rgba(0, 0, 0, 0.35);
+         transition: background 50ms, box-shadow 50ms; }
+  .led.on { background: radial-gradient(circle at 40% 35%, #fff3d6, var(--led-on) 55%);
+            box-shadow: 0 0 0 2px var(--pad), 0 0 10px 3px var(--led-glow); }
+
+  .examples { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  button { font: inherit; cursor: pointer; color: var(--ink); }
+  .example { width: 100%; min-width: 0; text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+             padding: 8px 10px; transition: border-color 120ms, transform 120ms, background 120ms; }
+  .example:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .example:active { transform: none; }
+  .example b { display: block; font-size: 0.88rem; font-weight: 600; }
+  .example span { display: block; font: 11.5px/1.4 ui-monospace, Menlo, monospace; color: var(--muted);
+                  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .restart { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 9px;
+             font-size: 0.9rem; color: var(--muted); }
+  .restart:hover { color: var(--ink); border-color: var(--muted); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .honest { margin-top: 36px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+            padding: 20px 24px; color: var(--muted); font-size: 0.95rem; }
+  .honest h2 { font-size: 1.05rem; color: var(--ink); margin: 0 0 10px; }
+  .honest ul { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+  footer { margin-top: 24px; font-size: 0.85rem; color: var(--muted); text-align: center; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 <main>
-  <h1>Escapement Forth</h1>
-  <p class="lede">The Forth console of <a href="https://github.com/beber007/escapement">Escapement</a>,
-    and the kernel under it, compiled to WebAssembly and running in this page. Type words,
-    bind them to periodic slots with <code>every</code>, measure them with <code>slots</code>,
-    admit them with <code>promote</code>.</p>
+  <header>
+    <p class="eyebrow">Escapement · WebAssembly</p>
+    <h1>Escapement Forth</h1>
+    <p class="lede">The Forth console of <a href="https://github.com/beber007/escapement">Escapement</a>,
+      and the real-time kernel under it, compiled to WebAssembly and running in this page.
+      Type words, bind them to periodic slots with <code>every</code>, measure them with
+      <code>slots</code>, admit them with <code>promote</code>.</p>
+    <ul class="badges">
+      <li><b>hard kernel</b> · EDF</li>
+      <li><b>4 tasks</b> · 1, 10, 100, 1000 ms</li>
+      <li><b>the board's code</b> · unchanged</li>
+      <li><b>in your browser</b> · nothing sent</li>
+    </ul>
+  </header>
 
   <div class="grid">
     <div>
-      <div class="terminal" id="terminal" aria-live="polite">
-        <div id="output"></div>
-        <div class="prompt"><input id="input" autocomplete="off" spellcheck="false"
-             aria-label="Forth input"></div>
+      <div class="window">
+        <div class="bar" aria-hidden="true"><span class="dot"></span><span class="dot"></span>
+          <span class="dot"></span><span class="title mono">console · Escapement Forth</span></div>
+        <div class="terminal" id="terminal" aria-live="polite">
+          <div id="output"></div>
+          <div class="prompt"><input id="input" autocomplete="off" spellcheck="false"
+               aria-label="Forth input"></div>
+        </div>
       </div>
       <div class="status" id="status">Loading…</div>
     </div>
 
     <div class="side">
       <section class="card">
-        <h2>Pins</h2>
-        <div class="pins" id="pins"></div>
+        <h2>Pins <span class="mono">1 15 lshift toggle</span></h2>
+        <div class="board"><div class="pins" id="pins"></div></div>
       </section>
       <section class="card">
         <h2>Try</h2>
         <div class="examples" id="examples"></div>
       </section>
-      <button class="plain" id="restart">Restart the Forth</button>
+      <button class="restart" id="restart">Restart the Forth</button>
     </div>
   </div>
 
@@ -121,6 +193,8 @@
         dictionary lives as long as the page; <code>save</code> has no flash to write.</li>
     </ul>
   </section>
+  <footer><a href="https://github.com/beber007/escapement-forth">escapement-forth</a> ·
+    <a href="https://github.com/beber007/escapement">Escapement</a></footer>
 </main>
 
 <script>
@@ -206,17 +280,21 @@
     ready = false;
     showPins(0);
     status.textContent = "Loading…";
+    status.className = "status";
     worker = new Worker("worker.js");
     worker.onmessage = (event) => {
       const m = event.data;
       if (m.ready) {
         status.textContent = "Ready. The Forth runs in this page; nothing is sent anywhere.";
+        status.className = "status ready";
         print("Escapement Forth, in WebAssembly. Type a line and Enter, or try an example.\n", "note");
         ready = true;
         next();
       }
-      else if (m.failed)
+      else if (m.failed) {
         status.textContent = "The Forth could not start: " + m.failed;
+        status.className = "status failed";
+      }
       else if (m.start) {
         print(sent, "typed");   // after what the slots printed before it
         fresh = true;
@@ -296,7 +374,12 @@
 
   for (const [label, lines] of EXAMPLES) {
     const button = document.createElement("button");
-    button.textContent = label;
+    button.className = "example";
+    const title = document.createElement("b");
+    title.textContent = label;
+    const code = document.createElement("span");
+    code.textContent = lines.join("  ");
+    button.append(title, code);
     button.addEventListener("click", () => { lines.forEach(send); input.focus(); });
     document.getElementById("examples").append(button);
   }
