@@ -329,7 +329,7 @@
   let busy = false;
   let ready = false;   // the worker drops a line sent before it is
   let fresh = false;   // nothing printed yet for the line under way
-  let filled = false;  // the line under way said the dictionary full
+  let filled = null;   // what the line under way said full, from full()
   let sentTour = false, said = "";   // the line under way of the tour, and its output
   let sent = "";       // the line sent, echoed once the worker starts it
   const queue = [];
@@ -445,8 +445,8 @@
           coarse: (g) => "Your browser reads its clock only to " + time(g, "en") + ", as when it guards your " +
                          "privacy: the kernel cannot keep time here, and the tour is off. Most browsers, as " +
                          "they come, read it to 1 ms or better.",
-          full: "Full: the dictionary, which Restart the Forth empties, or the slots of that period, " +
-                "of which n stop frees one.\n",
+          full: "The dictionary is full: Restart the Forth empties it.\n",
+          periodFull: "The slots of that period are all taken: n stop frees one.\n",
           failed: "The Forth could not start: ",
           welcome: "Escapement Forth, in WebAssembly. Type a line and Enter, or follow the tour.\n",
           budget: "trial budget ", free: "free", trial: "trial", promoted: "promoted", failedChip: "failed",
@@ -461,8 +461,8 @@
           coarse: (g) => "Votre navigateur ne lit son horloge qu'à " + time(g, "fr") + " près, comme lorsqu'il " +
                          "protège votre vie privée : le noyau ne peut pas tenir l'heure ici, et la visite est " +
                          "désactivée. La plupart des navigateurs, réglés par défaut, la lisent à 1 ms près ou mieux.",
-          full: "Plein : le dictionnaire, que Relancer le Forth vide, ou les cases de cette période, " +
-                "dont n stop libère une.\n",
+          full: "Le dictionnaire est plein : Relancer le Forth le vide.\n",
+          periodFull: "Les cases de cette période sont toutes prises : n stop en libère une.\n",
           failed: "Le Forth n'a pas pu démarrer : ",
           welcome: "Escapement Forth, en WebAssembly. Tapez une ligne puis Entrée, ou suivez la visite.\n",
           budget: "budget d'essai ", free: "libre", trial: "essai", promoted: "promu", failedChip: "en échec",
@@ -799,7 +799,8 @@
     showPool();
     output.textContent = "";
     queue.length = 0;
-    busy = filled = fresh = false;
+    busy = fresh = false;
+    filled = null;
     ready = false;
     cells.forEach((c) => { c.over = c.lately = 0; });
     showPins(0);
@@ -835,8 +836,8 @@
       }
       else if (m.done) {
         if (filled)
-          print(T[lang].full, "note");
-        filled = false;
+          print(filled === "period" ? T[lang].periodFull : T[lang].full, "note");
+        filled = null;
         // A line of the tour that failed: the rest of its step would bind the words as they
         // were before, or the slider set a variable no word reads.
         if (sentTour && !answered(said))

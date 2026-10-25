@@ -280,7 +280,7 @@ static void PEvery(Context *c, const Word *w)
   for (i = p * SLOT_ENTRIES; i < (p + 1) * SLOT_ENTRIES && Slots[i].State != SLOT_FREE;
        i += 1);
   if (i == (p + 1) * SLOT_ENTRIES) {
-     c->Error = FORTH_FULL;
+     c->Error = FORTH_PERIOD_FULL;
      return;
   }
   Bind(&Slots[i],x,SLOT_TRIAL,0);

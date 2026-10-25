@@ -412,9 +412,18 @@ check("a line that loops interrupted", r.out.includes("interrupted"), r.out);
 check("  after 10 s", r.ms >= 10000 && r.ms < 11000, r.ms);
 check("  the console answers after it", line("5 .").out === "5  ok\n");
 
+// A period whose slots are all taken: the page says so apart from a full dictionary, that
+// stop frees one, not Restart.
+stopAll();
+line(": w ;");
+let crowded = "";
+for (let k = 0; k < 5; k += 1)
+  crowded = line("' w 1000 every").out;
+check("a period full, the page says so apart", V.full(crowded) === "period", crowded);
+stopAll();
+
 // The tour typed again and again fills the dictionary: the page then says so, and that
-// Restart empties it; EVERY says a period full in the same words, from a word of its own
-// too, which the page cannot tell apart: its note names both.
+// Restart empties it.
 let filled = null;
 for (let k = 0; k < 400 && filled === null; k += 1)
   for (const l of tour.find((x) => x.id === "cost").lines) {
@@ -422,8 +431,8 @@ for (let k = 0; k < 400 && filled === null; k += 1)
     if (/dictionary full/.test(out))
       filled = out;
   }
-check("the tour again and again fills the dictionary, the page says so", filled !== null && V.full(filled), filled);
-check("  a period full said full too", V.full(" every dictionary full\n") && V.full(" start dictionary full\n"));
+check("the tour again and again fills the dictionary, the page says so", filled !== null && V.full(filled) === "dictionary",
+      filled);
 
 // A line of the tour that fails leaves the rest of its step out: the words it defines
 // would else be bound as they were before, or the slider set a variable not read.

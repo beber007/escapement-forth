@@ -149,10 +149,10 @@ function coarse(grain) {
   return !(grain <= 1000);
 }
 
-// full: Whether a line's output says full: the dictionary, which a Restart empties, or the
-// slots of a period, which EVERY says in the same words, from a word of its own too.
+// full: What a line's output says full: "dictionary", which a Restart empties, "period",
+// whose slots stop frees, or null.
 function full(text) {
-  return /dictionary full/.test(text);
+  return /dictionary full/.test(text) ? "dictionary" : /period full/.test(text) ? "period" : null;
 }
 
 // answered: Whether a line's output says ok, as the console ends a line it took; what the
