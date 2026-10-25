@@ -18,6 +18,9 @@ void WebKernelBoot(uint32_t wall);
 ** Held while interrupts are masked; at most WEB_KERNEL_CATCH is given at once. */
 void WebKernelSync(uint32_t wall);
 
+/* WebKernelClock: The kernel's clock, in us, modulo 2^30. */
+uint32_t WebKernelClock(void);
+
 /* WebKernelBroken: The nesting of the tasks found broken, 0 if never: a task elected
 ** while one below it on the stack had not ended, which EDF never does. */
 extern unsigned WebKernelBroken;
