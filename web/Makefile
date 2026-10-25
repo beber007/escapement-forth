@@ -1,0 +1,38 @@
+# Copyright (c) 2026 Bertrand Hurst. All rights reserved.
+# Escapement Forth - a Forth console beside the Escapement real-time OS.
+# Distributed under the terms of LICENSE at the root of this repository.
+
+# The Forth, the pool of slots and the board's kernel, EscapementHard.c of the submodule
+# escapement/, compiled to WebAssembly, for the page of web/:
+#   make            build/forth.wasm, beside index.html and worker.js in build/
+#   make serve      the page on http://localhost:8000
+# A clang with the wasm32 target and wasm-ld (Homebrew's llvm and lld), no C library.
+CLANG ?= $(firstword $(wildcard /opt/homebrew/opt/llvm/bin/clang) clang)
+CFLAGS = --target=wasm32 -std=c99 -Wall -Wextra -Werror -O2 -fwrapv -nostdlib \
+         -ffreestanding -fno-builtin -I../src -Ikernel -I$(E)
+LDFLAGS = -Wl,--no-entry -Wl,--allow-undefined-file=imports.txt
+B = $(or $(BUILD),build)
+E = ../escapement/Escapement
+
+SOURCES = ../src/forth.c ../src/slots.c platform_web.c kernel/kernel_web.c
+HEADERS = ../src/forth.h ../src/forth_platform.h ../src/slots.h $(wildcard kernel/*.h) \
+          $(E)/EscapementHard.h $(E)/Escapement_Modes.h
+
+all: $(B)/forth.wasm
+
+# The kernel as its own build warns: -Wall, not -Wextra.
+$(B)/EscapementHard.o: $(E)/EscapementHard.c $(HEADERS)
+	mkdir -p $(B)
+	$(CLANG) $(filter-out -Wextra,$(CFLAGS)) -c -o $@ $<
+
+$(B)/forth.wasm: $(SOURCES) $(B)/EscapementHard.o $(HEADERS) imports.txt index.html worker.js
+	$(CLANG) $(CFLAGS) $(LDFLAGS) -o $@ $(SOURCES) $(B)/EscapementHard.o
+	cp index.html worker.js $(B)/
+
+serve: $(B)/forth.wasm
+	cd $(B) && python3 -m http.server 8000
+
+clean:
+	rm -rf $(B)
+
+.PHONY: all serve clean
