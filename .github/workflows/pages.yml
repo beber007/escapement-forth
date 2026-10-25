@@ -1,0 +1,51 @@
+name: pages
+
+# The page of web/, the console and the hard kernel in WebAssembly, built with the
+# distribution's clang and lld; published on GitHub Pages from main, built only on a pull
+# request.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One run at a time for each ref: a pull request's push must not cancel main's deployment,
+# nor a push to main the deployment under way.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  page:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Page
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld
+          make -C web CLANG=clang
+          ls -l web/build
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: web/build
+
+  deploy:
+    needs: page
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-26.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
