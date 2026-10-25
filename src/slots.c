@@ -368,6 +368,24 @@ static void PStop(Context *c, const Word *w)
      Bind(s,NULL,SLOT_FREE,0);
 } /* end of PStop */
 
+void SlotsView(int n, SlotView *v)
+{
+  const Slot *s = &Slots[n];
+  Figures f;
+  int current;
+  v->Bound = s->Bound;
+  v->State = s->State;
+  v->Wcet = s->Wcet;
+  v->Budget = v->State == SLOT_PROMOTED ? v->Wcet : SlotPeriod[n / SLOT_ENTRIES] / 10;
+  /* The figures of the word bound before, until the kernel's core first runs this one. */
+  Read(s,&f);
+  current = f.Generation == s->Sequence || Carries(s,f.Generation,s->Sequence);
+  v->Runs = current ? f.Runs : 0;
+  v->MaxTime = current ? f.MaxTime : 0;
+  v->Excess = current ? f.Excess : 0;
+  v->Error = current ? f.Error : FORTH_OK;
+} /* end of SlotsView */
+
 /* SLOTS ( -- ): Each entry bound, then the load of the processor admitted. */
 static void PSlots(Context *c, const Word *w)
 {
@@ -379,38 +397,33 @@ static void PSlots(Context *c, const Word *w)
      return;
   }
   for (i = 0; i < SLOTS; i += 1) {
-     const Slot *s = &Slots[i];
-     const Word *b = s->Bound;
-     Figures f;
-     int current;
-     if (s->State == SLOT_FREE || b == NULL)
+     SlotView v;
+     SlotsView(i,&v);
+     if (v.State == SLOT_FREE || v.Bound == NULL)
         continue;
      ForthEmit('\n');
      ForthPrintNumber(i);
      ForthPrintDigits(SlotPeriod[i / SLOT_ENTRIES]);
      ForthPrintText("us ");
-     for (j = 0; j < b->Length; j += 1)
-        ForthEmit(b->Name[j]);
+     for (j = 0; j < v.Bound->Length; j += 1)
+        ForthEmit(v.Bound->Name[j]);
      ForthEmit(' ');
-     ForthPrintText(States[s->State]);
-     /* The figures of the word bound before, until the kernel's core first runs this one. */
-     Read(s,&f);
-     current = f.Generation == s->Sequence || Carries(s,f.Generation,s->Sequence);
+     ForthPrintText(States[v.State]);
      ForthPrintText(" runs ");
-     ForthPrintNumber(current ? f.Runs : 0);
+     ForthPrintNumber(v.Runs);
      ForthPrintText("max ");
-     ForthPrintNumber(current ? f.MaxTime : 0);
-     if (s->State == SLOT_PROMOTED) {
+     ForthPrintNumber(v.MaxTime);
+     if (v.State == SLOT_PROMOTED) {
         ForthPrintText("wcet ");
-        ForthPrintNumber(s->Wcet);
+        ForthPrintNumber(v.Wcet);
      }
-     if (s->State == SLOT_PROMOTED || (current && f.Excess != 0)) {
+     if (v.State == SLOT_PROMOTED || v.Excess != 0) {
         ForthPrintText("over ");
-        ForthPrintNumber(current ? f.Excess : 0);
+        ForthPrintNumber(v.Excess);
      }
-     if (current && f.Error != FORTH_OK) {
+     if (v.Error != FORTH_OK) {
         ForthPrintText("failed: ");
-        ForthPrintText(ForthErrorText(f.Error));
+        ForthPrintText(ForthErrorText(v.Error));
      }
   }
   ForthPrintText("\nload ");
