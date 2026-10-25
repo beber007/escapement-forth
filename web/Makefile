@@ -7,6 +7,8 @@
 #   make            build/forth.wasm, beside index.html and worker.js in build/
 #   make serve      the page on http://localhost:8000
 #   make test       build/forth.wasm driven as the worker drives it (test/test_web.js),
+#                   the browser's clock read to the us, to 0.1 ms as in Chrome, then to
+#                   the ms as in other browsers,
 #                   under Node, or JavaScriptCore: make test JS=.../jsc JS_ARGS=--
 # A clang with the wasm32 target and wasm-ld (Homebrew's llvm and lld), no C library.
 CLANG ?= $(firstword $(wildcard /opt/homebrew/opt/llvm/bin/clang) clang)
@@ -27,15 +29,17 @@ $(B)/EscapementHard.o: $(E)/EscapementHard.c $(HEADERS)
 	mkdir -p $(B)
 	$(CLANG) $(filter-out -Wextra,$(CFLAGS)) -c -o $@ $<
 
-$(B)/forth.wasm: $(SOURCES) $(B)/EscapementHard.o $(HEADERS) imports.txt index.html worker.js
+$(B)/forth.wasm: $(SOURCES) $(B)/EscapementHard.o $(HEADERS) imports.txt index.html view.js worker.js
 	$(CLANG) $(CFLAGS) $(LDFLAGS) -o $@ $(SOURCES) $(B)/EscapementHard.o
-	cp index.html worker.js $(B)/
+	cp index.html view.js worker.js $(B)/
 
 JS ?= node
 JS_ARGS ?=
 
 test: $(B)/forth.wasm
-	$(JS) test/test_web.js $(JS_ARGS) $(B)/forth.wasm index.html worker.js
+	$(JS) test/test_web.js $(JS_ARGS) $(B)/forth.wasm index.html worker.js view.js
+	$(JS) test/test_web.js $(JS_ARGS) $(B)/forth.wasm index.html worker.js view.js 0.1
+	$(JS) test/test_web.js $(JS_ARGS) $(B)/forth.wasm index.html worker.js view.js 1
 
 serve: $(B)/forth.wasm
 	cd $(B) && python3 -m http.server 8000

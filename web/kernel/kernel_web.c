@@ -68,6 +68,8 @@ void _OSStartTimer(void)
 
 INT32 _OSGetActualTime(void) { return Clock; }
 
+uint32_t WebKernelClock(void) { return (uint32_t)Clock; }
+
 BOOL _OSTimerIsOverflow(INT32 shiftTimeLimit)
 {
   (void)shiftTimeLimit;

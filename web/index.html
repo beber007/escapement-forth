@@ -19,6 +19,8 @@
     --pcb: #1d5a3c; --pcb-edge: #154530; --pad: #d8b25a;
     --led-off: #2c4a3b; --led-on: #ffb13b; --led-glow: rgba(255, 177, 59, 0.65);
     --shadow: 0 1px 2px rgba(31, 35, 40, 0.06), 0 8px 24px rgba(31, 35, 40, 0.08);
+    --row0: #1f7a55; --row1: #2f6fb0; --row2: #8a5cc2; --row3: #a86500; --row4: #6e7781;
+    --over: #cf222e; --over-bg: rgba(207, 34, 46, 0.10);
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -30,6 +32,8 @@
       --pcb: #15402b; --pcb-edge: #0e2f1f; --pad: #b8954a;
       --led-off: #1f3a2c; --led-on: #ffb13b; --led-glow: rgba(255, 177, 59, 0.6);
       --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+      --row0: #3fb980; --row1: #58a6ff; --row2: #bc8cff; --row3: #e3b341; --row4: #9198a1;
+      --over: #ff7b72; --over-bg: rgba(255, 123, 114, 0.12);
     }
   }
   * { box-sizing: border-box; }
@@ -54,7 +58,7 @@
                border-radius: 999px; padding: 4px 11px; }
   .badges li b { color: var(--accent); font-weight: 600; }
 
-  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
   @media (max-width: 820px) { .grid { grid-template-columns: minmax(0, 1fr); } }
 
   .window { border-radius: 12px; overflow: hidden; background: var(--term-bg);
@@ -84,7 +88,7 @@
             margin-top: 12px; }
   .status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
   .status.ready::before { background: #2fbf71; box-shadow: 0 0 0 3px rgba(47, 191, 113, 0.18); }
-  .status.failed::before { background: #e5534b; }
+  .status.failed::before, .status.coarse::before { background: #e5534b; }
 
   .side { display: flex; flex-direction: column; gap: 16px; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
@@ -105,15 +109,73 @@
   .led.on { background: radial-gradient(circle at 40% 35%, #fff3d6, var(--led-on) 55%);
             box-shadow: 0 0 0 2px var(--pad), 0 0 10px 3px var(--led-glow); }
 
-  .examples { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
   button { font: inherit; cursor: pointer; color: var(--ink); }
-  .example { width: 100%; min-width: 0; text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
-             padding: 8px 10px; transition: border-color 120ms, transform 120ms, background 120ms; }
-  .example:hover { border-color: var(--accent); transform: translateY(-1px); }
-  .example:active { transform: none; }
-  .example b { display: block; font-size: 0.88rem; font-weight: 600; }
-  .example span { display: block; font: 11.5px/1.4 ui-monospace, Menlo, monospace; color: var(--muted);
-                  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* How it works: four steps across, one a row on a phone. */
+  .how { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0 0 28px;
+         padding: 0; list-style: none; counter-reset: how; }
+  @media (max-width: 820px) { .how { grid-template-columns: minmax(0, 1fr); } }
+  .how li { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
+            font-size: 0.92rem; color: var(--muted); counter-increment: how; }
+  .how li::before { content: counter(how); display: inline-grid; place-items: center; width: 22px; height: 22px;
+                    border-radius: 50%; background: var(--accent); color: var(--accent-ink);
+                    font-size: 0.8rem; font-weight: 700; margin-bottom: 6px; }
+  .how b { display: block; color: var(--ink); font-size: 0.98rem; margin-bottom: 2px; }
+
+  /* The guided tour. */
+  .tour h3 { font-size: 1.05rem; margin: 0 0 6px; }
+  .tour p { margin: 0 0 10px; font-size: 0.92rem; color: var(--muted); }
+  .tour .watch { color: var(--ink); background: var(--chip); border-radius: 8px; padding: 8px 10px; }
+  .tour .watch::before { content: "Watch: "; font-weight: 600; color: var(--accent); }
+  .tour pre { margin: 0 0 12px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line);
+              border-radius: 8px; font: 11.5px/1.5 ui-monospace, Menlo, monospace; color: var(--ink);
+              white-space: pre-wrap; word-break: break-word; }
+  .cost { margin: 0 0 12px; font-size: 0.9rem; }
+  .cost label { display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .cost input { width: 100%; accent-color: var(--accent); }
+  .steps { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; }
+  .steps button { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 8px 12px;
+                  font-size: 0.9rem; }
+  .steps .run { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  .steps button:disabled { opacity: 0.45; cursor: default; }
+
+  /* The timeline and the pool, under the console. */
+  .live { margin-top: 20px; display: grid; gap: 16px; }
+  .views { display: flex; gap: 6px; }
+  .live .card h2 button { border: 1px solid var(--line); background: var(--bg); border-radius: 6px;
+                          padding: 2px 10px; font-size: 0.8rem; text-transform: none; letter-spacing: 0; }
+  #timeline { display: block; width: 100%; height: 190px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none;
+            font-size: 0.82rem; color: var(--muted); }
+  .legend i { display: inline-block; vertical-align: middle; margin-right: 6px; }
+  .legend .run { width: 14px; height: 9px; border-radius: 2px; background: var(--row1); }
+  .legend .wait { width: 14px; height: 1px; background: var(--row1); }
+  .legend .tick { width: 1px; height: 9px; background: var(--muted); }
+  .legend .over { width: 14px; height: 9px; border-radius: 2px; background: var(--over); }
+  .summary { margin: 8px 0 0; font-size: 0.82rem; color: var(--muted); }
+  .prow { display: grid; grid-template-columns: 92px repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
+  @media (max-width: 820px) { .prow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+                              .prow .phead { grid-column: 1 / -1; } }
+  .phead { font-size: 0.82rem; color: var(--muted); align-self: center; }
+  .phead b { display: block; color: var(--ink); font-size: 0.95rem; }
+  .cell { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0; font-size: 0.8rem;
+          color: var(--muted); background: var(--bg); }
+  .cell.free { opacity: 0.6; }
+  .cell.failed, .cell.overrun { border-color: var(--over); background: var(--over-bg); }
+  .cell .top { display: flex; justify-content: space-between; gap: 6px; }
+  .cell .name { font: 600 0.85rem ui-monospace, Menlo, monospace; color: var(--ink); overflow: hidden;
+                text-overflow: ellipsis; white-space: nowrap; }
+  .chip { font-size: 0.7rem; border-radius: 999px; padding: 0 7px; background: var(--chip); color: var(--muted); }
+  .promoted .chip { background: var(--accent); color: var(--accent-ink); }
+  .failed .chip { background: var(--over); color: var(--accent-ink); }
+  .bar2 { height: 6px; border-radius: 3px; background: var(--chip); margin: 6px 0 4px; overflow: hidden; }
+  .bar2 i { display: block; height: 100%; width: 0; background: var(--row1); border-radius: 3px; }
+  .bar2 i.past { background: var(--over); }
+  .gauge { position: relative; height: 12px; border-radius: 6px; background: var(--chip); margin: 14px 0 6px; }
+  .gauge i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--accent); border-radius: 6px;
+             transition: width 200ms; }
+  .gauge b { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--over); }
+  .gauge-text { font-size: 0.85rem; color: var(--muted); }
   .restart { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 9px;
              font-size: 0.9rem; color: var(--muted); }
   .restart:hover { color: var(--ink); border-color: var(--muted); }
@@ -134,8 +196,8 @@
     <h1>Escapement Forth</h1>
     <p class="lede">The Forth console of <a href="https://github.com/beber007/escapement">Escapement</a>,
       and the real-time kernel under it, compiled to WebAssembly and running in this page.
-      Type words, bind them to periodic slots with <code>every</code>, measure them with
-      <code>slots</code>, admit them with <code>promote</code>.</p>
+      Follow the guided tour, or type your own words; the timeline and the pool below
+      show what the kernel does with them.</p>
     <ul class="badges">
       <li><b>hard kernel</b> · EDF</li>
       <li><b>4 tasks</b> · 1, 10, 100, 1000 ms</li>
@@ -143,6 +205,18 @@
       <li><b>in your browser</b> · nothing sent</li>
     </ul>
   </header>
+
+  <ol class="how" aria-label="How it works">
+    <li><b>Four tasks, sixteen slots</b>The kernel runs a task every 1, 10, 100 and 1000 ms.
+      Each holds four slots, to which the console binds words: <code>' blink 100 every</code>.</li>
+    <li><b>A trial, with a budget</b>A word bound is on trial: it runs at each release and its
+      time is measured. A run may take a tenth of its period; past that budget it is cut.</li>
+    <li><b>Promoted, or refused</b><code>promote</code> admits a word measured ten times within
+      its budget, with a worst case drawn from them, while the promoted words fit in 70 % of
+      the processor.</li>
+    <li><b>Deadline first</b>The kernel runs the task whose deadline comes first, EDF: the task
+      of 1 ms interrupts that of 1 s, and the console waits for them all.</li>
+  </ol>
 
   <div class="grid">
     <div>
@@ -163,12 +237,45 @@
         <h2>Pins <span class="mono">1 15 lshift toggle</span></h2>
         <div class="board"><div class="pins" id="pins"></div></div>
       </section>
-      <section class="card">
-        <h2>Try</h2>
-        <div class="examples" id="examples"></div>
+      <section class="card tour" aria-label="Guided tour">
+        <h2>Guided tour <span id="step-count"></span></h2>
+        <h3 id="step-title" aria-live="polite"></h3>
+        <p id="step-text"></p>
+        <p class="watch" id="step-watch"></p>
+        <pre id="step-code"></pre>
+        <div class="cost" id="cost" hidden>
+          <label for="cost-range">Cost of <code>work</code> <output id="cost-value">500 µs</output></label>
+          <input type="range" id="cost-range" min="100" max="3000" step="100" value="500">
+        </div>
+        <div class="steps">
+          <button id="step-back" aria-label="Previous step">←</button>
+          <button class="run" id="step-run">Type these lines</button>
+          <button id="step-next" aria-label="Next step">→</button>
+        </div>
       </section>
       <button class="restart" id="restart">Restart the Forth</button>
     </div>
+  </div>
+
+  <div class="live">
+    <section class="card">
+      <h2>The kernel, live <span class="views"><button id="span" aria-label="1 s: show the last second">1 s</button>
+        <button id="pause">Pause</button></span></h2>
+      <canvas id="timeline" role="img" aria-label="The tasks the kernel ran, the last 200 ms"></canvas>
+      <ul class="legend">
+        <li><i class="run"></i>running</li>
+        <li><i class="wait"></i>released, waiting: preempted</li>
+        <li><i class="tick"></i>release</li>
+        <li><i class="over"></i>over its budget</li>
+      </ul>
+      <p class="summary" id="timeline-summary" aria-live="off"></p>
+    </section>
+    <section class="card">
+      <h2>The pool <span>longest run against its budget</span></h2>
+      <div id="pool"></div>
+      <div class="gauge" aria-hidden="true"><i id="gauge-fill"></i><b id="gauge-bound"></b></div>
+      <div class="gauge-text" id="gauge-text"></div>
+    </section>
   </div>
 
   <section class="honest">
@@ -184,11 +291,14 @@
       <li>The kernel's clock follows the browser's, which lets the page run every few
         milliseconds, seldom in a tab left in the background. The time it held the page, the
         clock passes release by release, each on time for the kernel, late on the wall; past
-        200 ms, the rest is not given at all.</li>
-      <li>The times <code>slots</code> shows are those of your browser, not of the Pico, read
-        to a tenth of a millisecond, or a whole one, depending on the browser: a short word
-        reads 0. Nothing here tells the
-        costs of the kernel on a chip, nor its energy.</li>
+        200 ms, the rest is not given at all. A pause of the browser of more than half a
+        millisecond or so in the middle of a run, a garbage collection or the system, is left
+        out of the clock and of the times measured: the board has none.</li>
+      <li>The times the pool, the timeline and <code>slots</code> show are those of your
+        browser, not of the Pico, read to a tenth of a millisecond, or a whole one, depending on
+        the browser, coarser still where it guards your privacy, the page then saying so: a
+        short word reads 0, and an empty task takes no width. Nothing here tells
+        the costs of the kernel on a chip, nor its energy.</li>
       <li>A line typed at the console is stopped after 10 s, as Ctrl-C does on the board. The
         dictionary lives as long as the page; <code>save</code> has no flash to write.</li>
     </ul>
@@ -197,6 +307,7 @@
     <a href="https://github.com/beber007/escapement">Escapement</a></footer>
 </main>
 
+<script src="view.js"></script>
 <script>
   const output = document.getElementById("output");
   const input = document.getElementById("input");
@@ -212,6 +323,9 @@
   let busy = false;
   let ready = false;   // the worker drops a line sent before it is
   let fresh = false;   // nothing printed yet for the line under way
+  let filled = false;  // the line under way said the dictionary full
+  let clockCoarse = false;   // the browser's clock too coarse for the tour
+  let sentTour = false, said = "";   // the line under way of the tour, and its output
   let sent = "";       // the line sent, echoed once the worker starts it
   const queue = [];
 
@@ -227,15 +341,49 @@
     leds[p] = led;
   }
 
-  const EXAMPLES = [
-    ["blink GP15 every 100 ms", [": blink  1 15 lshift toggle ;", "' blink 100 every"]],
-    ["see the slots", ["slots"]],
-    ["admit blink, entry 8", ["1000 ms 8 promote", "slots"]],
-    ["count every 10 ms", ["variable n", ": tick  1 n +! ;", "' tick 10 every", "1000 ms n @ ."]],
-    ["a word over its budget", [": slow  0 begin 1+ dup 100000 = until drop ;", "' slow 10 every", "200 ms slots"]],
-    ["catch and throw", [": risky  ( n -- ) 0= if 42 throw then ;", "0 ' risky catch .", "1 ' risky catch ."]],
-    ["the words", ["words"]],
-    ["stop everything", ["0 stop 1 stop 2 stop 3 stop 4 stop 5 stop 6 stop 7 stop 8 stop 9 stop 10 stop 11 stop 12 stop 13 stop 14 stop 15 stop"]],
+  // The tour: each step's lines typed in turn. {name} is the slot of the word of that
+  // name, read from the pool as the line before ended; a line naming none is left out.
+  const STOP_ALL = "0 stop 1 stop 2 stop 3 stop 4 stop 5 stop 6 stop 7 stop 8 stop 9 stop " +
+                   "10 stop 11 stop 12 stop 13 stop 14 stop 15 stop";
+  const TOUR = [
+    { title: "A word on a period",
+      text: "Define a word that toggles the pin GP15, then bind it to the task of 100 ms with every. The console answers with the slot it took.",
+      watch: "the LED GP15 blinking, the 100 ms row of the timeline running at each release, the slot on trial in the pool.",
+      lines: [STOP_ALL, ": blink  1 15 lshift toggle ;", "' blink 100 every"] },
+    { title: "What a word costs",
+      text: "work spends cost microseconds in the task of 10 ms. On trial, a run may take a tenth of its period: 1 ms here.",
+      watch: "in the pool, the longest run of work against its budget; on the 10 ms row, its runs. Move the slider.",
+      lines: [STOP_ALL, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every"], cost: true },
+    { title: "Over its budget",
+      text: "Past 1 ms, a run of work is cut: spend checks the budget as it waits, as the Forth does every sixteen words. The run is counted over, and work runs again at its next release, the other tasks on time.",
+      watch: "red runs on the timeline, cut at the first step of the clock past 1 ms, and over counting up in the pool.",
+      lines: [STOP_ALL, "variable cost  2000 cost !", ": work  cost @ spend ;", "' work 10 every", "300 ms"],
+      cost: true },
+    { title: "Admitted",
+      text: "promote admits a word measured ten times within its budget. Its worst case becomes the longest run seen, plus a quarter, plus 1 µs: its budget from then on. Bound anew, work starts its trial over.",
+      watch: "the slot promoted, its budget its worst case now, the load rising. Push the slider past it: promoted, work is held to it. A browser reads its clock to a tenth of a millisecond at best, to a whole one often: a run may go over without you.",
+      lines: [STOP_ALL, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every",
+              "200 ms {work} promote"], cost: true },
+    { title: "Preempted",
+      text: "long spends 80 ms in the task of 1 s, busy 500 µs in that of 10 ms. The kernel runs the task whose deadline comes first: the tasks of 1 and 10 ms interrupt long and run on time; long goes on after them. The timeline stops on the next run of long.",
+      watch: "the 1 s row broken into pieces, a thin line where long waits, the 10 ms row running in the gaps.",
+      lines: [STOP_ALL, ": long  80000 spend ;  : busy  500 spend ;", "' long 1000 every",
+              "' busy 10 every"], freeze: 3 },
+    { title: "Admission refused",
+      text: "Everything stopped, eight words that each take most of their budget, then their promotion. The promoted words may take 70 % of the processor together: each promotion that would pass it is refused, and that word stays on trial.",
+      watch: "the load climbing towards the red mark, and refused in the console.",
+      lines: [STOP_ALL, ": big10  700 spend ;  : big100  9500 spend ;",
+              "' big10 10 every ' big10 10 every ' big10 10 every ' big10 10 every",
+              "' big100 100 every ' big100 100 every ' big100 100 every ' big100 100 every",
+              "1300 ms", "4 promote 5 promote 6 promote 7 promote", "8 promote 9 promote 10 promote 11 promote"] },
+    { title: "A word that fails",
+      text: "bad drops from an empty stack: it fails at its first run and is stopped, its error kept. The other slots run on.",
+      watch: "failed in the pool; nothing else changes on the timeline.",
+      lines: [STOP_ALL, ": bad  drop ;", "' bad 1 every"] },
+    { title: "Your turn",
+      text: "Everything stopped. Type your own words at the console: words lists the dictionary, slots prints the pool, and Restart starts the Forth over.",
+      watch: "",
+      lines: [STOP_ALL] },
   ];
 
   function print(text, cls) {
@@ -255,57 +403,294 @@
 
   // send: The line given to the Forth once the line before is done, and echoed as the
   // board's console does, " ok" after it on the same line.
-  function send(line) {
+  function send(line, tour) {
     if (worker === null)
       return;
-    queue.push(line);
+    queue.push({ line, tour: tour === true });
     next();
   }
 
   function next() {
-    if (!ready || busy || queue.length === 0)
+    if (!ready || busy)
       return;
-    const line = queue.shift();
+    const item = pending(queue, pool);
+    if (item === null)
+      return;
     busy = true;
-    sent = line;
-    worker.postMessage(line);
+    sent = item.line;
+    sentTour = item.tour;
+    worker.postMessage(item.line);
   }
+
+  // ---- The timeline: what the kernel ran (view.js), the last view.window us of its clock.
+  const ROWS = ["1 ms", "10 ms", "100 ms", "1 s", "console"];
+  const PERIODS = [1000, 10000, 100000, 1000000];
+  const canvas = document.getElementById("timeline");
+  const context = canvas.getContext("2d");
+  const summary = document.getElementById("timeline-summary");
+  const view = timeline(() => showViews());
+  let pool = [], load = 0, loadBound = 700000, summed = -Infinity;
+
+  function draw() {
+    requestAnimationFrame(draw);
+    const css = getComputedStyle(document.documentElement);
+    const color = (name) => css.getPropertyValue(name).trim();
+    const ratio = window.devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
+    if (canvas.width !== Math.round(w * ratio) || canvas.height !== Math.round(h * ratio)) {
+      canvas.width = Math.round(w * ratio);
+      canvas.height = Math.round(h * ratio);
+    }
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.clearRect(0, 0, w, h);
+    const label = w < 480 ? 50 : 64, axis = 18, row = (h - axis) / ROWS.length;
+    const WINDOW = view.window, right = view.frozen !== null ? view.frozen : view.clock, left = right - WINDOW;
+    const x = (t) => label + (w - label) * (t - left) / WINDOW;
+    context.font = "11px ui-monospace, Menlo, monospace";
+    context.textBaseline = "middle";
+    for (let r = 0; r < ROWS.length; r += 1) {
+      context.fillStyle = color("--muted");
+      context.fillText(ROWS[r], 0, row * r + row / 2);
+      context.fillStyle = color("--line");
+      context.fillRect(label, row * (r + 1) - 0.5, w - label, 1);
+    }
+    context.fillStyle = color("--muted");
+    for (let p = 0; p < PERIODS.length; p += 1)
+      for (let t = Math.ceil(left / PERIODS[p]) * PERIODS[p]; t <= right; t += PERIODS[p])
+        context.fillRect(x(t), row * p + 3, 1, 5);
+    const counts = [0, 0, 0, 0, 0];
+    let over = 0;
+    for (const i of view.instances) {
+      const stop = i.end === null ? right : i.end;
+      if (stop < left || i.start > right)
+        continue;
+      if (i.end !== null && i.end >= left && i.end <= right) {
+        counts[i.row] += 1;
+        over += i.over ? 1 : 0;
+      }
+      const hue = i.over ? color("--over") : color("--row" + i.row), top = row * i.row;
+      context.fillStyle = hue;
+      context.globalAlpha = 0.55;
+      context.fillRect(x(Math.max(i.start, left)), top + row / 2 - 0.5, x(Math.min(stop, right)) - x(Math.max(i.start, left)), 1);
+      context.globalAlpha = 1;
+      for (const [a, b] of i.runs) {
+        const from = x(Math.max(a, left)), to = x(Math.min(b === null ? right : b, right));
+        context.fillRect(from, top + row * 0.22, to - from, row * 0.56);
+      }
+    }
+    context.fillStyle = color("--muted");
+    context.textBaseline = "alphabetic";
+    const span = WINDOW / 1000, mark = span / 4;
+    for (let ms = 0; ms <= span; ms += mark) {
+      const at = label + (w - label) * (span - ms) / span;
+      context.textAlign = ms === 0 ? "right" : ms === span ? "left" : "center";
+      context.fillText(ms === 0 ? "now" : "−" + ms + " ms", at, h - 4);
+    }
+    context.textAlign = "left";
+    if (performance.now() - summed > 500) {
+      summed = performance.now();
+      const text = "In the last " + time(WINDOW) + ": " + ROWS.slice(0, 4).map((r, p) => r + " " + counts[p] +
+                   (counts[p] === 1 ? " release" : " releases")).join(", ") + "; " + over +
+                   (over === 1 ? " run" : " runs") + " over budget.";
+      summary.textContent = text;
+      canvas.setAttribute("aria-label", text);
+    }
+  }
+
+  const spanButton = document.getElementById("span"), pauseButton = document.getElementById("pause");
+  function showViews() {
+    spanButton.textContent = view.window === SHORT ? "1 s" : "200 ms";
+    spanButton.setAttribute("aria-label", view.window === SHORT ? "1 s: show the last second" :
+                            "200 ms: show the last 200 ms");
+    pauseButton.textContent = view.frozen === null ? "Pause" : "Resume";
+    summed = -Infinity;
+  }
+  spanButton.addEventListener("click", () => {
+    view.window = view.window === SHORT ? LONG : SHORT;
+    showViews();
+  });
+  pauseButton.addEventListener("click", () => {
+    view.pause();
+    showViews();
+  });
+
+  // ---- The pool: each slot, its word, state and longest run against its budget.
+  const cells = [];
+  const gaugeFill = document.getElementById("gauge-fill");
+  const gaugeBound = document.getElementById("gauge-bound");
+  const gaugeText = document.getElementById("gauge-text");
+  for (let p = 0; p < PERIODS.length; p += 1) {
+    const prow = document.createElement("div");
+    prow.className = "prow";
+    const head = document.createElement("div");
+    head.className = "phead";
+    const name = document.createElement("b");
+    name.textContent = ROWS[p];
+    head.append(name, "trial budget " + time(PERIODS[p] / 10));
+    prow.append(head);
+    for (let e = 0; e < 4; e += 1) {
+      const cell = document.createElement("div");
+      const top = document.createElement("div");
+      top.className = "top";
+      const word = document.createElement("span");
+      word.className = "name";
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      top.append(word, chip);
+      const bar = document.createElement("div");
+      bar.className = "bar2";
+      const fill = document.createElement("i");
+      bar.append(fill);
+      const figures = document.createElement("div");
+      cell.append(top, bar, figures);
+      prow.append(cell);
+      cells.push({ cell, word, chip, fill, figures });
+    }
+    document.getElementById("pool").append(prow);
+  }
+
+  // A slot is drawn over for a second and a half after a run of it went over.
+  function showPool() {
+    const now = performance.now();
+    cells.forEach((c, i) => {
+      const e = pool[i] || { state: 0 };
+      const failed = e.state !== 0 && e.error !== "";
+      if (e.state === 0 || e.over < (c.over || 0))
+        c.over = 0;
+      if (e.state !== 0 && e.over > (c.over || 0)) {
+        c.over = e.over;
+        c.lately = now;
+      }
+      c.cell.className = "cell " + ["free", "trial", "promoted"][e.state] + (failed ? " failed" : "") +
+                         (e.state !== 0 && !failed && now - (c.lately || -Infinity) < 1500 ? " overrun" : "");
+      c.word.textContent = (e.state === 0 ? "free" : e.name) + "";
+      c.chip.textContent = "#" + i + (e.state === 0 ? "" : failed ? " failed" : e.state === 1 ? " trial" : " promoted");
+      if (e.state === 0) {
+        c.fill.style.width = "0";
+        c.figures.textContent = "";
+        return;
+      }
+      c.fill.style.width = Math.min(100, e.max / Math.max(e.budget, 1) * 100) + "%";
+      c.fill.className = e.max > e.budget ? "past" : "";
+      c.figures.textContent = "max " + time(e.max) + " of " + time(e.budget) + " · runs " + e.runs +
+        (e.over > 0 ? " · over " + e.over : "") + (failed ? " · " + e.error : "");
+    });
+    gaugeFill.style.width = Math.min(100, load / 10000) + "%";
+    gaugeBound.style.left = loadBound / 10000 + "%";
+    gaugeText.textContent = "Admitted load " + share(load) + " of the processor, the pool's own cost in it; it may reach " +
+                            share(loadBound) + ".";
+    // cost, the slider's variable, defined with work: before, its line would fail.
+    costRange.disabled = !pool.some((e) => e.state !== 0 && e.name === "work");
+  }
+
+  // ---- The tour.
+  let step = 0;
+  const costRange = document.getElementById("cost-range");
+  const costValue = document.getElementById("cost-value");
+  function showStep() {
+    const s = TOUR[step];
+    document.getElementById("step-count").textContent = (step + 1) + " / " + TOUR.length;
+    document.getElementById("step-title").textContent = s.title;
+    document.getElementById("step-text").textContent = s.text;
+    const watch = document.getElementById("step-watch");
+    watch.textContent = s.watch;
+    watch.hidden = s.watch === "";
+    document.getElementById("step-code").textContent =
+      s.lines.map((l) => l === STOP_ALL ? "‹stop every slot›" : l).join("\n");
+    document.getElementById("cost").hidden = !s.cost;
+    document.getElementById("step-back").disabled = step === 0;
+    document.getElementById("step-next").disabled = step === TOUR.length - 1;
+    // A button disabled while focused leaves the focus to the page's top.
+    if (document.activeElement.disabled)
+      document.getElementById(step === 0 ? "step-next" : "step-back").focus();
+    // Before the Forth is ready, a click would queue the tour on a clock not yet measured.
+    document.getElementById("step-run").disabled = !ready || clockCoarse;
+  }
+  function setCost(us) {
+    costRange.value = us;
+    costValue.textContent = time(us);
+  }
+  document.getElementById("step-run").addEventListener("click", () => {
+    view.watch(TOUR[step].freeze);
+    showViews();
+    for (const line of TOUR[step].lines) {
+      const cost = /^(\d+) cost !$/.exec(line) || /^variable cost  (\d+) cost !$/.exec(line);
+      if (cost)
+        setCost(Number(cost[1]));
+      send(line, true);
+    }
+  });
+  document.getElementById("step-back").addEventListener("click", () => { step -= 1; showStep(); });
+  document.getElementById("step-next").addEventListener("click", () => { step += 1; showStep(); });
+  costRange.addEventListener("input", () => setCost(Number(costRange.value)));
+  costRange.addEventListener("change", () => send(costRange.value + " cost !"));
 
   function start() {
     if (worker !== null)
       worker.terminate();
+    view.reset();
+    showViews();
+    setCost(500);
+    pool = [];
+    load = 0;
+    showPool();
     output.textContent = "";
     queue.length = 0;
-    busy = false;
+    busy = filled = fresh = false;
     ready = false;
+    cells.forEach((c) => { c.over = c.lately = 0; });
     showPins(0);
     status.textContent = "Loading…";
     status.className = "status";
+    clockCoarse = false;
+    showStep();
     worker = new Worker("worker.js");
     worker.onmessage = (event) => {
       const m = event.data;
       if (m.ready) {
-        status.textContent = "Ready. The Forth runs in this page; nothing is sent anywhere.";
-        status.className = "status ready";
-        print("Escapement Forth, in WebAssembly. Type a line and Enter, or try an example.\n", "note");
+        clockCoarse = coarse(m.grain);
+        status.textContent = clockCoarse ? "Your browser reads its clock only to " +
+          time(Math.round(m.grain / 100) * 100) + ", as when it guards your privacy: the kernel " +
+          "cannot keep time here, and the tour is off. Most browsers, as they come, read it to " +
+          "1 ms or better." : "Ready. The Forth runs in this page; nothing is sent anywhere.";
+        status.className = clockCoarse ? "status coarse" : "status ready";
         ready = true;
+        showStep();
+        print("Escapement Forth, in WebAssembly. Type a line and Enter, or follow the tour.\n", "note");
         next();
       }
       else if (m.failed) {
         status.textContent = "The Forth could not start: " + m.failed;
         status.className = "status failed";
       }
+      else if (m.telemetry) {
+        view.traced(m);
+        pool = m.slots;
+        load = m.load;
+        loadBound = m.bound;
+        showPool();
+      }
       else if (m.start) {
         print(sent, "typed");   // after what the slots printed before it
         fresh = true;
+        said = "";
       }
       else if (m.done) {
+        if (filled)
+          print("Full: the dictionary, which Restart the Forth empties, or the slots of that " +
+                "period, of which n stop frees one.\n", "note");
+        filled = false;
+        // A line of the tour that failed: the rest of its step would bind the words as they
+        // were before, or the slider set a variable no word reads.
+        if (sentTour && !answered(said))
+          abandon(queue);
         busy = false;
         next();
       }
       else {
         // A line's first output apart from the line, " ok" being already apart. A change
         // of the pins alone comes with no text, which would add an empty span each time.
+        filled = filled || full(m.text);
+        said += m.text;
         if (m.text === "")
           ;
         else if (fresh) {
@@ -372,20 +757,11 @@
       input.focus();
   });
 
-  for (const [label, lines] of EXAMPLES) {
-    const button = document.createElement("button");
-    button.className = "example";
-    const title = document.createElement("b");
-    title.textContent = label;
-    const code = document.createElement("span");
-    code.textContent = lines.join("  ");
-    button.append(title, code);
-    button.addEventListener("click", () => { lines.forEach(send); input.focus(); });
-    document.getElementById("examples").append(button);
-  }
   document.getElementById("restart").addEventListener("click", start);
 
+  showStep();
   start();
+  requestAnimationFrame(draw);
   input.focus();
 </script>
 </body>

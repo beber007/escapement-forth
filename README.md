@@ -68,8 +68,11 @@ save
 pool and Escapement's hard kernel under EDF, compiled to WebAssembly (`web/`). Only the
 layer under them differs: the kernel's clock follows the browser's, its interrupts are
 taken where the Forth reads the time, and the console is the kernel's idle task, which
-the slots preempt; on the board it has a core of its own. The times are the browser's,
-not the Pico's: the page says what it shows and what it does not.
+the slots preempt; on the board it has a core of its own. A guided tour binds, measures,
+cuts, promotes and refuses words, while a timeline draws what the kernel ran, from a
+trace the port keeps, and the pool shows each slot against its budget. The times are the
+browser's, not the Pico's, the browser's own pauses left out: the page says what it shows
+and what it does not.
 
 ## Limits
 
