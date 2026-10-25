@@ -1,0 +1,309 @@
+<!doctype html>
+<!-- Copyright (c) 2026 Bertrand Hurst. All rights reserved.
+     Escapement Forth - a Forth console beside the Escapement real-time OS.
+     Distributed under the terms of LICENSE at the root of this repository. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Escapement Forth</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a64; --line: #dcdad2;
+    --term-bg: #15171a; --term-ink: #d8dccf; --term-dim: #8a9187; --accent: #2f7d5b;
+    --led-off: #c9c7bf; --led-on: #e2a12c; --led-glow: rgba(226, 161, 44, 0.55);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101113; --panel: #181a1d; --ink: #e6e4dc; --muted: #9a988f; --line: #2b2e32;
+      --term-bg: #0b0c0e; --term-ink: #d8dccf; --term-dim: #7d847a; --accent: #5cb98c;
+      --led-off: #34373b; --led-on: #f0b64a; --led-glow: rgba(240, 182, 74, 0.5);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .lede { color: var(--muted); margin: 0 0 20px; max-width: 70ch; }
+  a { color: var(--accent); }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .terminal {
+    background: var(--term-bg); color: var(--term-ink); border-radius: 10px;
+    padding: 12px 14px; height: 440px; overflow-y: auto; cursor: text;
+    font: 14px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  #output { white-space: pre-wrap; word-break: break-word; }
+  .terminal .typed { color: #ffffff; }
+  .terminal .note { color: var(--term-dim); }
+  .prompt { display: flex; gap: 6px; }
+  .prompt input {
+    flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; padding: 0;
+    color: #ffffff; font: inherit; caret-color: var(--led-on);
+  }
+  .side { display: flex; flex-direction: column; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .card h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em;
+             color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .pins { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px 6px; }
+  .pin { display: flex; flex-direction: column; align-items: center; gap: 3px;
+         font: 11px ui-monospace, Menlo, monospace; color: var(--muted); }
+  .led { width: 16px; height: 16px; border-radius: 50%; background: var(--led-off);
+         transition: background 60ms, box-shadow 60ms; }
+  .led.on { background: var(--led-on); box-shadow: 0 0 8px 2px var(--led-glow); }
+  .examples { display: flex; flex-direction: column; gap: 6px; }
+  button {
+    font: 13px/1.3 ui-monospace, Menlo, monospace; text-align: left; cursor: pointer;
+    background: transparent; color: var(--ink); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 8px;
+  }
+  button:hover { border-color: var(--accent); }
+  button.plain { font-family: inherit; text-align: center; }
+  .status { font-size: 0.85rem; color: var(--muted); margin-top: 8px; }
+  .honest { margin-top: 24px; color: var(--muted); font-size: 0.95rem; max-width: 75ch; }
+  .honest h2 { font-size: 1rem; color: var(--ink); margin: 0 0 6px; }
+  .honest ul { margin: 0 0 12px; padding-left: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Escapement Forth</h1>
+  <p class="lede">The Forth console of <a href="https://github.com/beber007/escapement">Escapement</a>,
+    and the kernel under it, compiled to WebAssembly and running in this page. Type words,
+    bind them to periodic slots with <code>every</code>, measure them with <code>slots</code>,
+    admit them with <code>promote</code>.</p>
+
+  <div class="grid">
+    <div>
+      <div class="terminal" id="terminal" aria-live="polite">
+        <div id="output"></div>
+        <div class="prompt"><input id="input" autocomplete="off" spellcheck="false"
+             aria-label="Forth input"></div>
+      </div>
+      <div class="status" id="status">Loading…</div>
+    </div>
+
+    <div class="side">
+      <section class="card">
+        <h2>Pins</h2>
+        <div class="pins" id="pins"></div>
+      </section>
+      <section class="card">
+        <h2>Try</h2>
+        <div class="examples" id="examples"></div>
+      </section>
+      <button class="plain" id="restart">Restart the Forth</button>
+    </div>
+  </div>
+
+  <section class="honest">
+    <h2>What this page is, and is not</h2>
+    <ul>
+      <li>The Forth and the kernel are the board's own code, compiled unchanged: the console
+        and the pool of slots (<code>src/</code>), the hard kernel of Escapement under EDF
+        (<code>EscapementHard.c</code>) with the four tasks of the Pico, one a period. Only the
+        layer under them differs (<code>web/platform_web.c</code>, <code>web/kernel/</code>).</li>
+      <li>The console is the kernel's idle task here: the slots preempt it, and one another,
+        wherever the Forth reads the clock, every sixteen words. On the board the console has
+        a core of its own, and never delays a slot.</li>
+      <li>The kernel's clock follows the browser's, which lets the page run every few
+        milliseconds, seldom in a tab left in the background. The time it held the page, the
+        clock passes release by release, each on time for the kernel, late on the wall; past
+        200 ms, the rest is not given at all.</li>
+      <li>The times <code>slots</code> shows are those of your browser, not of the Pico, read
+        to a tenth of a millisecond, or a whole one, depending on the browser: a short word
+        reads 0. Nothing here tells the
+        costs of the kernel on a chip, nor its energy.</li>
+      <li>A line typed at the console is stopped after 10 s, as Ctrl-C does on the board. The
+        dictionary lives as long as the page; <code>save</code> has no flash to write.</li>
+    </ul>
+  </section>
+</main>
+
+<script>
+  const output = document.getElementById("output");
+  const input = document.getElementById("input");
+  const terminal = document.getElementById("terminal");
+  const status = document.getElementById("status");
+  const FREE = 0x1C7FFFFC;   // the pins free for words, as on the board
+  const LINE = 127;          // bytes of a line, past which the board takes no key
+  const encoder = new TextEncoder();
+  const leds = [];
+  const history = [];
+  let back = 0;
+  let worker = null;
+  let busy = false;
+  let ready = false;   // the worker drops a line sent before it is
+  let fresh = false;   // nothing printed yet for the line under way
+  let sent = "";       // the line sent, echoed once the worker starts it
+  const queue = [];
+
+  for (let p = 0; p < 30; p += 1) {
+    if (!(FREE & (1 << p)))
+      continue;
+    const pin = document.createElement("div");
+    pin.className = "pin";
+    const led = document.createElement("div");
+    led.className = "led";
+    pin.append(led, "GP" + p);
+    document.getElementById("pins").append(pin);
+    leds[p] = led;
+  }
+
+  const EXAMPLES = [
+    ["blink GP15 every 100 ms", [": blink  1 15 lshift toggle ;", "' blink 100 every"]],
+    ["see the slots", ["slots"]],
+    ["admit blink, entry 8", ["1000 ms 8 promote", "slots"]],
+    ["count every 10 ms", ["variable n", ": tick  1 n +! ;", "' tick 10 every", "1000 ms n @ ."]],
+    ["a word over its budget", [": slow  0 begin 1+ dup 100000 = until drop ;", "' slow 10 every", "200 ms slots"]],
+    ["catch and throw", [": risky  ( n -- ) 0= if 42 throw then ;", "0 ' risky catch .", "1 ' risky catch ."]],
+    ["the words", ["words"]],
+    ["stop everything", ["0 stop 1 stop 2 stop 3 stop 4 stop 5 stop 6 stop 7 stop 8 stop 9 stop 10 stop 11 stop 12 stop 13 stop 14 stop 15 stop"]],
+  ];
+
+  function print(text, cls) {
+    const span = document.createElement("span");
+    if (cls)
+      span.className = cls;
+    span.textContent = text;
+    output.append(span);
+    while (output.childNodes.length > 2000)
+      output.firstChild.remove();
+    terminal.scrollTop = terminal.scrollHeight;
+  }
+
+  function showPins(pins) {
+    leds.forEach((led, p) => led && led.classList.toggle("on", (pins & (1 << p)) !== 0));
+  }
+
+  // send: The line given to the Forth once the line before is done, and echoed as the
+  // board's console does, " ok" after it on the same line.
+  function send(line) {
+    if (worker === null)
+      return;
+    queue.push(line);
+    next();
+  }
+
+  function next() {
+    if (!ready || busy || queue.length === 0)
+      return;
+    const line = queue.shift();
+    busy = true;
+    sent = line;
+    worker.postMessage(line);
+  }
+
+  function start() {
+    if (worker !== null)
+      worker.terminate();
+    output.textContent = "";
+    queue.length = 0;
+    busy = false;
+    ready = false;
+    showPins(0);
+    status.textContent = "Loading…";
+    worker = new Worker("worker.js");
+    worker.onmessage = (event) => {
+      const m = event.data;
+      if (m.ready) {
+        status.textContent = "Ready. The Forth runs in this page; nothing is sent anywhere.";
+        print("Escapement Forth, in WebAssembly. Type a line and Enter, or try an example.\n", "note");
+        ready = true;
+        next();
+      }
+      else if (m.failed)
+        status.textContent = "The Forth could not start: " + m.failed;
+      else if (m.start) {
+        print(sent, "typed");   // after what the slots printed before it
+        fresh = true;
+      }
+      else if (m.done) {
+        busy = false;
+        next();
+      }
+      else {
+        // A line's first output apart from the line, " ok" being already apart. A change
+        // of the pins alone comes with no text, which would add an empty span each time.
+        if (m.text === "")
+          ;
+        else if (fresh) {
+          print(/^\s/.test(m.text) ? m.text : " " + m.text);
+          fresh = false;
+        }
+        else
+          print(m.text);
+        showPins(m.pins);
+      }
+    };
+  }
+
+  // An input that would take the line past LINE bytes is refused whole, typed, pasted,
+  // dropped or composed (IME, once it ends), the line and its caret as they were: the
+  // board's console takes no more keys.
+  let kept = "", caret = [0, 0];   // the line within bounds, and its selection then
+  function hold() {
+    caret = [input.selectionStart, input.selectionEnd];
+  }
+  input.addEventListener("beforeinput", (event) => {
+    if (!event.isComposing)
+      hold();
+  });
+  input.addEventListener("compositionstart", hold);
+  function bound(event) {
+    if (event.isComposing)
+      return;
+    if (encoder.encode(input.value).length <= LINE) {
+      kept = input.value;
+      return;
+    }
+    input.value = kept;
+    input.setSelectionRange(caret[0], caret[1]);
+  }
+  input.addEventListener("input", bound);
+  input.addEventListener("compositionend", bound);
+  input.addEventListener("keydown", (event) => {
+    // A composition's keys are its own, Enter and the arrows among them; Safari ends it
+    // before the Enter that validates it, of keyCode 229 then.
+    if (event.isComposing || event.keyCode === 229)
+      return;
+    if (event.key === "Enter") {
+      const line = input.value;
+      input.value = kept = "";
+      if (line.trim() !== "")
+        history.push(line);
+      back = 0;
+      send(line);
+    }
+    else if (event.key === "ArrowUp" && back < history.length) {
+      back += 1;
+      input.value = kept = history[history.length - back];
+      event.preventDefault();
+    }
+    else if (event.key === "ArrowDown" && back > 0) {
+      back -= 1;
+      input.value = kept = back === 0 ? "" : history[history.length - back];
+      event.preventDefault();
+    }
+  });
+  terminal.addEventListener("click", () => {
+    if (window.getSelection().toString() === "")
+      input.focus();
+  });
+
+  for (const [label, lines] of EXAMPLES) {
+    const button = document.createElement("button");
+    button.textContent = label;
+    button.addEventListener("click", () => { lines.forEach(send); input.focus(); });
+    document.getElementById("examples").append(button);
+  }
+  document.getElementById("restart").addEventListener("click", start);
+
+  start();
+  input.focus();
+</script>
+</body>
+</html>
