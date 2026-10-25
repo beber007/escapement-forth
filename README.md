@@ -39,7 +39,9 @@ the interrupts and those slots' own cost, which the load counts already, are in 
 
 `catch` and `throw` take the standard's codes (Forth 2012, 9.3.5): an error of the Forth's,
 `division by zero` and the like, is caught as its code, -10; a budget, a break and a
-stall are not caught, and stop the word. Besides: `abort`, `s"`, `type`, `char`,
+stall are not caught, and stop the word. `every` on a period whose four entries are taken
+says `period full`, caught as -257, a code of the system's own, apart from the
+dictionary's, -8. Besides: `abort`, `s"`, `type`, `char`,
 `[char]`, `>r`, `r>`, `r@`, `?dup`, `2dup`, `2drop`, `0<>`, `/mod`. At the console, `s"`
 keeps its text until the next one there. `>r` has a stack of its own, apart from the
 returns and the loops: `r>` gives no return, and what is left there goes as the word run

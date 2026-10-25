@@ -146,8 +146,10 @@ static void Pool(void)
   CASE("every a number"," every bad argument\n","5 10 every");
   CASE("every binds on trial"," ok\nslot 4  ok\nslot 5  ok\n",": w ;","' w 10 every",
        "' w 10 every");
-  CASE("a full period"," ok\nslot 0 slot 1 slot 2 slot 3  every dictionary full\n",": w ;",
+  CASE("a full period"," ok\nslot 0 slot 1 slot 2 slot 3  every period full\n",": w ;",
        "' w 1 every ' w 1 every ' w 1 every ' w 1 every ' w 1 every");
+  CASE("a full period caught"," ok\nslot 0 slot 1 slot 2 slot 3 -257  ok\n",": w ;",
+       "' w 1 every ' w 1 every ' w 1 every ' w 1 every ' w 1 ' every catch . 2drop");
   CASE("stop frees the entry"," ok\nslot 0  ok\n ok\nslot 0  ok\n",": w ;","' w 1 every",
        "0 stop","' w 1 every");
 
