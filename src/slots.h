@@ -53,4 +53,17 @@ void SlotsWords(void);
 /* SlotsLoad: What the promoted words and the pool take, in parts per million. */
 uint32_t SlotsLoad(void);
 
+/* SlotView: An entry as SLOTS shows it: its word, its state and the figures of that
+** word, 0 until the kernel's core first runs it; Budget is what a run may take, the
+** worst case admitted or, on trial, a tenth of the period. */
+typedef struct {
+   const Word *Bound;
+   uint8_t State, Error;
+   uint32_t Runs, MaxTime, Excess, Wcet, Budget;
+} SlotView;
+
+/* SlotsView: Entry n, read on the console's core, for SLOTS and for a platform that
+** draws the pool (web/). */
+void SlotsView(int n, SlotView *v);
+
 #endif /* SLOTS_H */
