@@ -41,6 +41,12 @@ perl -0pi -e 's{<head>}{<head>
       next.click();
     shown.focus = document.activeElement.id;
     shown.note = document.querySelector("#output .note").lang;
+    const pause = document.getElementById("pause"), banner = document.getElementById("frozen");
+    shown.banner = banner.hidden;
+    pause.click();
+    shown.banner = [shown.banner, banner.hidden, banner.textContent];
+    pause.click();
+    shown.banner.push(banner.hidden);
     setTimeout(() => fetch("/probe?" + encodeURIComponent(JSON.stringify(Object.assign(shown, {
       errors, output: document.getElementById("output").textContent,
       pool: document.querySelector("#pool").textContent })))), 2000);
@@ -108,6 +114,9 @@ print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
     failed=1
   elif ! check 's["focus"] == "step-back" and s["note"] == "'$lang'"'; then
     echo "FAILED  $lang: the focus lost at the tour's end, or the page's notes not in $lang: $shown"
+    failed=1
+  elif ! check 's["banner"][:2] == [True, False] and s["banner"][2] != "" and s["banner"][3]'; then
+    echo "FAILED  $lang: the timeline stopped without saying so: $shown"
     failed=1
   elif ! check '"slot 8  ok" in s["output"] and "blink" in s["pool"]'; then
     echo "FAILED  $lang: the tour's first step not run: $shown"

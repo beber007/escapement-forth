@@ -121,7 +121,7 @@ const pend = (queue, pool) => {
   const item = V.pending(queue, pool);
   return item === null ? null : item.line;
 };
-const V = Function(text(args[3]) + " return { timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share };")();
+const V = Function(text(args[3]) + " return { timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, rowNames, WINDOWS, ZOOM };")();
 
 forth.web_init();
 take();
@@ -163,7 +163,7 @@ function trace() {
 // The tour of the page, each line answered ok, the page's order and pace, and what each
 // step must show: an ok follows a word's refusal too ("too few runs  ok").
 const block = source.slice(source.indexOf("const STOP_ALL ="), source.indexOf("];", source.indexOf("const TOUR = [")) + 2);
-const tour = Function(block + " return TOUR;")();
+const tour = Function("ZOOM", block + " return TOUR;")(V.ZOOM);
 check("the page has a tour", tour.length >= 6, tour.length);
 check("each step said in English and in French", tour.every((s) => ["en", "fr"].every((l) =>
       s[l] && s[l].title && s[l].text && typeof s[l].watch === "string")), "");
@@ -189,6 +189,22 @@ check("  in French, 0 and 1 singular", T.fr.runs(0) === "0 exécution" && T.fr.r
       T.fr.runs(2) === "2 exécutions" && T.en.runs(0) === "0 runs", [T.fr.runs(0), T.en.runs(0)]);
 check("  in French, the number before dernières", T.fr.summary(V.time(1000000, "fr"), "", "").startsWith("Sur les 1000 dernières ms :"),
       T.fr.summary(V.time(1000000, "fr"), "", ""));
+
+// The timeline's rows named by the words bound in each period, the free slots left out;
+// a row with none named "".
+const bound = Array.from({ length: 16 }, () => ({ state: 0, name: "" }));
+bound[4] = { state: 1, name: "work" };
+bound[6] = { state: 2, name: "busy" };
+bound[13] = { state: 3, name: "long" };
+check("each row named by its words", JSON.stringify(V.rowNames(bound)) === '["","work busy","","long"]',
+      V.rowNames(bound));
+
+// The views of the timeline, shortest first: the steps of a cost seen at 20 ms, where a run
+// of 500 us takes some width.
+check("the timeline's views", V.WINDOWS.join() === "20000,200000,1000000" && V.ZOOM === 20000, V.WINDOWS);
+check("  the steps of a cost seen at 20 ms", ["cost", "over", "admitted"].every((id) =>
+      tour.find((x) => x.id === id).window === V.ZOOM) && tour.every((x) => x.window === undefined ||
+      V.WINDOWS.includes(x.window)), tour.map((x) => x.window));
 
 // The timeline (view.js), fed as the worker feeds it: rows 0 and 3, an instance of row 0
 // each ms, of row 3 of 30 ms each second, preempted by row 0.

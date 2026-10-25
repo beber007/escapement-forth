@@ -6,7 +6,8 @@
 // test/test_web.js runs it as the page does: the timeline, the lines of the tour, the
 // times and shares as the page writes them.
 
-const SHORT = 200000, LONG = 1000000;   // us of the timeline's two views
+const ZOOM = 20000, SHORT = 200000, LONG = 1000000;   // us of the timeline's views
+const WINDOWS = [ZOOM, SHORT, LONG];
 const KEPT = 2 * LONG;                  // us of instances kept behind the clock
 
 // timeline: What the kernel ran, from the trace: each instance of a task, the runs of it
@@ -101,6 +102,14 @@ function timeline(onFreeze) {
   };
 
   return view;
+}
+
+// rowNames: For each period, the names of the words bound in its slots, "" for none.
+function rowNames(pool) {
+  const names = [];
+  for (let p = 0; p < 4; p += 1)
+    names.push(pool.slice(p * 4, p * 4 + 4).filter((e) => e.state !== 0).map((e) => e.name).join(" "));
+  return names;
 }
 
 // resolve: A line of the tour, {name} the slot of the word of that name in pool; null if
