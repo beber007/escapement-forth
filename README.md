@@ -62,6 +62,15 @@ can make them again.
 save
 ```
 
+## In the browser
+
+[The page](https://beber007.github.io/escapement-forth/) runs the same Forth, the same
+pool and Escapement's hard kernel under EDF, compiled to WebAssembly (`web/`). Only the
+layer under them differs: the kernel's clock follows the browser's, its interrupts are
+taken where the Forth reads the time, and the console is the kernel's idle task, which
+the slots preempt; on the board it has a core of its own. The times are the browser's,
+not the Pico's: the page says what it shows and what it does not.
+
 ## Limits
 
 - The budget is the Forth's, not the kernel's (Escapement's issue #17): a word of C is
@@ -110,6 +119,8 @@ save
 git clone --recurse-submodules https://github.com/beber007/escapement-forth
 make -C test/host run      # the Forth and the pool on the host, under the sanitizers
 make -C pico               # pico/build/EscapementForth.elf, loaded into SRAM over SWD
+make -C web serve          # the page on http://localhost:8000, with clang and wasm-ld
+make -C web test           # the page's WebAssembly under Node (JS=.../jsc JS_ARGS=--)
 ```
 
 With no UART wired, `make -C pico SCRIPT=tools/smoke.fs` (or `tools/restart.fs`) builds an image whose console
