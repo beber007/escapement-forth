@@ -6,6 +6,8 @@
 # escapement/, compiled to WebAssembly, for the page of web/:
 #   make            build/forth.wasm, beside index.html and worker.js in build/
 #   make serve      the page on http://localhost:8000
+#   make test       build/forth.wasm driven as the worker drives it (test/test_web.js),
+#                   under Node, or JavaScriptCore: make test JS=.../jsc JS_ARGS=--
 # A clang with the wasm32 target and wasm-ld (Homebrew's llvm and lld), no C library.
 CLANG ?= $(firstword $(wildcard /opt/homebrew/opt/llvm/bin/clang) clang)
 CFLAGS = --target=wasm32 -std=c99 -Wall -Wextra -Werror -O2 -fwrapv -nostdlib \
@@ -29,10 +31,16 @@ $(B)/forth.wasm: $(SOURCES) $(B)/EscapementHard.o $(HEADERS) imports.txt index.h
 	$(CLANG) $(CFLAGS) $(LDFLAGS) -o $@ $(SOURCES) $(B)/EscapementHard.o
 	cp index.html worker.js $(B)/
 
+JS ?= node
+JS_ARGS ?=
+
+test: $(B)/forth.wasm
+	$(JS) test/test_web.js $(JS_ARGS) $(B)/forth.wasm index.html worker.js
+
 serve: $(B)/forth.wasm
 	cd $(B) && python3 -m http.server 8000
 
 clean:
 	rm -rf $(B)
 
-.PHONY: all serve clean
+.PHONY: all test serve clean

@@ -35,6 +35,12 @@ jobs:
           make -C web CLANG=clang
           ls -l web/build
 
+      # A word that loops past its 10 s would never end the test: 5 min at most.
+      - name: Page test
+        run: |
+          node --version
+          timeout 300 make -C web test
+
       - uses: actions/upload-pages-artifact@v4
         with:
           path: web/build
