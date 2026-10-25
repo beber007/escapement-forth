@@ -165,6 +165,31 @@ function trace() {
 const block = source.slice(source.indexOf("const STOP_ALL ="), source.indexOf("];", source.indexOf("const TOUR = [")) + 2);
 const tour = Function(block + " return TOUR;")();
 check("the page has a tour", tour.length >= 6, tour.length);
+check("each step said in English and in French", tour.every((s) => ["en", "fr"].every((l) =>
+      s[l] && s[l].title && s[l].text && typeof s[l].watch === "string")), "");
+
+// Each text of the page has its French, each French its text.
+const dictionary = (name) => Function(source.slice(source.indexOf("const " + name + " = {"),
+                                      source.indexOf("};", source.indexOf("const " + name + " = {")) + 2) +
+                                      " return " + name + ";")();
+const keys = (attribute) => [...source.matchAll(new RegExp(attribute + '="(\\w+)"', "g"))].map((m) => m[1]);
+for (const [attribute, name] of [["data-i18n", "FR"], ["data-i18n-label", "FR_LABEL"]]) {
+  const fr = dictionary(name), html = keys(attribute);
+  check("every " + attribute + " in French", html.every((k) => fr[k] !== undefined) &&
+        Object.keys(fr).every((k) => html.includes(k)), [html.filter((k) => fr[k] === undefined),
+        Object.keys(fr).filter((k) => !html.includes(k))]);
+}
+// Every text of the page's script said in both languages.
+const T = Function("time", "share", source.slice(source.indexOf("const T = {"),
+                   source.indexOf("};", source.indexOf("const T = {")) + 2) + " return T;")(V.time, V.share);
+check("each text of the script in English and in French", Object.keys(T.en).sort().join() ===
+      Object.keys(T.fr).sort().join(), [Object.keys(T.en), Object.keys(T.fr)]);
+
+check("  in French, 0 and 1 singular", T.fr.runs(0) === "0 exécution" && T.fr.runs(1) === "1 exécution" &&
+      T.fr.runs(2) === "2 exécutions" && T.en.runs(0) === "0 runs", [T.fr.runs(0), T.en.runs(0)]);
+check("  in French, the number before dernières", T.fr.summary(V.time(1000000, "fr"), "", "").startsWith("Sur les 1000 dernières ms :"),
+      T.fr.summary(V.time(1000000, "fr"), "", ""));
+
 // The timeline (view.js), fed as the worker feeds it: rows 0 and 3, an instance of row 0
 // each ms, of row 3 of 30 ms each second, preempted by row 0.
 function feed(t, from, to) {
@@ -218,18 +243,20 @@ check("  a line typed sent as typed", pend([{ line: ".\" {work}\"", tour: false 
 // worst case admitted rounded.
 let wrong = [];
 for (let us = 0; us <= 1001000; us += us < 20000 ? 1 : 997)
-  if (Math.round(parseFloat(V.time(us)) * (/ ms/.test(V.time(us)) ? 1000 : 1)) !== us)
+  if (Math.round(parseFloat(V.time(us, "en")) * (/ ms/.test(V.time(us, "en")) ? 1000 : 1)) !== us)
     wrong.push(us);
-check("a time written to the us", wrong.length === 0, wrong.slice(0, 5).map((us) => [us, V.time(us)]));
+check("a time written to the us", wrong.length === 0, wrong.slice(0, 5).map((us) => [us, V.time(us, "en")]));
+check("  in French, a decimal comma", V.time(1500, "fr") === "1,5 ms" && V.time(1000, "fr") === "1 ms" &&
+      V.time(800, "fr") === "800 µs" && V.share(700000, "fr") === "70,0 %", [V.time(1500, "fr"), V.share(700000, "fr")]);
 
 const named = (n) => view().slots.findIndex((e) => e.state !== 0 && e.name === n);
 const STEPS = {
-  "A word on a period": (out) => {
+  period: (out) => {
     seen = [];
     idle(300);
     check("  GP15 lit and put out", seen.some((q) => q & 1 << 15) && seen.some((q) => !(q & 1 << 15)), seen);
     check("  blink on trial in slot 8", named("blink") === 8 && view().slots[8].state === 1, view().slots[8]);
-    for (const l of tour.find((x) => x.title === "A word on a period").lines) {
+    for (const l of tour.find((x) => x.id === "period").lines) {
       const r = pend([{ line: l, tour: true }], view().slots);
       if (r !== null)
         line(r);
@@ -239,27 +266,27 @@ const STEPS = {
     check("  the step typed again, GP15 still blinks", seen.some((q) => q & 1 << 15) && seen.some((q) => !(q & 1 << 15)) &&
           view().slots.filter((e) => e.state !== 0 && e.name === "blink").length === 1, seen);
   },
-  "What a word costs": (out) => {
+  cost: (out) => {
     idle(300);
     const e = view().slots[named("work")];
     check("  work measured within its budget of 1 ms", e.runs > 10 && e.max >= 500 && e.max <= 1000 &&
           e.budget === 1000 && e.over === 0, e);
   },
-  "Over its budget": (out) => {
+  over: (out) => {
     const e = view().slots[named("work")];
     check("  work over its budget, counted", e.over > 0, e);
     check("  its runs ended over in the trace", trace().some((x) => x.kind === 2 && x.period === 1 && x.over), "");
   },
-  "Admitted": (out) => {
+  admitted: (out) => {
     check("  work promoted", /promoted, wcet /.test(out), out);
     const v = view(), e = v.slots[named("work")];
     check("  its budget its worst case, the load counted", e.state === 2 && e.budget === e.wcet &&
           v.load > 50000 && v.bound === 700000, [e, v.load]);
   },
-  "Preempted": (out) => {
+  preempted: (out) => {
     let froze = 0;
     const t = V.timeline(() => { froze += 1; });
-    t.watch(tour.find((x) => x.title === "Preempted").freeze);
+    t.watch(tour.find((x) => x.id === "preempted").freeze);
     telemetry();
     idle(2200);
     t.traced(telemetry());
@@ -273,16 +300,16 @@ const STEPS = {
     const b = view().slots[named("busy")];
     check("  busy on time, never over", b.runs > 100 && b.over === 0, b);
   },
-  "Admission refused": (out) => {
+  refused: (out) => {
     check("  promotions until the bound, then refused", (out.match(/promoted, wcet/g) || []).length >= 5 &&
           /refused, load 7/.test(out), out);
     check("  the load under its bound", view().load <= 700000, view().load);
   },
-  "A word that fails": (out) => {
+  fails: (out) => {
     idle(100);
     check("  bad failed, its error kept", view().slots[named("bad")].error === "stack empty", view().slots[named("bad")]);
   },
-  "Your turn": (out) => check("  every slot free", view().slots.every((e) => e.state === 0), view().slots),
+  yours: (out) => check("  every slot free", view().slots.every((e) => e.state === 0), view().slots),
 };
 // play: A step typed as the page types it, each line answered ok, none left out, then
 // what the step must show checked.
@@ -296,10 +323,10 @@ function play(s, label) {
       lost.push([l, x && x.out]);
     out += x === null ? "" : x.out;
   }
-  check("step " + s.title + label, lost.length === 0, lost);
-  check("  the step has its checks", STEPS[s.title] !== undefined, s.title);
-  if (STEPS[s.title])
-    STEPS[s.title](out);
+  check("step " + s.id + label, lost.length === 0, lost);
+  check("  the step has its checks", STEPS[s.id] !== undefined, s.id);
+  if (STEPS[s.id])
+    STEPS[s.id](out);
 }
 for (const s of tour) {
   idle(300);
@@ -308,11 +335,10 @@ for (const s of tour) {
 check("no release skipped by the tour", number(line("overruns .").out) <= SKIPS, line("overruns .").out);
 
 // The steps typed again, out of order, each still showing what it says.
-for (const title of ["What a word costs", "Admitted", "Admission refused", "A word on a period", "A word that fails",
-                     "A word that fails", "A word that fails", "A word that fails", "A word that fails",
-                     "Admission refused", "Admitted", "Preempted", "What a word costs", "Your turn"]) {
+for (const id of ["cost", "admitted", "refused", "period", "fails", "fails", "fails", "fails", "fails", "refused",
+                  "admitted", "preempted", "cost", "yours"]) {
   idle(250);
-  play(tour.find((x) => x.title === title), " again");
+  play(tour.find((x) => x.id === id), " again");
 }
 stopAll();
 traceTail = forth.web_trace_head() >>> 0;
@@ -379,7 +405,7 @@ check("  the console answers after it", line("5 .").out === "5  ok\n");
 // too, which the page cannot tell apart: its note names both.
 let filled = null;
 for (let k = 0; k < 400 && filled === null; k += 1)
-  for (const l of tour.find((x) => x.title === "What a word costs").lines) {
+  for (const l of tour.find((x) => x.id === "cost").lines) {
     const out = line(pend([{ line: l, tour: true }], view().slots)).out;
     if (/dictionary full/.test(out))
       filled = out;

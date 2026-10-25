@@ -53,6 +53,10 @@
              color: var(--accent); margin: 0 0 8px; }
   h1 { font-size: clamp(2rem, 4vw, 2.8rem); line-height: 1.1; margin: 0 0 12px; letter-spacing: -0.02em; }
   .lede { color: var(--muted); margin: 0 0 18px; max-width: 68ch; font-size: 1.05rem; }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .lang { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin: 0 0 8px; }
+  .lang button { border: 0; background: var(--panel); padding: 3px 10px; font-size: 0.8rem; color: var(--muted); }
+  .lang button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
   .badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
   .badges li { font-size: 0.8rem; color: var(--ink); background: var(--panel); border: 1px solid var(--line);
                border-radius: 999px; padding: 4px 11px; }
@@ -96,6 +100,7 @@
   .card h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
              margin: 0 0 12px; font-weight: 600; display: flex; justify-content: space-between; }
   .card h2 span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  .card h2 span.h { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
 
   /* The pins the words may drive, on a strip of board. */
   .board { background: linear-gradient(160deg, var(--pcb), var(--pcb-edge)); border-radius: 8px;
@@ -126,7 +131,7 @@
   .tour h3 { font-size: 1.05rem; margin: 0 0 6px; }
   .tour p { margin: 0 0 10px; font-size: 0.92rem; color: var(--muted); }
   .tour .watch { color: var(--ink); background: var(--chip); border-radius: 8px; padding: 8px 10px; }
-  .tour .watch::before { content: "Watch: "; font-weight: 600; color: var(--accent); }
+  .tour .watch::before { content: attr(data-label) " "; font-weight: 600; color: var(--accent); }
   .tour pre { margin: 0 0 12px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line);
               border-radius: 8px; font: 11.5px/1.5 ui-monospace, Menlo, monospace; color: var(--ink);
               white-space: pre-wrap; word-break: break-word; }
@@ -192,29 +197,30 @@
 <body>
 <main>
   <header>
-    <p class="eyebrow">Escapement · WebAssembly</p>
+    <div class="top"><p class="eyebrow">Escapement · WebAssembly</p>
+      <div class="lang" role="group" aria-label="Language" data-i18n-label="lang"><button data-lang="en">EN</button><button data-lang="fr">FR</button></div></div>
     <h1>Escapement Forth</h1>
-    <p class="lede">The Forth console of <a href="https://github.com/beber007/escapement">Escapement</a>,
+    <p class="lede" data-i18n="lede">The Forth console of <a href="https://github.com/beber007/escapement">Escapement</a>,
       and the real-time kernel under it, compiled to WebAssembly and running in this page.
       Follow the guided tour, or type your own words; the timeline and the pool below
       show what the kernel does with them.</p>
     <ul class="badges">
-      <li><b>hard kernel</b> · EDF</li>
-      <li><b>4 tasks</b> · 1, 10, 100, 1000 ms</li>
-      <li><b>the board's code</b> · unchanged</li>
-      <li><b>in your browser</b> · nothing sent</li>
+      <li data-i18n="badge1"><b>hard kernel</b> · EDF</li>
+      <li data-i18n="badge2"><b>4 tasks</b> · 1, 10, 100, 1000 ms</li>
+      <li data-i18n="badge3"><b>the board's code</b> · unchanged</li>
+      <li data-i18n="badge4"><b>in your browser</b> · nothing sent</li>
     </ul>
   </header>
 
-  <ol class="how" aria-label="How it works">
-    <li><b>Four tasks, sixteen slots</b>The kernel runs a task every 1, 10, 100 and 1000 ms.
+  <ol class="how" aria-label="How it works" data-i18n-label="how">
+    <li data-i18n="how1"><b>Four tasks, sixteen slots</b>The kernel runs a task every 1, 10, 100 and 1000 ms.
       Each holds four slots, to which the console binds words: <code>' blink 100 every</code>.</li>
-    <li><b>A trial, with a budget</b>A word bound is on trial: it runs at each release and its
+    <li data-i18n="how2"><b>A trial, with a budget</b>A word bound is on trial: it runs at each release and its
       time is measured. A run may take a tenth of its period; past that budget it is cut.</li>
-    <li><b>Promoted, or refused</b><code>promote</code> admits a word measured ten times within
+    <li data-i18n="how3"><b>Promoted, or refused</b><code>promote</code> admits a word measured ten times within
       its budget, with a worst case drawn from them, while the promoted words fit in 70 % of
       the processor.</li>
-    <li><b>Deadline first</b>The kernel runs the task whose deadline comes first, EDF: the task
+    <li data-i18n="how4"><b>Deadline first</b>The kernel runs the task whose deadline comes first, EDF: the task
       of 1 ms interrupts that of 1 s, and the console waits for them all.</li>
   </ol>
 
@@ -223,10 +229,10 @@
       <div class="window">
         <div class="bar" aria-hidden="true"><span class="dot"></span><span class="dot"></span>
           <span class="dot"></span><span class="title mono">console · Escapement Forth</span></div>
-        <div class="terminal" id="terminal" aria-live="polite">
+        <div class="terminal" id="terminal" aria-live="polite" lang="en">
           <div id="output"></div>
           <div class="prompt"><input id="input" autocomplete="off" spellcheck="false"
-               aria-label="Forth input"></div>
+               aria-label="Forth input" data-i18n-label="input"></div>
         </div>
       </div>
       <div class="status" id="status">Loading…</div>
@@ -234,44 +240,44 @@
 
     <div class="side">
       <section class="card">
-        <h2>Pins <span class="mono">1 15 lshift toggle</span></h2>
+        <h2><span class="h" data-i18n="pins">Pins</span> <span class="mono">1 15 lshift toggle</span></h2>
         <div class="board"><div class="pins" id="pins"></div></div>
       </section>
-      <section class="card tour" aria-label="Guided tour">
-        <h2>Guided tour <span id="step-count"></span></h2>
+      <section class="card tour" aria-label="Guided tour" data-i18n-label="tour">
+        <h2><span class="h" data-i18n="tour">Guided tour</span> <span id="step-count"></span></h2>
         <h3 id="step-title" aria-live="polite"></h3>
         <p id="step-text"></p>
-        <p class="watch" id="step-watch"></p>
-        <pre id="step-code"></pre>
+        <p class="watch" id="step-watch" data-label="Watch:"></p>
+        <pre id="step-code" lang="en"></pre>
         <div class="cost" id="cost" hidden>
-          <label for="cost-range">Cost of <code>work</code> <output id="cost-value">500 µs</output></label>
+          <label for="cost-range"><span data-i18n="cost">Cost of <code>work</code></span> <output id="cost-value">500 µs</output></label>
           <input type="range" id="cost-range" min="100" max="3000" step="100" value="500">
         </div>
         <div class="steps">
-          <button id="step-back" aria-label="Previous step">←</button>
-          <button class="run" id="step-run">Type these lines</button>
-          <button id="step-next" aria-label="Next step">→</button>
+          <button id="step-back" aria-label="Previous step" data-i18n-label="back">←</button>
+          <button class="run" id="step-run" data-i18n="run">Type these lines</button>
+          <button id="step-next" aria-label="Next step" data-i18n-label="next">→</button>
         </div>
       </section>
-      <button class="restart" id="restart">Restart the Forth</button>
+      <button class="restart" id="restart" data-i18n="restart">Restart the Forth</button>
     </div>
   </div>
 
   <div class="live">
     <section class="card">
-      <h2>The kernel, live <span class="views"><button id="span" aria-label="1 s: show the last second">1 s</button>
+      <h2><span class="h" data-i18n="live">The kernel, live</span> <span class="views"><button id="span" aria-label="1 s: show the last second">1 s</button>
         <button id="pause">Pause</button></span></h2>
       <canvas id="timeline" role="img" aria-label="The tasks the kernel ran, the last 200 ms"></canvas>
       <ul class="legend">
-        <li><i class="run"></i>running</li>
-        <li><i class="wait"></i>released, waiting: preempted</li>
-        <li><i class="tick"></i>release</li>
-        <li><i class="over"></i>over its budget</li>
+        <li><i class="run"></i><span data-i18n="running">running</span></li>
+        <li><i class="wait"></i><span data-i18n="waiting">released, waiting: preempted</span></li>
+        <li><i class="tick"></i><span data-i18n="release">release</span></li>
+        <li><i class="over"></i><span data-i18n="overlegend">over its budget</span></li>
       </ul>
       <p class="summary" id="timeline-summary" aria-live="off"></p>
     </section>
     <section class="card">
-      <h2>The pool <span>longest run against its budget</span></h2>
+      <h2><span class="h" data-i18n="pool">The pool</span> <span data-i18n="poolnote">longest run against its budget</span></h2>
       <div id="pool"></div>
       <div class="gauge" aria-hidden="true"><i id="gauge-fill"></i><b id="gauge-bound"></b></div>
       <div class="gauge-text" id="gauge-text"></div>
@@ -279,27 +285,27 @@
   </div>
 
   <section class="honest">
-    <h2>What this page is, and is not</h2>
+    <h2 data-i18n="honest">What this page is, and is not</h2>
     <ul>
-      <li>The Forth and the kernel are the board's own code, compiled unchanged: the console
+      <li data-i18n="honest1">The Forth and the kernel are the board's own code, compiled unchanged: the console
         and the pool of slots (<code>src/</code>), the hard kernel of Escapement under EDF
         (<code>EscapementHard.c</code>) with the four tasks of the Pico, one a period. Only the
         layer under them differs (<code>web/platform_web.c</code>, <code>web/kernel/</code>).</li>
-      <li>The console is the kernel's idle task here: the slots preempt it, and one another,
+      <li data-i18n="honest2">The console is the kernel's idle task here: the slots preempt it, and one another,
         wherever the Forth reads the clock, every sixteen words. On the board the console has
         a core of its own, and never delays a slot.</li>
-      <li>The kernel's clock follows the browser's, which lets the page run every few
+      <li data-i18n="honest3">The kernel's clock follows the browser's, which lets the page run every few
         milliseconds, seldom in a tab left in the background. The time it held the page, the
         clock passes release by release, each on time for the kernel, late on the wall; past
         200 ms, the rest is not given at all. A pause of the browser of more than half a
         millisecond or so in the middle of a run, a garbage collection or the system, is left
         out of the clock and of the times measured: the board has none.</li>
-      <li>The times the pool, the timeline and <code>slots</code> show are those of your
+      <li data-i18n="honest4">The times the pool, the timeline and <code>slots</code> show are those of your
         browser, not of the Pico, read to a tenth of a millisecond, or a whole one, depending on
         the browser, coarser still where it guards your privacy, the page then saying so: a
         short word reads 0, and an empty task takes no width. Nothing here tells
         the costs of the kernel on a chip, nor its energy.</li>
-      <li>A line typed at the console is stopped after 10 s, as Ctrl-C does on the board. The
+      <li data-i18n="honest5">A line typed at the console is stopped after 10 s, as Ctrl-C does on the board. The
         dictionary lives as long as the page; <code>save</code> has no flash to write.</li>
     </ul>
   </section>
@@ -324,7 +330,6 @@
   let ready = false;   // the worker drops a line sent before it is
   let fresh = false;   // nothing printed yet for the line under way
   let filled = false;  // the line under way said the dictionary full
-  let clockCoarse = false;   // the browser's clock too coarse for the tour
   let sentTour = false, said = "";   // the line under way of the tour, and its output
   let sent = "";       // the line sent, echoed once the worker starts it
   const queue = [];
@@ -346,50 +351,152 @@
   const STOP_ALL = "0 stop 1 stop 2 stop 3 stop 4 stop 5 stop 6 stop 7 stop 8 stop 9 stop " +
                    "10 stop 11 stop 12 stop 13 stop 14 stop 15 stop";
   const TOUR = [
-    { title: "A word on a period",
-      text: "Define a word that toggles the pin GP15, then bind it to the task of 100 ms with every. The console answers with the slot it took.",
-      watch: "the LED GP15 blinking, the 100 ms row of the timeline running at each release, the slot on trial in the pool.",
-      lines: [STOP_ALL, ": blink  1 15 lshift toggle ;", "' blink 100 every"] },
-    { title: "What a word costs",
-      text: "work spends cost microseconds in the task of 10 ms. On trial, a run may take a tenth of its period: 1 ms here.",
-      watch: "in the pool, the longest run of work against its budget; on the 10 ms row, its runs. Move the slider.",
-      lines: [STOP_ALL, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every"], cost: true },
-    { title: "Over its budget",
-      text: "Past 1 ms, a run of work is cut: spend checks the budget as it waits, as the Forth does every sixteen words. The run is counted over, and work runs again at its next release, the other tasks on time.",
-      watch: "red runs on the timeline, cut at the first step of the clock past 1 ms, and over counting up in the pool.",
+    { id: "period", lines: [STOP_ALL, ": blink  1 15 lshift toggle ;", "' blink 100 every"],
+      en: { title: "A word on a period",
+            text: "Define a word that toggles the pin GP15, then bind it to the task of 100 ms with every. The console answers with the slot it took.",
+            watch: "the LED GP15 blinking, the 100 ms row of the timeline running at each release, the slot on trial in the pool." },
+      fr: { title: "Un mot sur une période",
+            text: "Définissez un mot qui inverse la broche GP15, puis liez-le à la tâche de 100 ms avec every. La console répond par la case qu'il a prise.",
+            watch: "la LED GP15 qui clignote, la ligne 100 ms de la frise qui s'exécute à chaque activation, la case à l'essai dans le tableau." } },
+    { id: "cost", cost: true,
+      lines: [STOP_ALL, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every"],
+      en: { title: "What a word costs",
+            text: "work spends cost microseconds in the task of 10 ms. On trial, a run may take a tenth of its period: 1 ms here.",
+            watch: "in the pool, the longest run of work against its budget; on the 10 ms row, its runs. Move the slider." },
+      fr: { title: "Ce que coûte un mot",
+            text: "work dépense cost microsecondes dans la tâche de 10 ms. À l'essai, une exécution peut prendre un dixième de sa période : 1 ms ici.",
+            watch: "dans le tableau, l'exécution la plus longue de work face à son budget ; sur la ligne 10 ms, ses exécutions. Bougez le curseur." } },
+    { id: "over", cost: true,
       lines: [STOP_ALL, "variable cost  2000 cost !", ": work  cost @ spend ;", "' work 10 every", "300 ms"],
-      cost: true },
-    { title: "Admitted",
-      text: "promote admits a word measured ten times within its budget. Its worst case becomes the longest run seen, plus a quarter, plus 1 µs: its budget from then on. Bound anew, work starts its trial over.",
-      watch: "the slot promoted, its budget its worst case now, the load rising. Push the slider past it: promoted, work is held to it. A browser reads its clock to a tenth of a millisecond at best, to a whole one often: a run may go over without you.",
-      lines: [STOP_ALL, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every",
-              "200 ms {work} promote"], cost: true },
-    { title: "Preempted",
-      text: "long spends 80 ms in the task of 1 s, busy 500 µs in that of 10 ms. The kernel runs the task whose deadline comes first: the tasks of 1 and 10 ms interrupt long and run on time; long goes on after them. The timeline stops on the next run of long.",
-      watch: "the 1 s row broken into pieces, a thin line where long waits, the 10 ms row running in the gaps.",
-      lines: [STOP_ALL, ": long  80000 spend ;  : busy  500 spend ;", "' long 1000 every",
-              "' busy 10 every"], freeze: 3 },
-    { title: "Admission refused",
-      text: "Everything stopped, eight words that each take most of their budget, then their promotion. The promoted words may take 70 % of the processor together: each promotion that would pass it is refused, and that word stays on trial.",
-      watch: "the load climbing towards the red mark, and refused in the console.",
+      en: { title: "Over its budget",
+            text: "Past 1 ms, a run of work is cut: spend checks the budget as it waits, as the Forth does every sixteen words. The run is counted over, and work runs again at its next release, the other tasks on time.",
+            watch: "red runs on the timeline, cut at the first step of the clock past 1 ms, and over counting up in the pool." },
+      fr: { title: "Au-delà de son budget",
+            text: "Au-delà de 1 ms, une exécution de work est coupée : spend contrôle le budget pendant qu'il attend, comme le Forth le fait tous les seize mots. L'exécution compte comme un dépassement, et work repart à sa prochaine activation, les autres tâches à l'heure.",
+            watch: "des exécutions rouges sur la frise, coupées au premier pas d'horloge après 1 ms, et les dépassements qui montent dans le tableau." } },
+    { id: "admitted", cost: true,
+      lines: [STOP_ALL, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every", "200 ms {work} promote"],
+      en: { title: "Admitted",
+            text: "promote admits a word measured ten times within its budget. Its worst case becomes the longest run seen, plus a quarter, plus 1 µs: its budget from then on. Bound anew, work starts its trial over.",
+            watch: "the slot promoted, its budget its worst case now, the load rising. Push the slider past it: promoted, work is held to it. A browser reads its clock to a tenth of a millisecond at best, to a whole one often: a run may go over without you." },
+      fr: { title: "Admis",
+            text: "promote admet un mot mesuré dix fois dans son budget. Son pire cas devient l'exécution la plus longue vue, plus un quart, plus 1 µs : son budget désormais. Lié à nouveau, work recommence son essai.",
+            watch: "la case promue, son budget devenu son pire cas, la charge qui monte. Poussez le curseur au-delà : promu, work y est tenu. Un navigateur lit son horloge au dixième de milliseconde au mieux, souvent à la milliseconde : une exécution peut dépasser sans vous." } },
+    { id: "preempted", freeze: 3,
+      lines: [STOP_ALL, ": long  80000 spend ;  : busy  500 spend ;", "' long 1000 every", "' busy 10 every"],
+      en: { title: "Preempted",
+            text: "long spends 80 ms in the task of 1 s, busy 500 µs in that of 10 ms. The kernel runs the task whose deadline comes first: the tasks of 1 and 10 ms interrupt long and run on time; long goes on after them. The timeline stops on the next run of long.",
+            watch: "the 1 s row broken into pieces, a thin line where long waits, the 10 ms row running in the gaps." },
+      fr: { title: "Préempté",
+            text: "long dépense 80 ms dans la tâche de 1 s, busy 500 µs dans celle de 10 ms. Le noyau exécute la tâche dont l'échéance vient en premier : les tâches de 1 et 10 ms interrompent long et passent à l'heure ; long reprend après elles. La frise s'arrête sur la prochaine exécution de long.",
+            watch: "la ligne 1 s découpée en morceaux, un trait fin là où long attend, la ligne 10 ms qui passe dans les trous." } },
+    { id: "refused",
       lines: [STOP_ALL, ": big10  700 spend ;  : big100  9500 spend ;",
               "' big10 10 every ' big10 10 every ' big10 10 every ' big10 10 every",
               "' big100 100 every ' big100 100 every ' big100 100 every ' big100 100 every",
-              "1300 ms", "4 promote 5 promote 6 promote 7 promote", "8 promote 9 promote 10 promote 11 promote"] },
-    { title: "A word that fails",
-      text: "bad drops from an empty stack: it fails at its first run and is stopped, its error kept. The other slots run on.",
-      watch: "failed in the pool; nothing else changes on the timeline.",
-      lines: [STOP_ALL, ": bad  drop ;", "' bad 1 every"] },
-    { title: "Your turn",
-      text: "Everything stopped. Type your own words at the console: words lists the dictionary, slots prints the pool, and Restart starts the Forth over.",
-      watch: "",
-      lines: [STOP_ALL] },
+              "1300 ms", "4 promote 5 promote 6 promote 7 promote", "8 promote 9 promote 10 promote 11 promote"],
+      en: { title: "Admission refused",
+            text: "Everything stopped, eight words that each take most of their budget, then their promotion. The promoted words may take 70 % of the processor together: each promotion that would pass it is refused, and that word stays on trial.",
+            watch: "the load climbing towards the red mark, and refused in the console." },
+      fr: { title: "Admission refusée",
+            text: "Tout est arrêté, puis huit mots qui prennent chacun l'essentiel de leur budget, puis leur promotion. Les mots promus peuvent prendre ensemble 70 % du processeur : chaque promotion qui dépasserait ce seuil est refusée, et ce mot reste à l'essai.",
+            watch: "la charge qui monte vers la marque rouge, et refused dans la console." } },
+    { id: "fails", lines: [STOP_ALL, ": bad  drop ;", "' bad 1 every"],
+      en: { title: "A word that fails",
+            text: "bad drops from an empty stack: it fails at its first run and is stopped, its error kept. The other slots run on.",
+            watch: "failed in the pool; nothing else changes on the timeline." },
+      fr: { title: "Un mot qui échoue",
+            text: "bad retire une valeur d'une pile vide : il échoue dès sa première exécution et il est arrêté, son erreur gardée. Les autres cases continuent.",
+            watch: "en échec dans le tableau ; rien d'autre ne change sur la frise." } },
+    { id: "yours", lines: [STOP_ALL],
+      en: { title: "Your turn",
+            text: "Everything stopped. Type your own words at the console: words lists the dictionary, slots prints the pool, and Restart starts the Forth over.",
+            watch: "" },
+      fr: { title: "À vous",
+            text: "Tout est arrêté. Tapez vos propres mots à la console : words liste le dictionnaire, slots affiche les cases, et Relancer redémarre le Forth.",
+            watch: "" } },
   ];
+
+  // ---- The languages: the page's texts in English, as written above, or in French; the
+  // Forth answers in English, as on the board.
+  const FR = {
+    lede: 'La console Forth d\'<a href="https://github.com/beber007/escapement">Escapement</a> et le noyau temps réel qui la porte, compilés en WebAssembly et exécutés dans cette page. Suivez la visite guidée, ou tapez vos propres mots : la frise et le tableau ci-dessous montrent ce que le noyau en fait.',
+    badge1: "<b>temps réel dur</b> · EDF", badge2: "<b>4 tâches</b> · 1, 10, 100, 1000 ms",
+    badge3: "<b>le code de la carte</b> · inchangé", badge4: "<b>dans votre navigateur</b> · rien n'est envoyé",
+    how1: "<b>Quatre tâches, seize cases</b>Le noyau exécute quatre tâches, de périodes 1, 10, 100 et 1000 ms. Chacune a quatre cases, auxquelles la console lie des mots : <code>' blink 100 every</code>.",
+    how2: "<b>Un essai, avec un budget</b>Un mot lié est à l'essai : il s'exécute à chaque activation et son temps est mesuré. Une exécution peut prendre un dixième de sa période ; au-delà de ce budget, elle est coupée.",
+    how3: "<b>Promu, ou refusé</b><code>promote</code> admet un mot mesuré dix fois dans son budget, avec un pire cas tiré de ces mesures, tant que les mots promus tiennent dans 70 % du processeur.",
+    how4: "<b>L'échéance d'abord</b>Le noyau exécute la tâche dont l'échéance vient en premier, EDF : la tâche de 1 ms interrompt celle de 1 s, et la console les attend toutes.",
+    pins: "Broches", tour: "Visite guidée", cost: "Coût de <code>work</code>", run: "Taper ces lignes",
+    restart: "Relancer le Forth", live: "Le noyau, en direct", running: "en cours",
+    waiting: "activée, en attente : préemptée", release: "activation", overlegend: "au-delà de son budget",
+    pool: "Le tableau des cases", poolnote: "exécution la plus longue face à son budget",
+    honest: "Ce que cette page est, et n'est pas",
+    honest1: "Le Forth et le noyau sont le code même de la carte, compilé sans changement : la console et les cases (<code>src/</code>), le noyau dur d'Escapement sous EDF (<code>EscapementHard.c</code>) avec les quatre tâches du Pico, une par période. Seule la couche en dessous diffère (<code>web/platform_web.c</code>, <code>web/kernel/</code>).",
+    honest2: "Ici, la console est la tâche de fond du noyau : les cases la préemptent, et se préemptent entre elles, là où le Forth lit l'horloge, tous les seize mots. Sur la carte, la console a son propre cœur et ne retarde jamais une case.",
+    honest3: "L'horloge du noyau suit celle du navigateur, qui ne laisse la page tourner qu'à quelques millisecondes d'intervalle, rarement dans un onglet en arrière-plan. Le temps pendant lequel il a retenu la page, l'horloge le rattrape activation par activation, chacune à l'heure pour le noyau, en retard sur l'heure réelle ; au-delà de 200 ms, le reste n'est pas rendu. Une pause du navigateur de plus d'une demi-milliseconde environ au milieu d'une exécution, ramasse-miettes ou système, est retirée de l'horloge et des temps mesurés : la carte n'en a pas.",
+    honest4: "Les temps que montrent le tableau, la frise et <code>slots</code> sont ceux de votre navigateur, pas du Pico, lus au dixième de milliseconde, ou à la milliseconde selon le navigateur, plus grossièrement encore là où il protège votre vie privée, ce que la page dit alors : un mot court se lit 0, et une tâche vide n'a pas de largeur. Rien ici ne dit ce que coûte le noyau sur une puce, ni son énergie.",
+    honest5: "Une ligne tapée à la console est arrêtée au bout de 10 s, comme le fait Ctrl-C sur la carte. Le dictionnaire vit aussi longtemps que la page ; <code>save</code> n'a pas de flash où écrire.",
+  };
+  const FR_LABEL = { lang: "Langue", how: "Comment ça marche", input: "Entrée Forth", tour: "Visite guidée",
+                     back: "Étape précédente", next: "Étape suivante" };
+  const T = {
+    en: { loading: "Loading…", ready: "Ready. The Forth runs in this page; nothing is sent anywhere.",
+          coarse: (g) => "Your browser reads its clock only to " + time(g, "en") + ", as when it guards your " +
+                         "privacy: the kernel cannot keep time here, and the tour is off. Most browsers, as " +
+                         "they come, read it to 1 ms or better.",
+          full: "Full: the dictionary, which Restart the Forth empties, or the slots of that period, " +
+                "of which n stop frees one.\n",
+          failed: "The Forth could not start: ",
+          welcome: "Escapement Forth, in WebAssembly. Type a line and Enter, or follow the tour.\n",
+          budget: "trial budget ", free: "free", trial: "trial", promoted: "promoted", failedChip: "failed",
+          figures: (e) => "max " + time(e.max, "en") + " of " + time(e.budget, "en") + " · runs " + e.runs +
+                          (e.over > 0 ? " · over " + e.over : ""),
+          gauge: (l, b) => "Admitted load " + share(l, "en") + " of the processor, the pool's own cost in it; it may reach " + share(b, "en") + ".",
+          runs: (n) => n + (n === 1 ? " run" : " runs"),
+          releases: (n) => n + (n === 1 ? " release" : " releases"),
+          summary: (w, rows, over) => "In the last " + w + ": " + rows + "; " + over + " over budget.",
+          watch: "Watch:", slotOf: (name) => "‹slot of " + name + "›", now: "now", pause: "Pause", resume: "Resume", second: "1 s: show the last second", short: "200 ms: show the last 200 ms", stopAll: "‹stop every slot›" },
+    fr: { loading: "Chargement…", ready: "Prêt. Le Forth tourne dans cette page ; rien n'est envoyé nulle part.",
+          coarse: (g) => "Votre navigateur ne lit son horloge qu'à " + time(g, "fr") + " près, comme lorsqu'il " +
+                         "protège votre vie privée : le noyau ne peut pas tenir l'heure ici, et la visite est " +
+                         "désactivée. La plupart des navigateurs, réglés par défaut, la lisent à 1 ms près ou mieux.",
+          full: "Plein : le dictionnaire, que Relancer le Forth vide, ou les cases de cette période, " +
+                "dont n stop libère une.\n",
+          failed: "Le Forth n'a pas pu démarrer : ",
+          welcome: "Escapement Forth, en WebAssembly. Tapez une ligne puis Entrée, ou suivez la visite.\n",
+          budget: "budget d'essai ", free: "libre", trial: "essai", promoted: "promu", failedChip: "en échec",
+          figures: (e) => "max " + time(e.max, "fr") + " sur " + time(e.budget, "fr") + " · " + e.runs +
+                          (e.runs < 2 ? " exécution" : " exécutions") +
+                          (e.over > 0 ? " · " + e.over + (e.over < 2 ? " dépassement" : " dépassements") : ""),
+          gauge: (l, b) => "Charge admise : " + share(l, "fr") + " du processeur, coût propre des cases compris ; elle peut atteindre " + share(b, "fr") + ".",
+          runs: (n) => n + (n < 2 ? " exécution" : " exécutions"),
+          releases: (n) => n + (n < 2 ? " activation" : " activations"),
+          summary: (w, rows, over) => "Sur les " + w.replace(" ", " dernières ") + " : " + rows + " ; " + over + " au-delà du budget.",
+          watch: "À regarder :", slotOf: (name) => "‹case de " + name + "›", now: "maintenant", pause: "Pause", resume: "Reprendre", second: "1 s : afficher la dernière seconde",
+          short: "200 ms : afficher les 200 dernières ms", stopAll: "‹arrêter toutes les cases›" },
+  };
+  const EN = {}, EN_LABEL = {};
+  document.querySelectorAll("[data-i18n]").forEach((e) => { EN[e.dataset.i18n] = e.innerHTML; });
+  document.querySelectorAll("[data-i18n-label]").forEach((e) => {
+    EN_LABEL[e.dataset.i18nLabel] = e.getAttribute("aria-label");
+  });
+  let lang = "en";
+  try {
+    lang = localStorage.getItem("lang") || "";
+  } catch (e) {
+    lang = "";
+  }
+  if (lang !== "en" && lang !== "fr")
+    lang = /^fr\b/i.test(navigator.language || "") ? "fr" : "en";
+
 
   function print(text, cls) {
     const span = document.createElement("span");
     if (cls)
       span.className = cls;
+    if (cls === "note")
+      span.lang = lang;
     span.textContent = text;
     output.append(span);
     while (output.childNodes.length > 2000)
@@ -483,14 +590,13 @@
     for (let ms = 0; ms <= span; ms += mark) {
       const at = label + (w - label) * (span - ms) / span;
       context.textAlign = ms === 0 ? "right" : ms === span ? "left" : "center";
-      context.fillText(ms === 0 ? "now" : "−" + ms + " ms", at, h - 4);
+      context.fillText(ms === 0 ? T[lang].now : "−" + ms + " ms", at, h - 4);
     }
     context.textAlign = "left";
     if (performance.now() - summed > 500) {
       summed = performance.now();
-      const text = "In the last " + time(WINDOW) + ": " + ROWS.slice(0, 4).map((r, p) => r + " " + counts[p] +
-                   (counts[p] === 1 ? " release" : " releases")).join(", ") + "; " + over +
-                   (over === 1 ? " run" : " runs") + " over budget.";
+      const text = T[lang].summary(time(WINDOW, lang), ROWS.slice(0, 4).map((r, p) => r + " " +
+                   T[lang].releases(counts[p])).join(", "), T[lang].runs(over));
       summary.textContent = text;
       canvas.setAttribute("aria-label", text);
     }
@@ -499,9 +605,8 @@
   const spanButton = document.getElementById("span"), pauseButton = document.getElementById("pause");
   function showViews() {
     spanButton.textContent = view.window === SHORT ? "1 s" : "200 ms";
-    spanButton.setAttribute("aria-label", view.window === SHORT ? "1 s: show the last second" :
-                            "200 ms: show the last 200 ms");
-    pauseButton.textContent = view.frozen === null ? "Pause" : "Resume";
+    spanButton.setAttribute("aria-label", view.window === SHORT ? T[lang].second : T[lang].short);
+    pauseButton.textContent = view.frozen === null ? T[lang].pause : T[lang].resume;
     summed = -Infinity;
   }
   spanButton.addEventListener("click", () => {
@@ -518,6 +623,7 @@
   const gaugeFill = document.getElementById("gauge-fill");
   const gaugeBound = document.getElementById("gauge-bound");
   const gaugeText = document.getElementById("gauge-text");
+  const heads = [];
   for (let p = 0; p < PERIODS.length; p += 1) {
     const prow = document.createElement("div");
     prow.className = "prow";
@@ -525,7 +631,9 @@
     head.className = "phead";
     const name = document.createElement("b");
     name.textContent = ROWS[p];
-    head.append(name, "trial budget " + time(PERIODS[p] / 10));
+    const budget = document.createElement("span");
+    heads.push(budget);
+    head.append(name, budget);
     prow.append(head);
     for (let e = 0; e < 4; e += 1) {
       const cell = document.createElement("div");
@@ -562,8 +670,9 @@
       }
       c.cell.className = "cell " + ["free", "trial", "promoted"][e.state] + (failed ? " failed" : "") +
                          (e.state !== 0 && !failed && now - (c.lately || -Infinity) < 1500 ? " overrun" : "");
-      c.word.textContent = (e.state === 0 ? "free" : e.name) + "";
-      c.chip.textContent = "#" + i + (e.state === 0 ? "" : failed ? " failed" : e.state === 1 ? " trial" : " promoted");
+      c.word.textContent = e.state === 0 ? T[lang].free : e.name;
+      c.chip.textContent = "#" + i + (e.state === 0 ? "" : " " + (failed ? T[lang].failedChip :
+                           e.state === 1 ? T[lang].trial : T[lang].promoted));
       if (e.state === 0) {
         c.fill.style.width = "0";
         c.figures.textContent = "";
@@ -571,13 +680,12 @@
       }
       c.fill.style.width = Math.min(100, e.max / Math.max(e.budget, 1) * 100) + "%";
       c.fill.className = e.max > e.budget ? "past" : "";
-      c.figures.textContent = "max " + time(e.max) + " of " + time(e.budget) + " · runs " + e.runs +
-        (e.over > 0 ? " · over " + e.over : "") + (failed ? " · " + e.error : "");
+      c.figures.textContent = T[lang].figures(e) + (failed ? " · " + e.error : "");
     });
     gaugeFill.style.width = Math.min(100, load / 10000) + "%";
     gaugeBound.style.left = loadBound / 10000 + "%";
-    gaugeText.textContent = "Admitted load " + share(load) + " of the processor, the pool's own cost in it; it may reach " +
-                            share(loadBound) + ".";
+    heads.forEach((h, p) => { h.textContent = T[lang].budget + time(PERIODS[p] / 10, lang); });
+    gaugeText.textContent = T[lang].gauge(load, loadBound);
     // cost, the slider's variable, defined with work: before, its line would fail.
     costRange.disabled = !pool.some((e) => e.state !== 0 && e.name === "work");
   }
@@ -587,15 +695,33 @@
   const costRange = document.getElementById("cost-range");
   const costValue = document.getElementById("cost-value");
   function showStep() {
-    const s = TOUR[step];
+    const s = TOUR[step], said = s[lang];
     document.getElementById("step-count").textContent = (step + 1) + " / " + TOUR.length;
-    document.getElementById("step-title").textContent = s.title;
-    document.getElementById("step-text").textContent = s.text;
+    document.getElementById("step-title").textContent = said.title;
+    document.getElementById("step-text").textContent = said.text;
     const watch = document.getElementById("step-watch");
-    watch.textContent = s.watch;
-    watch.hidden = s.watch === "";
-    document.getElementById("step-code").textContent =
-      s.lines.map((l) => l === STOP_ALL ? "‹stop every slot›" : l).join("\n");
+    watch.textContent = said.watch;
+    watch.dataset.label = T[lang].watch;
+    watch.hidden = said.watch === "";
+    // The code in English, as the Forth's; its marks in the page's language.
+    const code = document.getElementById("step-code");
+    const marked = (text) => {
+      const mark = document.createElement("span");
+      mark.lang = lang;
+      mark.textContent = text;
+      return mark;
+    };
+    code.textContent = "";
+    s.lines.forEach((l, k) => {
+      if (k > 0)
+        code.append("\n");
+      if (l === STOP_ALL)
+        code.append(marked(T[lang].stopAll));
+      else
+        l.split(/(\{\w+\})/).forEach((part) => {
+          code.append(/^\{\w+\}$/.test(part) ? marked(T[lang].slotOf(part.slice(1, -1))) : part);
+        });
+    });
     document.getElementById("cost").hidden = !s.cost;
     document.getElementById("step-back").disabled = step === 0;
     document.getElementById("step-next").disabled = step === TOUR.length - 1;
@@ -603,11 +729,11 @@
     if (document.activeElement.disabled)
       document.getElementById(step === 0 ? "step-next" : "step-back").focus();
     // Before the Forth is ready, a click would queue the tour on a clock not yet measured.
-    document.getElementById("step-run").disabled = !ready || clockCoarse;
+    document.getElementById("step-run").disabled = !ready || statusState[0] === "coarse";
   }
   function setCost(us) {
     costRange.value = us;
-    costValue.textContent = time(us);
+    costValue.textContent = time(us, lang);
   }
   document.getElementById("step-run").addEventListener("click", () => {
     view.watch(TOUR[step].freeze);
@@ -624,6 +750,44 @@
   costRange.addEventListener("input", () => setCost(Number(costRange.value)));
   costRange.addEventListener("change", () => send(costRange.value + " cost !"));
 
+  let statusState = ["loading", ""];
+  function showStatus() {
+    const said = T[lang][statusState[0]];
+    status.textContent = typeof said === "function" ? said(statusState[1]) : said + statusState[1];
+    status.className = "status" + (statusState[0] === "loading" ? "" : " " + statusState[0]);
+  }
+
+  // setLang: The page in that language; one chosen is kept for the next visit where the
+  // browser lets it, not the browser's own.
+  function setLang(to) {
+    lang = to;
+    document.documentElement.lang = to;
+    document.querySelectorAll("[data-i18n]").forEach((e) => {
+      e.innerHTML = (to === "fr" ? FR : EN)[e.dataset.i18n];
+    });
+    document.querySelectorAll("[data-i18n-label]").forEach((e) => {
+      e.setAttribute("aria-label", (to === "fr" ? FR_LABEL : EN_LABEL)[e.dataset.i18nLabel]);
+    });
+    document.querySelectorAll(".lang button").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.lang === to));
+    });
+    showStep();
+    showPool();
+    showViews();
+    showStatus();
+    setCost(Number(costRange.value));
+  }
+  document.querySelectorAll(".lang button").forEach((b) => {
+    b.addEventListener("click", () => {
+      setLang(b.dataset.lang);
+      try {
+        localStorage.setItem("lang", b.dataset.lang);
+      } catch (e) {
+        // the choice lasts as long as the page
+      }
+    });
+  });
+
   function start() {
     if (worker !== null)
       worker.terminate();
@@ -639,28 +803,23 @@
     ready = false;
     cells.forEach((c) => { c.over = c.lately = 0; });
     showPins(0);
-    status.textContent = "Loading…";
-    status.className = "status";
-    clockCoarse = false;
+    statusState = ["loading", ""];
+    showStatus();
     showStep();
     worker = new Worker("worker.js");
     worker.onmessage = (event) => {
       const m = event.data;
       if (m.ready) {
-        clockCoarse = coarse(m.grain);
-        status.textContent = clockCoarse ? "Your browser reads its clock only to " +
-          time(Math.round(m.grain / 100) * 100) + ", as when it guards your privacy: the kernel " +
-          "cannot keep time here, and the tour is off. Most browsers, as they come, read it to " +
-          "1 ms or better." : "Ready. The Forth runs in this page; nothing is sent anywhere.";
-        status.className = clockCoarse ? "status coarse" : "status ready";
+        statusState = coarse(m.grain) ? ["coarse", Math.round(m.grain / 100) * 100] : ["ready", ""];
         ready = true;
+        showStatus();
         showStep();
-        print("Escapement Forth, in WebAssembly. Type a line and Enter, or follow the tour.\n", "note");
+        print(T[lang].welcome, "note");
         next();
       }
       else if (m.failed) {
-        status.textContent = "The Forth could not start: " + m.failed;
-        status.className = "status failed";
+        statusState = ["failed", m.failed];
+        showStatus();
       }
       else if (m.telemetry) {
         view.traced(m);
@@ -676,8 +835,7 @@
       }
       else if (m.done) {
         if (filled)
-          print("Full: the dictionary, which Restart the Forth empties, or the slots of that " +
-                "period, of which n stop frees one.\n", "note");
+          print(T[lang].full, "note");
         filled = false;
         // A line of the tour that failed: the rest of its step would bind the words as they
         // were before, or the slider set a variable no word reads.
@@ -759,7 +917,7 @@
 
   document.getElementById("restart").addEventListener("click", start);
 
-  showStep();
+  setLang(lang);
   start();
   requestAnimationFrame(draw);
   input.focus();

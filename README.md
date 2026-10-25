@@ -124,6 +124,7 @@ make -C test/host run      # the Forth and the pool on the host, under the sanit
 make -C pico               # pico/build/EscapementForth.elf, loaded into SRAM over SWD
 make -C web serve          # the page on http://localhost:8000, with clang and wasm-ld
 make -C web test           # the page's WebAssembly under Node (JS=.../jsc JS_ARGS=--)
+make -C web page           # the page in a headless Chrome, in English and in French
 ```
 
 With no UART wired, `make -C pico SCRIPT=tools/smoke.fs` (or `tools/restart.fs`) builds an image whose console
