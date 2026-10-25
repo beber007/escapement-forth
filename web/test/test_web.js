@@ -386,6 +386,18 @@ check("  nothing dropped", number(line("dropped .").out) === 0, line("dropped ."
 stopAll();
 idle(100);
 
+// Two SPENDs in one run hold the word's own time of both, 800 us, within its budget of
+// 1 ms: read to the ms, the second, counted from its own start, waited a whole step more,
+// and the run read 2 ms, over its budget, as a step of the clock before one SPEND did.
+line(": twice  300 spend 500 spend ;");
+r = line("' twice 10 every");
+idle(300);
+let e = view().slots[number(r.out.replace("slot", ""))];
+check("two spends of a run held as one, within its budget", e.runs > 10 && e.max >= 800 - STEP * 1000 &&
+      e.max <= 1000 && e.over === 0, e);
+stopAll();
+idle(100);
+
 // A pause of the browser inside a call is left out of the clock: the browser's clock
 // jumping 50 ms while the console waits 300 ms, the wait still takes 300, not 250.
 stallIn = 1000;

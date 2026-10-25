@@ -232,15 +232,29 @@ static void PDropped(Context *c, const Word *w)
   FORTH_PUSH(c,(Cell)Dropped);
 } /* end of PDropped */
 
-/* SPEND ( us -- ): Holds the processor n microseconds of the word's own time, as its
-** slot measures it, the slots of shorter periods preempting it meanwhile: a word whose
-** cost the page sets. At the console, n microseconds of the clock. The budget checked as
-** it waits, as NEXT checks it: a run past it cut there. In one wait, not a few of 100 us:
-** a browser that reads its clock to the ms made each of these a whole ms (a review,
+/* Spent: For each depth of slots preempting one another, told by the time left out of
+** it (Excluded), what the SPENDs of the run there asked for, the run told by its start:
+** a SPEND that waited has seen the clock step. By depth, not by context: a slot's context
+** is on the C stack, at another address for each slot it preempted (a review,
 ** 2026-10-25). */
+static struct {
+   const volatile uint32_t *Excluded;
+   uint32_t Start, Asked;
+} Spent[SLOT_PERIODS];
+
+/* SPEND ( us -- ): Holds the processor until the word's own time, as its slot measures
+** it, reaches the n microseconds of this SPEND and those before it in the run, the slots
+** of shorter periods preempting it meanwhile: a word whose cost the page sets. At the
+** console, n microseconds of the clock. The budget checked as it waits, as NEXT checks
+** it: a run past it cut there. In one wait, not a few of 100 us: a browser that reads its
+** clock to the ms made each of these a whole ms (a review, 2026-10-25). Not n from its
+** own start: read to the ms, a step of the clock between the run's start and SPEND, or a
+** SPEND before it, made a word of 500 us wait a whole step more, 2 ms, over its budget of
+** 1 ms (2026-10-25). */
 static void PSpend(Context *c, const Word *w)
 {
-  uint32_t start = ForthNow(), before, wait;
+  uint32_t start = ForthNow(), wait;
+  unsigned k;
   (void)w;
   FORTH_NEED(c,1);
   if (FORTH_TOP(c) < 0 || FORTH_TOP(c) > 1000000) {
@@ -252,8 +266,15 @@ static void PSpend(Context *c, const Word *w)
      while (ForthNow() - start < wait)
         ;
   else {
-     before = *c->Excluded;
-     while (ForthOwnTime(start,c->Excluded) + before < wait)
+     for (k = 0; k < SLOT_PERIODS - 1 && Spent[k].Excluded != c->Excluded &&
+                 Spent[k].Excluded != NULL; k += 1);
+     if (Spent[k].Excluded != c->Excluded || Spent[k].Start != c->Start) {
+        Spent[k].Excluded = c->Excluded;
+        Spent[k].Start = c->Start;
+        Spent[k].Asked = 0;
+     }
+     Spent[k].Asked += wait;
+     while (ForthOwnTime(c->Start,c->Excluded) < Spent[k].Asked)
         if (c->Budget != 0 && ForthOwnTime(c->Start,c->Excluded) > c->Budget) {
            c->Error = FORTH_BUDGET;
            return;
