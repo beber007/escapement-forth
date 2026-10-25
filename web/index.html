@@ -200,28 +200,26 @@
     <div class="top"><p class="eyebrow">Escapement · WebAssembly</p>
       <div class="lang" role="group" aria-label="Language" data-i18n-label="lang"><button data-lang="en">EN</button><button data-lang="fr">FR</button></div></div>
     <h1>Escapement Forth</h1>
-    <p class="lede" data-i18n="lede">The Forth console of <a href="https://github.com/beber007/escapement">Escapement</a>,
-      and the real-time kernel under it, compiled to WebAssembly and running in this page.
-      Follow the guided tour, or type your own words; the timeline and the pool below
-      show what the kernel does with them.</p>
+    <p class="lede" data-i18n="lede"><a href="https://github.com/beber007/escapement">Escapement</a>'s Forth console
+      and its real-time kernel, compiled to WebAssembly. They run here, in this page. Follow
+      the tour or type your own words: the timeline and the pool show what the kernel does.</p>
     <ul class="badges">
-      <li data-i18n="badge1"><b>hard kernel</b> · EDF</li>
+      <li data-i18n="badge1"><b>hard real time</b> · EDF</li>
       <li data-i18n="badge2"><b>4 tasks</b> · 1, 10, 100, 1000 ms</li>
       <li data-i18n="badge3"><b>the board's code</b> · unchanged</li>
-      <li data-i18n="badge4"><b>in your browser</b> · nothing sent</li>
+      <li data-i18n="badge4"><b>in your browser</b> · nothing is sent</li>
     </ul>
   </header>
 
   <ol class="how" aria-label="How it works" data-i18n-label="how">
-    <li data-i18n="how1"><b>Four tasks, sixteen slots</b>The kernel runs a task every 1, 10, 100 and 1000 ms.
-      Each holds four slots, to which the console binds words: <code>' blink 100 every</code>.</li>
-    <li data-i18n="how2"><b>A trial, with a budget</b>A word bound is on trial: it runs at each release and its
-      time is measured. A run may take a tenth of its period; past that budget it is cut.</li>
-    <li data-i18n="how3"><b>Promoted, or refused</b><code>promote</code> admits a word measured ten times within
-      its budget, with a worst case drawn from them, while the promoted words fit in 70 % of
-      the processor.</li>
-    <li data-i18n="how4"><b>Deadline first</b>The kernel runs the task whose deadline comes first, EDF: the task
-      of 1 ms interrupts that of 1 s, and the console waits for them all.</li>
+    <li data-i18n="how1"><b>Four tasks, sixteen slots</b>The kernel has four tasks, with periods of 1, 10, 100 and 1000 ms.
+      Each has four slots. You attach words to them from the console: <code>' blink 100 every</code>.</li>
+    <li data-i18n="how2"><b>On trial first</b>A new word is on trial. It runs every period and the kernel
+      measures its time. It gets a tenth of its period. If it goes over, it gets cut.</li>
+    <li data-i18n="how3"><b>Promoted or refused</b>After ten measures within its budget, <code>promote</code>
+      guarantees the word. One condition: all promoted words must fit in 70 % of the processor.</li>
+    <li data-i18n="how4"><b>Deadline first</b>The kernel always runs the task whose deadline is closest (EDF).
+      The 1 ms task interrupts the 1 s task. The console comes after all of them.</li>
   </ol>
 
   <div class="grid">
@@ -270,14 +268,14 @@
       <canvas id="timeline" role="img" aria-label="The tasks the kernel ran, the last 200 ms"></canvas>
       <ul class="legend">
         <li><i class="run"></i><span data-i18n="running">running</span></li>
-        <li><i class="wait"></i><span data-i18n="waiting">released, waiting: preempted</span></li>
+        <li><i class="wait"></i><span data-i18n="waiting">waiting, interrupted</span></li>
         <li><i class="tick"></i><span data-i18n="release">release</span></li>
-        <li><i class="over"></i><span data-i18n="overlegend">over its budget</span></li>
+        <li><i class="over"></i><span data-i18n="overlegend">over budget</span></li>
       </ul>
       <p class="summary" id="timeline-summary" aria-live="off"></p>
     </section>
     <section class="card">
-      <h2><span class="h" data-i18n="pool">The pool</span> <span data-i18n="poolnote">longest run against its budget</span></h2>
+      <h2><span class="h" data-i18n="pool">The pool</span> <span data-i18n="poolnote">longest run and budget</span></h2>
       <div id="pool"></div>
       <div class="gauge" aria-hidden="true"><i id="gauge-fill"></i><b id="gauge-bound"></b></div>
       <div class="gauge-text" id="gauge-text"></div>
@@ -285,28 +283,27 @@
   </div>
 
   <section class="honest">
-    <h2 data-i18n="honest">What this page is, and is not</h2>
+    <h2 data-i18n="honest">What this page is, and what it is not</h2>
     <ul>
-      <li data-i18n="honest1">The Forth and the kernel are the board's own code, compiled unchanged: the console
-        and the pool of slots (<code>src/</code>), the hard kernel of Escapement under EDF
-        (<code>EscapementHard.c</code>) with the four tasks of the Pico, one a period. Only the
-        layer under them differs (<code>web/platform_web.c</code>, <code>web/kernel/</code>).</li>
-      <li data-i18n="honest2">The console is the kernel's idle task here: the slots preempt it, and one another,
-        wherever the Forth reads the clock, every sixteen words. On the board the console has
-        a core of its own, and never delays a slot.</li>
-      <li data-i18n="honest3">The kernel's clock follows the browser's, which lets the page run every few
-        milliseconds, seldom in a tab left in the background. The time it held the page, the
-        clock passes release by release, each on time for the kernel, late on the wall; past
-        200 ms, the rest is not given at all. A pause of the browser of more than half a
-        millisecond or so in the middle of a run, a garbage collection or the system, is left
-        out of the clock and of the times measured: the board has none.</li>
-      <li data-i18n="honest4">The times the pool, the timeline and <code>slots</code> show are those of your
-        browser, not of the Pico, read to a tenth of a millisecond, or a whole one, depending on
-        the browser, coarser still where it guards your privacy, the page then saying so: a
-        short word reads 0, and an empty task takes no width. Nothing here tells
-        the costs of the kernel on a chip, nor its energy.</li>
-      <li data-i18n="honest5">A line typed at the console is stopped after 10 s, as Ctrl-C does on the board. The
-        dictionary lives as long as the page; <code>save</code> has no flash to write.</li>
+      <li data-i18n="honest1">The Forth and the kernel are the board's code, compiled as is: the console and
+        the slots (<code>src/</code>), Escapement's hard kernel under EDF (<code>EscapementHard.c</code>) and
+        the Pico's four tasks, one per period. Only the layer below changes (<code>web/platform_web.c</code>,
+        <code>web/kernel/</code>).</li>
+      <li data-i18n="honest2">Here, the console is the kernel's background task. The slots interrupt it, and each
+        other, where the Forth reads the clock: every sixteen words. On the board, the console has its own core and never delays a slot.</li>
+      <li data-i18n="honest3">The kernel's clock follows the browser's. The browser only runs the page every few
+        milliseconds, less often in a hidden tab. The kernel then catches up, release by release:
+        each on time for the kernel, late in real time. Beyond 200 ms, the rest is dropped. A
+        browser pause of more than about half a millisecond in the middle of a run (garbage
+        collection, the system) is left out of the clock and of the measures. The board has no
+        such pauses.</li>
+      <li data-i18n="honest4">The times shown are your browser's, not the Pico's. They are read to a tenth of a
+        millisecond, or to a millisecond depending on the browser, and more coarsely where it
+        protects your privacy, which the page then says. A very short word can show 0, and an
+        empty task has no width on the timeline. This page says nothing about what the kernel
+        costs on a real chip, nor about its energy.</li>
+      <li data-i18n="honest5">A typed line is stopped after 10 s, like Ctrl-C on the board. The dictionary lasts
+        as long as the page: <code>save</code> has no flash to write to.</li>
     </ul>
   </section>
   <footer><a href="https://github.com/beber007/escapement-forth">escapement-forth</a> ·
@@ -352,128 +349,128 @@
                    "10 stop 11 stop 12 stop 13 stop 14 stop 15 stop";
   const TOUR = [
     { id: "period", lines: [STOP_ALL, ": blink  1 15 lshift toggle ;", "' blink 100 every"],
-      en: { title: "A word on a period",
-            text: "Define a word that toggles the pin GP15, then bind it to the task of 100 ms with every. The console answers with the slot it took.",
-            watch: "the LED GP15 blinking, the 100 ms row of the timeline running at each release, the slot on trial in the pool." },
-      fr: { title: "Un mot sur une période",
-            text: "Définissez un mot qui inverse la broche GP15, puis liez-le à la tâche de 100 ms avec every. La console répond par la case qu'il a prise.",
-            watch: "la LED GP15 qui clignote, la ligne 100 ms de la frise qui s'exécute à chaque activation, la case à l'essai dans le tableau." } },
+      en: { title: "Blink an LED",
+            text: "This word blinks the LED on GP15. every runs it every 100 ms. The console answers with its slot number.",
+            watch: "the LED GP15 blinks. On the timeline, the 100 ms row shows each run. In the pool, the slot is on trial." },
+      fr: { title: "Faire clignoter une LED",
+            text: "Ce mot fait clignoter la LED GP15. every le lance toutes les 100 ms. La console te répond avec le numéro de sa case.",
+            watch: "la LED GP15 clignote. Sur la frise, la ligne 100 ms montre chaque exécution. Dans le tableau, la case est à l'essai." } },
     { id: "cost", cost: true,
       lines: [STOP_ALL, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every"],
       en: { title: "What a word costs",
-            text: "work spends cost microseconds in the task of 10 ms. On trial, a run may take a tenth of its period: 1 ms here.",
-            watch: "in the pool, the longest run of work against its budget; on the 10 ms row, its runs. Move the slider." },
+            text: "work keeps the processor busy for cost microseconds, every 10 ms. On trial, a word gets a tenth of its period: 1 ms here.",
+            watch: "move the slider. On the 10 ms row, the runs of work. In the pool, the bar compares its longest run with its budget." },
       fr: { title: "Ce que coûte un mot",
-            text: "work dépense cost microsecondes dans la tâche de 10 ms. À l'essai, une exécution peut prendre un dixième de sa période : 1 ms ici.",
-            watch: "dans le tableau, l'exécution la plus longue de work face à son budget ; sur la ligne 10 ms, ses exécutions. Bougez le curseur." } },
+            text: "work occupe le processeur pendant cost microsecondes, toutes les 10 ms. À l'essai, un mot a droit à un dixième de sa période : ici 1 ms.",
+            watch: "bouge le curseur. Sur la ligne 10 ms, les exécutions de work. Dans le tableau, la barre compare son temps le plus long à son budget." } },
     { id: "over", cost: true,
       lines: [STOP_ALL, "variable cost  2000 cost !", ": work  cost @ spend ;", "' work 10 every", "300 ms"],
-      en: { title: "Over its budget",
-            text: "Past 1 ms, a run of work is cut: spend checks the budget as it waits, as the Forth does every sixteen words. The run is counted over, and work runs again at its next release, the other tasks on time.",
-            watch: "red runs on the timeline, cut at the first step of the clock past 1 ms, and over counting up in the pool." },
-      fr: { title: "Au-delà de son budget",
-            text: "Au-delà de 1 ms, une exécution de work est coupée : spend contrôle le budget pendant qu'il attend, comme le Forth le fait tous les seize mots. L'exécution compte comme un dépassement, et work repart à sa prochaine activation, les autres tâches à l'heure.",
-            watch: "des exécutions rouges sur la frise, coupées au premier pas d'horloge après 1 ms, et les dépassements qui montent dans le tableau." } },
+      en: { title: "Too long",
+            text: "work asks for 2 ms, but its budget is 1 ms. The Forth cuts it at the first clock tick past 1 ms and counts it as over: spend checks the budget as it waits, like the Forth every sixteen words. work runs again at its next release. The other tasks stay on time.",
+            watch: "red bars on the timeline, and the over count going up in the pool." },
+      fr: { title: "Trop long",
+            text: "work demande 2 ms, mais son budget est de 1 ms. Le Forth le coupe au premier pas d'horloge après 1 ms et compte un dépassement : spend contrôle le budget pendant qu'il attend, comme le Forth tous les seize mots. work repart à son prochain lancement. Les autres tâches restent à l'heure.",
+            watch: "des barres rouges sur la frise, et le nombre de dépassements qui monte dans le tableau." } },
     { id: "admitted", cost: true,
       lines: [STOP_ALL, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every", "200 ms {work} promote"],
-      en: { title: "Admitted",
-            text: "promote admits a word measured ten times within its budget. Its worst case becomes the longest run seen, plus a quarter, plus 1 µs: its budget from then on. Bound anew, work starts its trial over.",
-            watch: "the slot promoted, its budget its worst case now, the load rising. Push the slider past it: promoted, work is held to it. A browser reads its clock to a tenth of a millisecond at best, to a whole one often: a run may go over without you." },
-      fr: { title: "Admis",
-            text: "promote admet un mot mesuré dix fois dans son budget. Son pire cas devient l'exécution la plus longue vue, plus un quart, plus 1 µs : son budget désormais. Lié à nouveau, work recommence son essai.",
-            watch: "la case promue, son budget devenu son pire cas, la charge qui monte. Poussez le curseur au-delà : promu, work y est tenu. Un navigateur lit son horloge au dixième de milliseconde au mieux, souvent à la milliseconde : une exécution peut dépasser sans vous." } },
+      en: { title: "Promoted",
+            text: "After ten runs within its budget, promote can guarantee the word. Its new budget is its longest run, plus a quarter, plus 1 µs. The word now counts in the processor's load. If you attach it again, its trial starts over.",
+            watch: "the slot turns promoted and the load goes up. Push the slider past the budget: work gets cut. A browser measures time to a tenth of a millisecond at best, often only to a millisecond, so a run can go over on its own." },
+      fr: { title: "Promu",
+            text: "Après dix exécutions dans son budget, promote peut garantir le mot. Son nouveau budget est son temps le plus long, plus un quart, plus 1 µs. Le mot compte alors dans la charge du processeur. Si tu le rattaches, son essai recommence.",
+            watch: "la case passe à promu et la charge monte. Pousse le curseur au-delà du budget : work est coupé. Un navigateur mesure le temps au dixième de milliseconde au mieux, souvent à la milliseconde seulement, donc un dépassement de budget peut arriver tout seul." } },
     { id: "preempted", freeze: 3,
       lines: [STOP_ALL, ": long  80000 spend ;  : busy  500 spend ;", "' long 1000 every", "' busy 10 every"],
-      en: { title: "Preempted",
-            text: "long spends 80 ms in the task of 1 s, busy 500 µs in that of 10 ms. The kernel runs the task whose deadline comes first: the tasks of 1 and 10 ms interrupt long and run on time; long goes on after them. The timeline stops on the next run of long.",
-            watch: "the 1 s row broken into pieces, a thin line where long waits, the 10 ms row running in the gaps." },
-      fr: { title: "Préempté",
-            text: "long dépense 80 ms dans la tâche de 1 s, busy 500 µs dans celle de 10 ms. Le noyau exécute la tâche dont l'échéance vient en premier : les tâches de 1 et 10 ms interrompent long et passent à l'heure ; long reprend après elles. La frise s'arrête sur la prochaine exécution de long.",
-            watch: "la ligne 1 s découpée en morceaux, un trait fin là où long attend, la ligne 10 ms qui passe dans les trous." } },
+      en: { title: "Interrupted",
+            text: "long runs every 1 s and lasts 80 ms. busy lasts 500 µs and goes ahead of it every 10 ms, because its deadline is closer. long goes on after it. The timeline freezes after the next run of long. Click Resume to go on.",
+            watch: "the 1 s row broken into pieces, a thin line where long waits, and the 10 ms row running in the gaps." },
+      fr: { title: "Interrompu",
+            text: "long tourne toutes les secondes et dure 80 ms. busy dure 500 µs et passe devant lui toutes les 10 ms, car son échéance est plus proche. long reprend après lui. La frise se fige après la prochaine exécution de long. Clique sur Reprendre pour continuer.",
+            watch: "la ligne 1 s coupée en morceaux, un trait fin là où long attend, et la ligne 10 ms qui passe dans les trous." } },
     { id: "refused",
       lines: [STOP_ALL, ": big10  700 spend ;  : big100  9500 spend ;",
               "' big10 10 every ' big10 10 every ' big10 10 every ' big10 10 every",
               "' big100 100 every ' big100 100 every ' big100 100 every ' big100 100 every",
               "1300 ms", "4 promote 5 promote 6 promote 7 promote", "8 promote 9 promote 10 promote 11 promote"],
-      en: { title: "Admission refused",
-            text: "Everything stopped, eight words that each take most of their budget, then their promotion. The promoted words may take 70 % of the processor together: each promotion that would pass it is refused, and that word stays on trial.",
-            watch: "the load climbing towards the red mark, and refused in the console." },
-      fr: { title: "Admission refusée",
-            text: "Tout est arrêté, puis huit mots qui prennent chacun l'essentiel de leur budget, puis leur promotion. Les mots promus peuvent prendre ensemble 70 % du processeur : chaque promotion qui dépasserait ce seuil est refusée, et ce mot reste à l'essai.",
-            watch: "la charge qui monte vers la marque rouge, et refused dans la console." } },
+      en: { title: "Refused",
+            text: "Everything is stopped, then eight words that use most of their budget, then their promotion. Together, promoted words cannot go past 70 % of the processor. Beyond that, promote refuses and the word stays on trial.",
+            watch: "the load gets close to the red mark, then the console answers refused." },
+      fr: { title: "Refusé",
+            text: "Tout est arrêté, puis huit mots qui prennent l'essentiel de leur budget, puis leur promotion. Ensemble, les mots promus ne peuvent pas dépasser 70 % du processeur. Au-delà, promote refuse et le mot reste à l'essai.",
+            watch: "la charge s'approche du trait rouge, puis la console répond refused." } },
     { id: "fails", lines: [STOP_ALL, ": bad  drop ;", "' bad 1 every"],
       en: { title: "A word that fails",
-            text: "bad drops from an empty stack: it fails at its first run and is stopped, its error kept. The other slots run on.",
-            watch: "failed in the pool; nothing else changes on the timeline." },
+            text: "bad takes a value from an empty stack. It fails on its first run and is stopped. Its error is kept. The other slots keep running.",
+            watch: "the slot shows failed. Nothing else changes." },
       fr: { title: "Un mot qui échoue",
-            text: "bad retire une valeur d'une pile vide : il échoue dès sa première exécution et il est arrêté, son erreur gardée. Les autres cases continuent.",
-            watch: "en échec dans le tableau ; rien d'autre ne change sur la frise." } },
+            text: "bad prend une valeur sur une pile vide. Il échoue dès sa première exécution et il est arrêté. Son erreur est gardée. Les autres cases continuent.",
+            watch: "la case passe en échec. Rien d'autre ne change." } },
     { id: "yours", lines: [STOP_ALL],
       en: { title: "Your turn",
-            text: "Everything stopped. Type your own words at the console: words lists the dictionary, slots prints the pool, and Restart starts the Forth over.",
+            text: "Everything is stopped. Type your own words. words lists the known words, slots shows the pool, and the Restart the Forth button starts it over.",
             watch: "" },
-      fr: { title: "À vous",
-            text: "Tout est arrêté. Tapez vos propres mots à la console : words liste le dictionnaire, slots affiche les cases, et Relancer redémarre le Forth.",
+      fr: { title: "À toi",
+            text: "Tout est arrêté. Tape tes propres mots. words liste les mots connus, slots affiche les cases, et le bouton Relancer le Forth le fait repartir de zéro.",
             watch: "" } },
   ];
 
   // ---- The languages: the page's texts in English, as written above, or in French; the
   // Forth answers in English, as on the board.
   const FR = {
-    lede: 'La console Forth d\'<a href="https://github.com/beber007/escapement">Escapement</a> et le noyau temps réel qui la porte, compilés en WebAssembly et exécutés dans cette page. Suivez la visite guidée, ou tapez vos propres mots : la frise et le tableau ci-dessous montrent ce que le noyau en fait.',
+    lede: 'La console Forth d\'<a href="https://github.com/beber007/escapement">Escapement</a> et son noyau temps réel, compilés en WebAssembly. Ils tournent ici, dans cette page. Suis la visite ou tape tes propres mots : la frise et le tableau montrent ce que fait le noyau.',
     badge1: "<b>temps réel dur</b> · EDF", badge2: "<b>4 tâches</b> · 1, 10, 100, 1000 ms",
-    badge3: "<b>le code de la carte</b> · inchangé", badge4: "<b>dans votre navigateur</b> · rien n'est envoyé",
-    how1: "<b>Quatre tâches, seize cases</b>Le noyau exécute quatre tâches, de périodes 1, 10, 100 et 1000 ms. Chacune a quatre cases, auxquelles la console lie des mots : <code>' blink 100 every</code>.",
-    how2: "<b>Un essai, avec un budget</b>Un mot lié est à l'essai : il s'exécute à chaque activation et son temps est mesuré. Une exécution peut prendre un dixième de sa période ; au-delà de ce budget, elle est coupée.",
-    how3: "<b>Promu, ou refusé</b><code>promote</code> admet un mot mesuré dix fois dans son budget, avec un pire cas tiré de ces mesures, tant que les mots promus tiennent dans 70 % du processeur.",
-    how4: "<b>L'échéance d'abord</b>Le noyau exécute la tâche dont l'échéance vient en premier, EDF : la tâche de 1 ms interrompt celle de 1 s, et la console les attend toutes.",
+    badge3: "<b>le code de la carte</b> · sans changement", badge4: "<b>dans ton navigateur</b> · rien n'est envoyé",
+    how1: "<b>Quatre tâches, seize cases</b>Le noyau a quatre tâches, de période 1, 10, 100 et 1000 ms. Chacune a quatre cases. Tu y attaches des mots depuis la console : <code>' blink 100 every</code>.",
+    how2: "<b>D'abord à l'essai</b>Un nouveau mot est à l'essai. Il tourne à chaque période et le noyau mesure son temps. Il a droit à un dixième de sa période. S'il dépasse, il est coupé.",
+    how3: "<b>Promu ou refusé</b>Après dix mesures dans son budget, <code>promote</code> garantit le mot. Seule condition : tous les mots promus doivent tenir dans 70 % du processeur.",
+    how4: "<b>L'échéance d'abord</b>Le noyau fait toujours passer la tâche dont l'échéance est la plus proche (EDF). La tâche de 1 ms interrompt celle de 1 s. La console passe après toutes.",
     pins: "Broches", tour: "Visite guidée", cost: "Coût de <code>work</code>", run: "Taper ces lignes",
     restart: "Relancer le Forth", live: "Le noyau, en direct", running: "en cours",
-    waiting: "activée, en attente : préemptée", release: "activation", overlegend: "au-delà de son budget",
-    pool: "Le tableau des cases", poolnote: "exécution la plus longue face à son budget",
-    honest: "Ce que cette page est, et n'est pas",
-    honest1: "Le Forth et le noyau sont le code même de la carte, compilé sans changement : la console et les cases (<code>src/</code>), le noyau dur d'Escapement sous EDF (<code>EscapementHard.c</code>) avec les quatre tâches du Pico, une par période. Seule la couche en dessous diffère (<code>web/platform_web.c</code>, <code>web/kernel/</code>).",
-    honest2: "Ici, la console est la tâche de fond du noyau : les cases la préemptent, et se préemptent entre elles, là où le Forth lit l'horloge, tous les seize mots. Sur la carte, la console a son propre cœur et ne retarde jamais une case.",
-    honest3: "L'horloge du noyau suit celle du navigateur, qui ne laisse la page tourner qu'à quelques millisecondes d'intervalle, rarement dans un onglet en arrière-plan. Le temps pendant lequel il a retenu la page, l'horloge le rattrape activation par activation, chacune à l'heure pour le noyau, en retard sur l'heure réelle ; au-delà de 200 ms, le reste n'est pas rendu. Une pause du navigateur de plus d'une demi-milliseconde environ au milieu d'une exécution, ramasse-miettes ou système, est retirée de l'horloge et des temps mesurés : la carte n'en a pas.",
-    honest4: "Les temps que montrent le tableau, la frise et <code>slots</code> sont ceux de votre navigateur, pas du Pico, lus au dixième de milliseconde, ou à la milliseconde selon le navigateur, plus grossièrement encore là où il protège votre vie privée, ce que la page dit alors : un mot court se lit 0, et une tâche vide n'a pas de largeur. Rien ici ne dit ce que coûte le noyau sur une puce, ni son énergie.",
-    honest5: "Une ligne tapée à la console est arrêtée au bout de 10 s, comme le fait Ctrl-C sur la carte. Le dictionnaire vit aussi longtemps que la page ; <code>save</code> n'a pas de flash où écrire.",
+    waiting: "en attente, interrompue", release: "lancement", overlegend: "au-delà du budget",
+    pool: "Le tableau des cases", poolnote: "exécution la plus longue et budget",
+    honest: "Ce que cette page est, et ce qu'elle n'est pas",
+    honest1: "Le Forth et le noyau sont le code de la carte, compilé tel quel : la console et les cases (<code>src/</code>), le noyau dur d'Escapement sous EDF (<code>EscapementHard.c</code>) et les quatre tâches du Pico, une par période. Seule la couche du dessous change (<code>web/platform_web.c</code>, <code>web/kernel/</code>).",
+    honest2: "Ici, la console est la tâche de fond du noyau. Les cases l'interrompent, et s'interrompent entre elles, là où le Forth lit l'horloge : tous les seize mots. Sur la carte, la console a son propre cœur et ne retarde jamais une case.",
+    honest3: "L'horloge du noyau suit celle du navigateur. Le navigateur ne fait tourner la page qu'à quelques millisecondes d'intervalle, moins souvent si l'onglet est caché. Le noyau rattrape alors son retard, lancement par lancement : chacun à l'heure pour le noyau, en retard sur l'heure réelle. Au-delà de 200 ms, le reste est abandonné. Une pause du navigateur de plus d'une demi-milliseconde environ en pleine exécution (ramasse-miettes, système) est retirée de l'horloge et des mesures. La carte, elle, n'a pas de pauses.",
+    honest4: "Les temps affichés sont ceux de ton navigateur, pas du Pico. Ils sont lus au dixième de milliseconde, ou à la milliseconde selon le navigateur, et plus grossièrement là où il protège ta vie privée, ce que la page dit alors. Un mot très court peut donc afficher 0, et une tâche vide n'a pas de largeur sur la frise. Cette page ne dit rien du coût du noyau sur une vraie puce, ni de sa consommation.",
+    honest5: "Une ligne tapée est arrêtée au bout de 10 s, comme Ctrl-C sur la carte. Le dictionnaire dure le temps de la page : <code>save</code> n'a pas de flash où écrire.",
   };
   const FR_LABEL = { lang: "Langue", how: "Comment ça marche", input: "Entrée Forth", tour: "Visite guidée",
                      back: "Étape précédente", next: "Étape suivante" };
   const T = {
-    en: { loading: "Loading…", ready: "Ready. The Forth runs in this page; nothing is sent anywhere.",
-          coarse: (g) => "Your browser reads its clock only to " + time(g, "en") + ", as when it guards your " +
-                         "privacy: the kernel cannot keep time here, and the tour is off. Most browsers, as " +
-                         "they come, read it to 1 ms or better.",
-          full: "The dictionary is full: Restart the Forth empties it.\n",
-          periodFull: "The slots of that period are all taken: n stop frees one.\n",
+    en: { loading: "Loading…", ready: "Ready. The Forth runs in this page. Nothing is sent.",
+          coarse: (g) => "Your browser only gives the time to within " + time(g, "en") + ", probably to " +
+                         "protect your privacy. That is too coarse for the kernel, so the tour is off. Most " +
+                         "browsers, with default settings, give 1 ms or better.",
+          full: "The dictionary is full. Click Restart the Forth to empty it.\n",
+          periodFull: "The four slots of that period are taken. n stop frees one.\n",
           failed: "The Forth could not start: ",
-          welcome: "Escapement Forth, in WebAssembly. Type a line and Enter, or follow the tour.\n",
+          welcome: "Escapement Forth, in WebAssembly. Type a line and press Enter, or follow the tour.\n",
           budget: "trial budget ", free: "free", trial: "trial", promoted: "promoted", failedChip: "failed",
           figures: (e) => "max " + time(e.max, "en") + " of " + time(e.budget, "en") + " · runs " + e.runs +
                           (e.over > 0 ? " · over " + e.over : ""),
-          gauge: (l, b) => "Admitted load " + share(l, "en") + " of the processor, the pool's own cost in it; it may reach " + share(b, "en") + ".",
+          gauge: (l, b) => "Guaranteed load: " + share(l, "en") + " of the processor (the slots' own cost included). Limit: " + share(b, "en") + ".",
           runs: (n) => n + (n === 1 ? " run" : " runs"),
           releases: (n) => n + (n === 1 ? " release" : " releases"),
           summary: (w, rows, over) => "In the last " + w + ": " + rows + "; " + over + " over budget.",
           watch: "Watch:", slotOf: (name) => "‹slot of " + name + "›", now: "now", pause: "Pause", resume: "Resume", second: "1 s: show the last second", short: "200 ms: show the last 200 ms", stopAll: "‹stop every slot›" },
-    fr: { loading: "Chargement…", ready: "Prêt. Le Forth tourne dans cette page ; rien n'est envoyé nulle part.",
-          coarse: (g) => "Votre navigateur ne lit son horloge qu'à " + time(g, "fr") + " près, comme lorsqu'il " +
-                         "protège votre vie privée : le noyau ne peut pas tenir l'heure ici, et la visite est " +
-                         "désactivée. La plupart des navigateurs, réglés par défaut, la lisent à 1 ms près ou mieux.",
-          full: "Le dictionnaire est plein : Relancer le Forth le vide.\n",
-          periodFull: "Les cases de cette période sont toutes prises : n stop en libère une.\n",
+    fr: { loading: "Chargement…", ready: "Prêt. Le Forth tourne dans cette page. Rien n'est envoyé.",
+          coarse: (g) => "Ton navigateur ne donne l'heure qu'à " + time(g, "fr") + " près, sans doute pour " +
+                         "protéger ta vie privée. C'est trop imprécis pour le noyau, la visite est donc " +
+                         "désactivée. Avec leurs réglages par défaut, la plupart des navigateurs donnent 1 ms ou mieux.",
+          full: "Le dictionnaire est plein. Clique sur Relancer le Forth pour le vider.\n",
+          periodFull: "Les quatre cases de cette période sont prises. n stop en libère une.\n",
           failed: "Le Forth n'a pas pu démarrer : ",
-          welcome: "Escapement Forth, en WebAssembly. Tapez une ligne puis Entrée, ou suivez la visite.\n",
+          welcome: "Escapement Forth, en WebAssembly. Tape une ligne puis Entrée, ou suis la visite.\n",
           budget: "budget d'essai ", free: "libre", trial: "essai", promoted: "promu", failedChip: "en échec",
           figures: (e) => "max " + time(e.max, "fr") + " sur " + time(e.budget, "fr") + " · " + e.runs +
                           (e.runs < 2 ? " exécution" : " exécutions") +
                           (e.over > 0 ? " · " + e.over + (e.over < 2 ? " dépassement" : " dépassements") : ""),
-          gauge: (l, b) => "Charge admise : " + share(l, "fr") + " du processeur, coût propre des cases compris ; elle peut atteindre " + share(b, "fr") + ".",
+          gauge: (l, b) => "Charge garantie : " + share(l, "fr") + " du processeur (coût des cases compris). Limite : " + share(b, "fr") + ".",
           runs: (n) => n + (n < 2 ? " exécution" : " exécutions"),
-          releases: (n) => n + (n < 2 ? " activation" : " activations"),
+          releases: (n) => n + (n < 2 ? " lancement" : " lancements"),
           summary: (w, rows, over) => "Sur les " + w.replace(" ", " dernières ") + " : " + rows + " ; " + over + " au-delà du budget.",
-          watch: "À regarder :", slotOf: (name) => "‹case de " + name + "›", now: "maintenant", pause: "Pause", resume: "Reprendre", second: "1 s : afficher la dernière seconde",
+          watch: "Regarde :", slotOf: (name) => "‹case de " + name + "›", now: "maintenant", pause: "Pause", resume: "Reprendre", second: "1 s : afficher la dernière seconde",
           short: "200 ms : afficher les 200 dernières ms", stopAll: "‹arrêter toutes les cases›" },
   };
   const EN = {}, EN_LABEL = {};
