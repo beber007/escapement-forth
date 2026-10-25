@@ -41,6 +41,12 @@ jobs:
           node --version
           timeout 300 make -C web test
 
+      # The page run, not only parsed: the runner's Chrome, in English and in French.
+      - name: Page in Chrome
+        run: |
+          google-chrome --version
+          timeout 120 make -C web page CHROME=google-chrome
+
       - uses: actions/upload-pages-artifact@v4
         with:
           path: web/build

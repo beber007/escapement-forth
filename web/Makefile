@@ -5,6 +5,8 @@
 # The Forth, the pool of slots and the board's kernel, EscapementHard.c of the submodule
 # escapement/, compiled to WebAssembly, for the page of web/:
 #   make            build/forth.wasm, beside index.html and worker.js in build/
+#   make page       the page loaded in a headless Chrome, in English and in French
+#                   (test/check_page.sh): make page CHROME=.../Google\ Chrome
 #   make serve      the page on http://localhost:8000
 #   make test       build/forth.wasm driven as the worker drives it (test/test_web.js),
 #                   the browser's clock read to the us, to 0.1 ms as in Chrome, then to
@@ -41,10 +43,15 @@ test: $(B)/forth.wasm
 	$(JS) test/test_web.js $(JS_ARGS) $(B)/forth.wasm index.html worker.js view.js 0.1
 	$(JS) test/test_web.js $(JS_ARGS) $(B)/forth.wasm index.html worker.js view.js 1
 
+CHROME ?= google-chrome
+
+page: $(B)/forth.wasm
+	test/check_page.sh "$(CHROME)" $(B)
+
 serve: $(B)/forth.wasm
 	cd $(B) && python3 -m http.server 8000
 
 clean:
 	rm -rf $(B)
 
-.PHONY: all test serve clean
+.PHONY: all test page serve clean

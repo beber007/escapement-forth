@@ -170,10 +170,14 @@ function abandon(queue) {
 
 // time: us as the page writes it, to the us: rounded, a run over its budget was written
 // as the budget, and a worst case admitted above it.
-function time(us) {
-  return us < 1000 ? us + " µs" : us / 1000 + " ms";
+function time(us, lang) {
+  return us < 1000 ? us + " µs" : decimal(String(us / 1000), lang) + " ms";
 }
 
-function share(ppm) {
-  return (Math.ceil(ppm / 1000) / 10).toFixed(1) + " %";
+function share(ppm, lang) {
+  return decimal((Math.ceil(ppm / 1000) / 10).toFixed(1), lang) + " %";
+}
+
+function decimal(text, lang) {
+  return lang === "fr" ? text.replace(".", ",") : text;
 }
