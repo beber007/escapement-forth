@@ -158,6 +158,7 @@
   .scale button[aria-pressed="true"] { background: var(--panel); color: var(--accent); font-weight: 600; }
   .frozen { margin: 0 0 8px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line);
             background: var(--bg); font-size: 0.85rem; }
+  .frozen:empty { margin: 0; padding: 0; border: 0; }
   #timeline { display: block; width: 100%; height: 190px; }
   .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none;
             font-size: 0.82rem; color: var(--muted); }
@@ -277,7 +278,7 @@
         <span class="views"><span class="scale" role="group" aria-label="Scale" data-i18n-label="scale"><button
           data-window="20000">20 ms</button><button data-window="200000">200 ms</button><button
           data-window="1000000">1 s</button></span> <button id="pause">Pause</button></span></div>
-      <p class="frozen" id="frozen" aria-live="polite" hidden></p>
+      <p class="frozen" id="frozen" aria-live="polite"></p>
       <canvas id="timeline" role="img" aria-label="The tasks the kernel ran, the last 200 ms"></canvas>
       <ul class="legend">
         <li><i class="run"></i><span data-i18n="running">running, one color per task</span></li>
@@ -634,8 +635,8 @@
   function showViews() {
     scaleButtons.forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.window) === view.window)));
     pauseButton.textContent = view.frozen === null ? T[lang].pause : T[lang].resume;
-    frozenNote.textContent = T[lang].frozen;
-    frozenNote.hidden = view.frozen === null;
+    // Empty rather than hidden: a live region shown with its text is often not read out.
+    frozenNote.textContent = view.frozen === null ? "" : T[lang].frozen;
     summed = -Infinity;
   }
   scaleButtons.forEach((b) => b.addEventListener("click", () => {

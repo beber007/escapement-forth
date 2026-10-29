@@ -195,7 +195,7 @@ check("  in French, the number before dernières", T.fr.summary(V.time(1000000, 
 const bound = Array.from({ length: 16 }, () => ({ state: 0, name: "" }));
 bound[4] = { state: 1, name: "work" };
 bound[6] = { state: 2, name: "busy" };
-bound[13] = { state: 3, name: "long" };
+bound[13] = { state: 2, name: "long" };
 check("each row named by its words", JSON.stringify(V.rowNames(bound)) === '["","work busy","","long"]',
       V.rowNames(bound));
 
