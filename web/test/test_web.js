@@ -29,6 +29,9 @@ const LINE = 128;    // FORTH_LINE
 
 let forth, output = "", pins = 0, seen = [], failures = 0;
 let jump = 0, stallIn = -1;   // ms the clock jumps once, at the stallIn-th reading from now
+// The clock jumps 0.3 ms at the first reading past pauseAt inside a call of the worker,
+// not its first, then pauseEvery ms later; paused counts the jumps.
+let pauseEvery = 0, pauseAt = 0, paused = 0, callReads = -1;
 const t0 = now(), wasm = new WebAssembly.Module(read(args[0]));
 // boot: A Forth anew, as the page's Restart starts it.
 function boot() {
@@ -36,6 +39,11 @@ function boot() {
     web_now: () => {
       if (stallIn >= 0 && stallIn-- === 0)
         jump += 50;
+      if (pauseEvery > 0 && callReads >= 0 && callReads++ > 0 && now() >= pauseAt) {
+        jump += 0.3;
+        paused += 1;
+        pauseAt = now() + pauseEvery;
+      }
       const t = now() - t0 + jump;
       return STEP === 0 ? t : Math.floor(t / STEP) * STEP;
     },
@@ -75,7 +83,9 @@ function idle(ms) {
     const next = now() + GAP;
     while (now() < next)
       ;
+    callReads = 0;
     forth.web_run();
+    callReads = -1;
   }
   return take();
 }
@@ -413,6 +423,26 @@ check("two spends of a run held as one, within its budget", e.runs > 10 && e.max
       e.max <= 1000 && e.over === 0, e);
 stopAll();
 idle(100);
+
+// Short pauses of the browser in the runs of a promoted word are not its own: 0.3 ms,
+// under WEB_STALL_US, made a word of 500 us promoted with a budget of 626 us run past it
+// in Chrome (2026-10-29). Read to the ms, such a pause is under a step and cannot be seen.
+if (STEP < 1) {
+  line(": work  500 spend ;");
+  r = line("' work 10 every");
+  const slot = number(r.out.replace("slot", ""));
+  idle(300);
+  line(slot + " promote");
+  const before = view().slots[slot].runs;
+  pauseEvery = 1;
+  idle(1000);
+  pauseEvery = 0;
+  e = view().slots[slot];
+  check("short pauses of the browser left out of a promoted word", e.state === 2 &&
+        e.runs - before > 80 && paused > 20 && e.over === 0, [e, before, paused]);
+  stopAll();
+  idle(100);
+}
 
 // A pause of the browser inside a call is left out of the clock: the browser's clock
 // jumping 50 ms while the console waits 300 ms, the wait still takes 300, not 250.

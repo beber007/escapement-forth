@@ -80,17 +80,28 @@ void *memcpy(void *d, const void *s, size_t n)
 ** other browsers, whose every step would else be taken for a pause, and where a pause of
 ** 2 ms, left in, read a word of 500 us at 2 ms, over its budget of 1 ms (a review,
 ** 2026-10-25). The time between two calls is the kernel's, caught up
-** (kernel/kernel_web.c). */
+** (kernel/kernel_web.c). While SPEND waits (Waiting), it reads the clock again and again:
+** a jump past two steps is a pause too, the second step taken as WEB_WAIT_US at least and
+** WEB_STALL_US at most. In Chrome, pauses of 200 to 600 us, left in, cut a word of 500 us
+** promoted with a budget of 626 us (2026-10-29). A pause read as two steps stays in:
+** Chrome's clock jitters, and two steps may be the word's. Read to the nearest us:
+** Chrome's clock, truncated, made steps of 99 and 101 us, and a jump of two steps a pause
+** (a review). */
 #define WEB_STALL_US 500u
+#define WEB_WAIT_US 50u
 static uint32_t Stolen, LastWall, Grain = 0xFFFFFFFFu;
-static int InCall;
+static int InCall, Waiting;
 
 static uint32_t Wall(void)
 {
-  uint32_t raw = (uint32_t)(long long)(WebNow() * 1000.0), step = raw - LastWall;
+  uint32_t raw = (uint32_t)(long long)(WebNow() * 1000.0 + 0.5), step = raw - LastWall;
+  uint32_t stall = WEB_STALL_US;
   if (InCall && step != 0 && step < Grain)
      Grain = step;
-  if (InCall && step > WEB_STALL_US && step - WEB_STALL_US > Grain)
+  if (Waiting)
+     stall = Grain < WEB_WAIT_US ? WEB_WAIT_US
+           : Grain < WEB_STALL_US ? Grain : WEB_STALL_US;
+  if (InCall && step > stall && step - stall > Grain)
      Stolen += step;
   InCall = 1;
   LastWall = raw;
@@ -143,7 +154,13 @@ static void Drain(void)
 ** the tasks they elected, as an interrupt between two readings has it. */
 uint32_t ForthNow(void)
 {
-  WebKernelSync(Wall());
+  int waiting = Waiting;
+  uint32_t now = Wall();
+  /* The slots run there are not this SPEND's wait: their readings keep the usual
+  ** threshold. */
+  Waiting = 0;
+  WebKernelSync(now);
+  Waiting = waiting;
   return Wall();
 } /* end of ForthNow */
 
@@ -255,6 +272,7 @@ static void PSpend(Context *c, const Word *w)
 {
   uint32_t start = ForthNow(), wait;
   unsigned k;
+  int was;
   (void)w;
   FORTH_NEED(c,1);
   if (FORTH_TOP(c) < 0 || FORTH_TOP(c) > 1000000) {
@@ -262,6 +280,8 @@ static void PSpend(Context *c, const Word *w)
      return;
   }
   wait = (uint32_t)FORTH_POP(c);
+  was = Waiting;
+  Waiting = 1;
   if (c->Excluded == NULL)
      while (ForthNow() - start < wait)
         ;
@@ -277,9 +297,10 @@ static void PSpend(Context *c, const Word *w)
      while (ForthOwnTime(c->Start,c->Excluded) < Spent[k].Asked)
         if (c->Budget != 0 && ForthOwnTime(c->Start,c->Excluded) > c->Budget) {
            c->Error = FORTH_BUDGET;
-           return;
+           break;
         }
   }
+  Waiting = was;
 } /* end of PSpend */
 
 /* MS ( n -- ): Waits n milliseconds, at the console alone, the slots run meanwhile. */
