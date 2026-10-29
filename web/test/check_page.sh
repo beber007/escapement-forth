@@ -11,12 +11,14 @@
 # shows and the errors it met, to the server, whose log is read; and whether the tour
 # could be run before the Forth was ready, its clock not yet measured. Then it runs the
 # first step, a line sent and answered, and says what the console and the pool show,
-# and where the focus is once Next has gone through the tour.
+# and where the focus is once Next has gone through the tour. Each Chrome has WAIT s to
+# say it: a cold one on the CI's runner took more than 19 s (2026-10-25).
 #   check_page.sh chrome build-directory [port]
 chrome=$1
 build=$2
 port=${3:-8765}
 SETTLE=3
+WAIT=45
 work=$(mktemp -d)
 trap 'kill $browser $server 2>/dev/null; wait 2>/dev/null; rm -rf "$work"' EXIT
 mkdir "$work/site"
@@ -78,9 +80,8 @@ for lang in en fr; do
     --remote-debugging-port=0 --accept-lang=$lang --lang=$lang "http://localhost:$port/" \
     >/dev/null 2>"$work/$lang.log" &
   browser=$!
-  tries=0
-  until grep -q "GET /probe" "$work/server.log" || [ $tries -gt $((SETTLE * 10 + 120)) ]; do
-    tries=$((tries + 1))
+  deadline=$(($(date +%s) + WAIT))
+  until grep -q "GET /probe" "$work/server.log" || [ "$(date +%s)" -ge $deadline ]; do
     sleep 0.1
   done
   kill $browser 2>/dev/null
@@ -95,7 +96,8 @@ print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
     echo "FAILED  $lang: $errors"
     failed=1
   elif [ "$shown" = "{}" ]; then
-    echo "FAILED  $lang: the page said nothing in $SETTLE s"
+    echo "FAILED  $lang: the page said nothing in $WAIT s; Chrome's log ends:"
+    tail -n 20 "$work/$lang.log"
     failed=1
   elif ! check 's["errors"] == []'; then
     echo "FAILED  $lang: errors: $shown"
