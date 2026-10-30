@@ -142,7 +142,7 @@ const pend = (queue, pool) => {
   const item = V.pending(queue, pool);
   return item === null ? null : item.line;
 };
-const V = Function(text(args[3]) + " return { timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, rowNames, hit, span, WINDOWS, ZOOM };")();
+const V = Function(text(args[3]) + " return { timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, count, rowNames, hit, span, WINDOWS, ZOOM };")();
 
 forth.web_init();
 take();
@@ -205,13 +205,16 @@ for (const [attribute, name] of [["data-i18n", "FR"], ["data-i18n-label", "FR_LA
         Object.keys(fr).filter((k) => !html.includes(k))]);
 }
 // Every text of the page's script said in both languages.
-const T = Function("time", "share", source.slice(source.indexOf("const T = {"),
-                   source.indexOf("};", source.indexOf("const T = {")) + 2) + " return T;")(V.time, V.share);
+const T = Function("time", "share", "count", source.slice(source.indexOf("const T = {"),
+                   source.indexOf("};", source.indexOf("const T = {")) + 2) + " return T;")(V.time, V.share, V.count);
 check("each text of the script in English and in French", Object.keys(T.en).sort().join() ===
       Object.keys(T.fr).sort().join(), [Object.keys(T.en), Object.keys(T.fr)]);
 
-check("  in French, 0 and 1 singular", T.fr.runs(0) === "0 exécution" && T.fr.runs(1) === "1 exécution" &&
-      T.fr.runs(2) === "2 exécutions" && T.en.runs(0) === "0 runs", [T.fr.runs(0), T.en.runs(0)]);
+check("  a slot's counts short", T.en.figures({ max: 0, budget: 1000, runs: 12345, over: 999 }).endsWith("12k runs, 999 cut") &&
+      T.en.figures({ max: 0, budget: 1000, runs: 1, over: 0 }).endsWith("\n1 run") &&
+      T.fr.figures({ max: 0, budget: 1000, runs: 1000, over: 1000 }).endsWith("1k fois, coupé 1k"), T.fr.figures({ max: 0, budget: 1000, runs: 1000, over: 1000 }));
+check("  in French, 0 and 1 singular", T.fr.runs(0) === "0 lancement" && T.fr.runs(1) === "1 lancement" &&
+      T.fr.runs(2) === "2 lancements" && T.en.runs(0) === "0 runs", [T.fr.runs(0), T.en.runs(0)]);
 const summed = [200000, 1000000, 10000000].map((us) => T.fr.summary(V.span(us, "fr"), "", "").split(" :")[0]);
 check("  in French, the number before dernières, in s from 1 s", summed.join("|") ===
       "Sur les 200 dernières ms|Sur la dernière seconde|Sur les 10 dernières secondes", summed);

@@ -38,8 +38,9 @@
     }
   }
   /* The whole page in rem: it grows with the window as a zoom would, from the 16 px of a
-     window of 1280 by 680, each step staying in sight. Below that width, in one column. */
-  html { font-size: clamp(16px, min(1.25vw, 2.353vh), 26px); }
+     window of 1280 by 680, each step staying in sight, and shrinks a little in a lower one,
+     down to 595 px high. Below 1100 px wide, in one column. */
+  html { font-size: clamp(14px, min(max(16px, 1.25vw), 2.353vh), 26px); }
   @media (max-width: 1099px) { html { font-size: 16px; } }
   * { box-sizing: border-box; }
   body {
@@ -115,6 +116,16 @@
   /* The tour of one height, its buttons at its foot: they stay where they are, step to step. */
   .tour { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .steps { margin-top: auto; }
+  .help { align-self: flex-start; border: 1px solid var(--line); background: var(--bg); border-radius: 0.5rem;
+          padding: 0.25rem 0.75rem; font-size: 0.86rem; }
+  /* On a phone the page scrolls to what to watch: the buttons, and what it says, stay in reach. */
+  @media (max-width: 1099px) {
+    main { padding-bottom: 12rem; }
+    .steps { position: fixed; z-index: 2; left: 0; right: 0; bottom: 0; padding: 0.5rem 1rem; margin: 0;
+             background: var(--panel); border-top: 1px solid var(--line); }
+    .tour .watch { position: fixed; z-index: 2; left: 0; right: 0; bottom: 3.25rem; margin: 0; border-radius: 0;
+                   padding: 0.5rem 1rem; border-top: 1px solid var(--line); }
+  }
   /* What to watch, marked until the next step. */
   .look { outline: 2px solid var(--led-on); outline-offset: 2px; animation: look 1s ease-in-out 3; }
   @keyframes look { 50% { outline-color: transparent; } }
@@ -155,6 +166,7 @@
   /* The guided tour. */
   .tour h3 { font-size: 1rem; margin: 0 0 0.25rem; }
   .tour p { margin: 0 0 0.5rem; font-size: 0.9rem; line-height: 1.4; color: var(--muted); }
+  .tour .watch:empty { display: none; }
   .tour .watch { color: var(--ink); background: var(--chip); border-radius: 0.5rem; padding: 0.375rem 0.5rem; }
   .tour .watch::before { content: attr(data-label) " "; font-weight: 600; color: var(--accent); }
   .tour pre { margin: 0 0 0.5rem; padding: 0.375rem 0.5rem; background: var(--bg); border: 1px solid var(--line);
@@ -212,18 +224,19 @@
                               .prow .phead { grid-column: 1 / -1; } }
   .phead { font-size: 0.7rem; color: var(--muted); align-self: center; white-space: nowrap; }
   .phead b { display: block; color: var(--ink); font-size: 0.82rem; }
-  .cell { border: 1px solid var(--line); border-radius: 0.375rem; padding: 0.1875rem 0.375rem; min-width: 0; min-height: 0; overflow: hidden; font-size: 0.76rem; line-height: 1.2;
+  .cell { border: 1px solid var(--line); border-radius: 0.375rem; padding: 0.125rem 0.375rem; min-width: 0; min-height: 0; overflow: hidden; font-size: 0.76rem; line-height: 1.2;
           color: var(--muted); background: var(--bg); }
   .cell.free { opacity: 0.6; }
   .cell.failed, .cell.overrun { border-color: var(--over); background: var(--over-bg); }
   .cell .top { display: flex; justify-content: space-between; gap: 0.375rem; }
   .cell .name { font: 600 0.8rem ui-monospace, Menlo, monospace; color: var(--ink); overflow: hidden;
                 text-overflow: ellipsis; white-space: nowrap; }
-  .figures { white-space: pre-line; }
+  .figures { white-space: pre; overflow: hidden; }
+  .failed .figures { white-space: pre-line; }
   .chip { flex: none; font-size: 0.66rem; border-radius: 62.4375rem; padding: 0 0.3125rem; background: var(--chip); color: var(--muted); }
   .promoted .chip { background: var(--accent); color: var(--accent-ink); }
   .failed .chip { background: var(--over); color: var(--accent-ink); }
-  .bar2 { height: 0.25rem; border-radius: 2px; background: var(--chip); margin: 2px 0; overflow: hidden; }
+  .bar2 { height: 0.25rem; border-radius: 2px; background: var(--chip); margin: 1px 0; overflow: hidden; }
   .bar2 i { display: block; height: 100%; width: 0; background: var(--row1); border-radius: 0.1875rem; }
   .bar2 i.past { background: var(--over); }
   .gauge { position: relative; height: 0.5rem; border-radius: 0.375rem; background: var(--chip); margin: 0.375rem 0 2px; }
@@ -267,7 +280,7 @@
         </div>
       </div>
       <section class="card pool-card">
-        <h2><span class="h" data-i18n="pool">The pool</span> <span data-i18n="poolnote">longest run / budget</span></h2>
+        <h2><span class="h" data-i18n="pool">The slots</span> <span data-i18n="poolnote">longest run / budget</span></h2>
         <div id="pool"></div>
       </section>
       </div>
@@ -284,7 +297,7 @@
         <ul class="legend">
           <li><i class="run"></i><span data-i18n="running">running, one color per task</span></li>
           <li><i class="wait"></i><span data-i18n="waiting">waiting, interrupted</span></li>
-          <li><i class="tick"></i><span data-i18n="release">release</span></li>
+          <li><i class="tick"></i><span data-i18n="release">a run is due</span></li>
           <li><i class="over"></i><span data-i18n="overlegend">over budget</span></li>
         </ul>
         <div class="gauge" aria-hidden="true"><i id="gauge-fill"></i><b id="gauge-bound"></b></div>
@@ -299,7 +312,8 @@
         <h3 id="step-title" aria-live="polite"></h3>
         <p id="step-text"></p>
         <pre id="step-code" lang="en"></pre>
-        <p class="watch" id="step-watch" data-label="Watch:"></p>
+        <p class="watch" id="step-watch" aria-live="polite"></p>
+        <button class="help" id="step-help" hidden></button>
         <div class="cost" id="cost" hidden>
           <label for="cost-range"><span data-i18n="cost">Cost of <code>work</code></span> <output id="cost-value">500 µs</output></label>
           <input type="range" id="cost-range" min="100" max="3000" step="100" value="500">
@@ -319,16 +333,16 @@
     <ul class="badges">
       <li data-i18n="badge1"><b>hard real time</b> · EDF</li>
       <li data-i18n="badge2"><b>4 tasks</b> · 1, 10, 100, 1000 ms</li>
-      <li data-i18n="badge3"><b>the board's code</b> · unchanged</li>
+      <li data-i18n="badge3"><b>the real board's code</b> · a Raspberry Pi Pico</li>
       <li data-i18n="badge4"><b>in your browser</b> · nothing is sent</li>
     </ul>
     <ol class="how" aria-label="How it works" data-i18n-label="how">
       <li data-i18n="how1"><b>Four tasks, sixteen slots</b>The kernel has four tasks, with periods of 1, 10, 100 and 1000 ms.
         Each has four slots. You attach words to them from the console: <code>' blink 100 every</code>.</li>
       <li data-i18n="how2"><b>On trial first</b>A new word is on trial. It runs every period and the kernel
-        measures its time. It gets a tenth of its period. If it goes over, it gets cut.</li>
-      <li data-i18n="how3"><b>Promoted or refused</b>After ten measures within its budget, <code>promote</code>
-        guarantees the word. One condition: all promoted words must fit in 70 % of the processor.</li>
+        measures its time. Its budget is a tenth of its period. If it goes over, it gets cut.</li>
+      <li data-i18n="how3"><b>Promoted or refused</b>After ten runs within its budget, <code>promote</code>
+        reserves it a share of the processor, so it always gets its time. All promoted words must fit in 70% of the processor.</li>
       <li data-i18n="how4"><b>Deadline first</b>The kernel always runs the task whose deadline is closest (EDF).
         The 1 ms task interrupts the 1 s task. The console comes after all of them.</li>
     </ol>
@@ -337,21 +351,21 @@
   <section class="honest">
     <h2 data-i18n="honest">What this page is, and what it is not</h2>
     <ul>
-      <li data-i18n="honest1">The Forth and the kernel are the board's code, compiled as is: the console and
-        the slots (<code>src/</code>), Escapement's hard kernel under EDF (<code>EscapementHard.c</code>) and
+      <li data-i18n="honest1">The Forth and the kernel are the code of the real board, a Raspberry Pi Pico, compiled as is: the console and
+        the slots (<code>src/</code>), Escapement's real-time kernel under EDF (<code>EscapementHard.c</code>) and
         the Pico's four tasks, one per period. Only the layer below changes (<code>web/platform_web.c</code>,
         <code>web/kernel/</code>).</li>
       <li data-i18n="honest2">Here, the console is the kernel's background task. The slots interrupt it, and each
         other, where the Forth reads the clock: every sixteen words. On the board, the console has its own core and never delays a slot.</li>
       <li data-i18n="honest3">The kernel's clock follows the browser's. The browser only runs the page every few
-        milliseconds, less often in a hidden tab. The kernel then catches up, release by release:
-        each on time for the kernel, late in real time. Beyond 200 ms, the rest is dropped. A
-        browser pause of more than about half a millisecond in the middle of a run (garbage
-        collection, the system) is left out of the clock and of the measures. The board has no
+        milliseconds, less often in a hidden tab. The kernel then catches up, one run after another.
+        Each is on time for the kernel but late in real time. Beyond 200 ms, the rest is dropped.
+        The browser sometimes pauses in the middle of a run, for garbage collection for example.
+        A pause of more than about half a millisecond counts neither in the clock nor in the measures. The board has no
         such pauses.</li>
       <li data-i18n="honest4">The times shown are your browser's, not the Pico's. They are read to a tenth of a
-        millisecond, or to a millisecond depending on the browser, and more coarsely where it
-        protects your privacy, which the page then says. A very short word can show 0, and an
+        millisecond, or to a millisecond depending on the browser. Some browsers round further to
+        protect your privacy. The page then says so. A very short word can show 0, and an
         empty task has no width on the timeline. This page says nothing about what the kernel
         costs on a real chip, nor about its energy.</li>
       <li data-i18n="honest5">A typed line is stopped after 10 s, like Ctrl-C on the board. The dictionary lasts
@@ -405,14 +419,15 @@
                    "10 stop 11 stop 12 stop 13 stop 14 stop 15 stop";
   const BLINK = [": blink  1 15 lshift toggle ;", "' blink 100 every"];
   const SETUP = [STOP_ALL, ...BLINK];
+  const SOLUTION = ": led  1 20 lshift toggle ;\n' led 1000 every";
   const TOUR = [
     { id: "period", look: ["@15", "=blink"], quiet: 1, lines: [STOP_ALL, ...BLINK],
       en: { title: "Blink an LED",
-            text: "Forth programs are built from words. `: blink … ;` defines a word called `blink`. `1 15 lshift` selects pin 15, and `toggle` flips it. `every` runs `blink` every 100 ms.",
-            watch: "LED GP15 blinks, and the run count in its slot climbs." },
+            text: "Forth programs are built from words. `: blink … ;` defines a word called `blink`. `1 15 lshift` selects pin 15, and `toggle` flips it. `every` runs `blink` every 100 ms. `'` gives `every` the word itself instead of running it.",
+            watch: "LED GP15 blinks, and the run count in `blink`'s slot climbs. If it shows 0 µs, `blink` is too short for your browser to measure." },
       fr: { title: "Une LED qui clignote",
-            text: "En Forth, un programme est fait de mots. `: blink … ;` crée le mot `blink`. `1 15 lshift` désigne la broche 15, et `toggle` l'inverse. `every` lance `blink` toutes les 100 ms.",
-            watch: "la LED GP15 clignote. Dans sa case, le nombre de lancements monte." } },
+            text: "En Forth, un programme est fait de mots. `: blink … ;` crée le mot `blink`. `1 15 lshift` désigne la broche 15, et `toggle` l'inverse. `every` lance `blink` toutes les 100 ms. `'` passe le mot à `every` au lieu de l'exécuter.",
+            watch: "la LED GP15 clignote. Dans la case de `blink`, le nombre de fois monte. Si elle affiche 0 µs, c'est que `blink` est trop court pour que ton navigateur le mesure." } },
     { id: "cost", look: ["#cost", "#timeline"], quiet: 3, cost: true, window: ZOOM,
       lines: [...SETUP, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every"],
       en: { title: "Every word gets a budget",
@@ -438,31 +453,31 @@
     { id: "admitted", look: ["=work", ".gauge"], quiet: 3, window: ZOOM,
       lines: [...SETUP, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every", "200 ms {work} promote"],
       en: { title: "Promoted",
-            text: "Until now, words have been on trial while the kernel timed them. After ten runs within budget, `promote` reserves a share of the processor for a word. `4` is the slot number that `every` gave us, and `200 ms` allows time for the ten runs.",
-            watch: "the slot turns promoted and the load gauge rises." },
+            text: "Until now, words were on trial while the kernel timed them. After ten runs within budget, `promote` reserves a share of the processor for a word. `every` gave it a slot number, here `4`, which replaces ‹slot of work› in the line. `200 ms` allows time for the ten runs.",
+            watch: "the slot now says promoted and the load gauge rises." },
       fr: { title: "Promu",
-            text: "Jusqu'ici, les mots sont à l'essai : le noyau mesure leur temps. Après dix lancements dans le budget, `promote` réserve au mot une part du processeur. `every` a donné le numéro de sa case, ici `4`. `200 ms` laisse le temps de faire les dix lancements.",
-            watch: "la case passe à promu et la jauge de charge monte." } },
-    { id: "refused", look: ["#terminal", ".gauge"], quiet: 3,
+            text: "Jusqu'ici, les mots étaient à l'essai : le noyau mesurait leur temps. Après dix lancements dans le budget, `promote` réserve au mot une part du processeur. `every` lui a donné un numéro de case, ici `4`. Ce numéro remplace ‹case de work› dans la ligne. `200 ms` laisse le temps de faire les dix lancements.",
+            watch: "la case affiche maintenant promu et la jauge de charge monte." } },
+    { id: "refused", look: [".window", ".gauge"], quiet: 3,
       lines: [...SETUP, ": big  700 spend ;  : huge  9500 spend ;",
               "' big 10 every ' big 10 every ' big 10 every ' big 10 every",
               "' huge 100 every ' huge 100 every ' huge 100 every",
               "1300 ms", "4 promote 5 promote 6 promote 7 promote", "9 promote 10 promote 11 promote"],
       en: { title: "Refused",
-            text: "Each promotion reserves a share of the processor, and the total can't exceed 70 %. Here, seven words ask for promotion, one after another.",
+            text: "Each promotion reserves a share of the processor, and the total can't exceed 70%. Here, `big` fills four slots and `huge` three. Each slot asks for promotion in turn.",
             watch: "the console shows the load after each promotion. Past the limit, a word gets `refused` and stays on trial." },
       fr: { title: "Refusé",
-            text: "Chaque promotion réserve une part du processeur. Le total ne peut pas dépasser 70 %. Ici, sept mots demandent leur promotion, l'un après l'autre.",
+            text: "Chaque promotion réserve une part du processeur. Le total ne peut pas dépasser 70 %. Ici, `big` occupe quatre cases et `huge` trois. Chaque case demande sa promotion, l'une après l'autre.",
             watch: "la console donne la charge après chaque promotion. Au-delà de la limite, le mot reçoit `refused` et reste à l'essai." } },
     { id: "preempted", look: ["#timeline"], quiet: 3, freeze: 3,
       lines: [...SETUP, ": long  80000 spend ;  : busy  500 spend ;", "' long 1000 every", "' busy 10 every"],
       en: { title: "Who goes first?",
-            text: "`long` takes 80 ms, once a second. `busy` takes 0.5 ms, every 10 ms. If `busy` had to wait for `long` to finish, it would miss eight runs. So the kernel always picks the word whose deadline is closest, meaning its next run is soonest.",
-            watch: "the timeline freezes after `long` runs. The 1 s row is broken into pieces, and the 10 ms row runs in the gaps. Click Resume to continue." },
+            text: "`long` takes 80 ms, once a second. `busy` takes 0.5 ms, every 10 ms. If `busy` had to wait for `long` to finish, it would miss eight runs. So the kernel always runs the word with the closest deadline. A word's deadline is its next run.",
+            watch: "the timeline freezes once `long` has finished. The 1 s row is broken into pieces, and the 10 ms row runs in the gaps. Click Resume to continue." },
       fr: { title: "Qui passe d'abord ?",
-            text: "`long` dure 80 ms, toutes les secondes. `busy` dure 0,5 ms, toutes les 10 ms. S'il attendait la fin de `long`, `busy` raterait huit lancements. Le noyau fait donc passer le mot dont le prochain lancement est le plus proche. On appelle ça son échéance.",
-            watch: "la frise se fige après l'exécution de `long`. La ligne 1 s est coupée en morceaux, et la ligne 10 ms passe dans les trous. Clique sur Reprendre pour continuer." } },
-    { id: "yours", look: ["#terminal"], quiet: 1, lines: [STOP_ALL],
+            text: "`long` dure 80 ms, toutes les secondes. `busy` dure 0,5 ms, toutes les 10 ms. S'il attendait la fin de `long`, `busy` raterait huit lancements. Le noyau fait donc passer le mot dont l'échéance est la plus proche. L'échéance d'un mot, c'est son prochain lancement.",
+            watch: "la frise se fige quand `long` a fini. La ligne 1 s est coupée en morceaux, et la ligne 10 ms passe dans les trous. Clique sur Reprendre pour continuer." } },
+    { id: "yours", look: [".window"], quiet: 1, lines: [STOP_ALL],
       en: { title: "Your turn",
             text: "This button stops everything. Then make LED GP20 blink once a second, in the console. Hint: go back to step 1 for a model. `words` lists every word you can use.",
             watch: "" },
@@ -476,20 +491,20 @@
   const FR = {
     lede: '<a href="https://github.com/beber007/escapement">Escapement</a> lance des tâches à intervalles fixes et garde leur rythme, même si l\'une d\'elles déborde. C\'est un noyau temps réel. Ici, il tourne dans ta page, avec sa console Forth. Essaie.',
     badge1: "<b>temps réel dur</b> · EDF", badge2: "<b>4 tâches</b> · 1, 10, 100, 1000 ms",
-    badge3: "<b>le code de la carte</b> · sans changement", badge4: "<b>dans ton navigateur</b> · rien n'est envoyé",
+    badge3: "<b>le code de la vraie carte</b> · un Raspberry Pi Pico", badge4: "<b>dans ton navigateur</b> · rien n'est envoyé",
     how1: "<b>Quatre tâches, seize cases</b>Le noyau a quatre tâches, de période 1, 10, 100 et 1000 ms. Chacune a quatre cases. Tu y attaches des mots depuis la console : <code>' blink 100 every</code>.",
-    how2: "<b>D'abord à l'essai</b>Un nouveau mot est à l'essai. Il tourne à chaque période et le noyau mesure son temps. Il a droit à un dixième de sa période. S'il dépasse, il est coupé.",
-    how3: "<b>Promu ou refusé</b>Après dix mesures dans son budget, <code>promote</code> garantit le mot. Seule condition : tous les mots promus doivent tenir dans 70 % du processeur.",
+    how2: "<b>D'abord à l'essai</b>Un nouveau mot est à l'essai. Il tourne à chaque période et le noyau mesure son temps. Son budget est un dixième de sa période. S'il le dépasse, il est coupé.",
+    how3: "<b>Promu ou refusé</b>Après dix lancements dans son budget, <code>promote</code> lui réserve une part du processeur : il aura toujours son temps. Tous les mots promus doivent tenir dans 70 % du processeur.",
     how4: "<b>L'échéance d'abord</b>Le noyau fait toujours passer la tâche dont l'échéance est la plus proche (EDF). La tâche de 1 ms interrompt celle de 1 s. La console passe après toutes.",
     rules: "Les règles, en bref", tour: "Visite guidée", cost: "Coût de <code>work</code>",
     restart: "Relancer le Forth", live: "La frise : ce que lance le noyau", running: "en cours, une couleur par tâche",
     waiting: "en attente, interrompue", release: "lancement", overlegend: "au-delà du budget",
     pool: "Le tableau des cases", poolnote: "temps le plus long / budget",
     honest: "Ce que cette page est, et ce qu'elle n'est pas",
-    honest1: "Le Forth et le noyau sont le code de la carte, compilé tel quel : la console et les cases (<code>src/</code>), le noyau dur d'Escapement sous EDF (<code>EscapementHard.c</code>) et les quatre tâches du Pico, une par période. Seule la couche du dessous change (<code>web/platform_web.c</code>, <code>web/kernel/</code>).",
+    honest1: "Le Forth et le noyau sont le code de la vraie carte, un Raspberry Pi Pico, compilé tel quel : la console et les cases (<code>src/</code>), le noyau temps réel d'Escapement sous EDF (<code>EscapementHard.c</code>) et les quatre tâches du Pico, une par période. Seule la couche du dessous change (<code>web/platform_web.c</code>, <code>web/kernel/</code>).",
     honest2: "Ici, la console est la tâche de fond du noyau. Les cases l'interrompent, et s'interrompent entre elles, là où le Forth lit l'horloge : tous les seize mots. Sur la carte, la console a son propre cœur et ne retarde jamais une case.",
-    honest3: "L'horloge du noyau suit celle du navigateur. Le navigateur ne fait tourner la page qu'à quelques millisecondes d'intervalle, moins souvent si l'onglet est caché. Le noyau rattrape alors son retard, lancement par lancement : chacun à l'heure pour le noyau, en retard sur l'heure réelle. Au-delà de 200 ms, le reste est abandonné. Une pause du navigateur de plus d'une demi-milliseconde environ en pleine exécution (ramasse-miettes, système) est retirée de l'horloge et des mesures. La carte, elle, n'a pas de pauses.",
-    honest4: "Les temps affichés sont ceux de ton navigateur, pas du Pico. Ils sont lus au dixième de milliseconde, ou à la milliseconde selon le navigateur, et plus grossièrement là où il protège ta vie privée, ce que la page dit alors. Un mot très court peut donc afficher 0, et une tâche vide n'a pas de largeur sur la frise. Cette page ne dit rien du coût du noyau sur une vraie puce, ni de sa consommation.",
+    honest3: "L'horloge du noyau suit celle du navigateur. Le navigateur ne fait tourner la page que toutes les quelques millisecondes, et moins souvent si l'onglet est caché. Le noyau rattrape alors son retard, un lancement après l'autre. Chacun est à l'heure pour le noyau, mais en retard sur l'heure réelle. Au-delà de 200 ms, le reste est abandonné. Le navigateur fait parfois une pause en plein lancement, par exemple pour le ramasse-miettes. Une pause de plus d'une demi-milliseconde environ ne compte ni dans l'horloge ni dans les mesures. La carte, elle, n'a pas de pauses.",
+    honest4: "Les temps affichés sont ceux de ton navigateur, pas du Pico. Ils sont lus au dixième de milliseconde, ou à la milliseconde selon le navigateur. Certains navigateurs arrondissent davantage pour protéger ta vie privée. La page le dit alors. Un mot très court peut donc afficher 0, et une tâche vide n'a pas de largeur sur la frise. Cette page ne dit rien du coût du noyau sur une vraie puce, ni de sa consommation.",
     honest5: "Une ligne tapée est arrêtée au bout de 10 s, comme Ctrl-C sur la carte. Le dictionnaire dure le temps de la page : <code>save</code> n'a pas de flash où écrire.",
   };
   const FR_LABEL = { pins: "Broches", scale: "Échelle", lang: "Langue", how: "Comment ça marche", input: "Entrée Forth", tour: "Visite guidée",
@@ -504,13 +519,14 @@
           failed: "The Forth could not start: ",
           welcome: "Escapement Forth, in WebAssembly. Type a line and press Enter, or follow the tour.\n",
           budget: "trial budget ", free: "free", trial: "trial", promoted: "promoted", failedChip: "failed",
-          figures: (e) => time(e.max, "en") + " / " + time(e.budget, "en") + "\n" + e.runs + " runs" +
-                          (e.over > 0 ? ", " + e.over + " cut" : ""),
+          figures: (e) => time(e.max, "en") + " / " + time(e.budget, "en") + "\n" + count(e.runs) + (e.runs === 1 ? " run" : " runs") +
+                          (e.over > 0 ? ", " + count(e.over) + " cut" : ""),
           gauge: (l, b) => "Reserved load: " + share(l, "en") + " of the processor, slots' own cost included. Limit: " + share(b, "en") + ".",
           runs: (n) => n + (n === 1 ? " run" : " runs"),
-          releases: (n) => n + (n === 1 ? " release" : " releases"),
+          releases: (n) => n + (n === 1 ? " run" : " runs"),
           summary: (w, rows, over) => "In the last " + w + ": " + rows + "; " + over + " over budget.",
-          run: "Type these lines", onward: "Next step →", watch: "Watch:", slotOf: (name) => "‹slot of " + name + "›", now: "now", pause: "Pause", resume: "Resume", frozen: "Frozen. Drag it to look back up to 10 s. Click Resume to continue.", stopAll: "‹stop every slot›", setup: "‹setup: stop every slot, restart blink›",
+          help: "Show a solution", bravo: "Well done:", won: "GP20 blinks once a second. Your own word is running on the kernel.",
+          run: "Type these lines", onward: "Next step →", watch: "Watch:", slotOf: (name) => "‹slot of " + name + "›", now: "now", pause: "Pause", resume: "Resume", frozen: "The timeline is frozen. Drag it to look back as far as 10 s. Click Resume to continue.", stopAll: "‹stop every slot›", setup: "‹setup: stop every slot, restart blink›",
           tipTask: (row, names) => "Task " + row + (names ? ": " + names : ", no word"), tipConsole: "A line of the console",
           tipAgo: (ago) => "Started " + ago + " ago", tipRunning: "Still running",
           tipTook: (wall, own) => "Took " + wall + (own === wall ? "" : ", " + own + " of it running"), tipOver: "Over budget, cut" },
@@ -523,13 +539,14 @@
           failed: "Le Forth n'a pas pu démarrer : ",
           welcome: "Escapement Forth, en WebAssembly. Tape une ligne puis Entrée, ou suis la visite.\n",
           budget: "budget d'essai ", free: "libre", trial: "essai", promoted: "promu", failedChip: "en échec",
-          figures: (e) => time(e.max, "fr") + " / " + time(e.budget, "fr") + "\n" + e.runs + " fois" +
-                          (e.over > 0 ? ", " + e.over + (e.over < 2 ? " coupé" : " coupés") : ""),
+          figures: (e) => time(e.max, "fr") + " / " + time(e.budget, "fr") + "\n" + count(e.runs) + " fois" +
+                          (e.over > 0 ? ", coupé " + count(e.over) : ""),
           gauge: (l, b) => "Charge réservée : " + share(l, "fr") + " du processeur, coût des cases compris. Limite : " + share(b, "fr") + ".",
-          runs: (n) => n + (n < 2 ? " exécution" : " exécutions"),
+          runs: (n) => n + (n < 2 ? " lancement" : " lancements"),
           releases: (n) => n + (n < 2 ? " lancement" : " lancements"),
           summary: (w, rows, over) => (w === "1 s" ? "Sur la dernière seconde" : "Sur les " + w.replace(" ", " dernières ").replace(/ s$/, " secondes")) +
                                        " : " + rows + " ; " + over + " au-delà du budget.",
+          help: "Voir une solution", bravo: "Bravo :", won: "GP20 clignote une fois par seconde. Ton propre mot tourne sur le noyau.",
           run: "Taper ces lignes", onward: "Étape suivante →", watch: "Regarde :", slotOf: (name) => "‹case de " + name + "›", now: "maintenant", pause: "Pause", resume: "Reprendre", frozen: "Frise figée. Fais-la glisser pour remonter jusqu’à 10 s. Clique sur Reprendre pour continuer.",
           stopAll: "‹arrêter toutes les cases›", setup: "‹remise en place : tout arrêter, relancer blink›",
           tipTask: (row, names) => "Tâche " + row + (names ? " : " + names : ", sans mot"), tipConsole: "Une ligne de la console",
@@ -565,6 +582,16 @@
   }
 
   function showPins(pins) {
+    // The last step done once GP20 has changed about a second after it last did, a word
+    // bound to the 1 s task. Its button not needed: the reader may start from the console.
+    if (leds[20] && ((pins >> 20) & 1) !== Number(leds[20].classList.contains("on")) && step === TOUR.length - 1) {
+      const now = performance.now(), since = now - flipped;
+      flipped = now;
+      if (since > 700 && since < 1300 && !won && pool.slice(12, 16).some((e) => e.state !== 0 && e.error === "")) {
+        won = true;
+        queueMicrotask(showStep);
+      }
+    }
     leds.forEach((led, p) => led && led.classList.toggle("on", (pins & (1 << p)) !== 0));
   }
 
@@ -926,12 +953,13 @@
                            e.state === 1 ? T[lang].trial : T[lang].promoted));
       if (e.state === 0) {
         c.fill.style.width = "0";
-        c.figures.textContent = "";
+        c.figures.textContent = c.figures.title = "";
         return;
       }
       c.fill.style.width = Math.min(100, e.max / Math.max(e.budget, 1) * 100) + "%";
       c.fill.className = e.max > e.budget ? "past" : "";
       c.figures.textContent = failed ? e.error : T[lang].figures(e);
+      c.figures.title = c.figures.textContent;   // cut short where the window is narrow
     });
     gaugeFill.style.width = Math.min(100, load / 10000) + "%";
     gaugeBound.style.left = loadBound / 10000 + "%";
@@ -944,6 +972,17 @@
   // ---- The tour.
   let step = 0;
   let typing = false, ran = null;   // the lines of a step going, and the step whose lines ended
+  let helped = false, won = false, flipped = -Infinity;   // the last step: its answer shown, GP20 seen to blink, when it last changed
+  // lookTarget: The element of what a step says to watch; null, a word no longer in the pool.
+  function lookTarget(l) {
+    if (l[0] === "@")
+      return leds[Number(l.slice(1))].parentElement;
+    if (l[0] === "=") {
+      const slot = pool.findIndex((e) => e.state !== 0 && e.name === l.slice(1));
+      return slot < 0 ? null : cells[slot].cell;
+    }
+    return document.querySelector(l);
+  }
   // showLook: What the step that ran says to watch marked; the slots, by showPool.
   let lookWords = [];
   function showLook() {
@@ -951,10 +990,8 @@
     const looks = ran === step ? TOUR[step].look : [];
     lookWords = looks.filter((l) => l[0] === "=").map((l) => l.slice(1));
     looks.forEach((l) => {
-      if (l[0] === "@")
-        leds[Number(l.slice(1))].parentElement.classList.add("look");
-      else if (l[0] !== "=")
-        document.querySelector(l).classList.add("look");
+      if (l[0] !== "=")
+        lookTarget(l).classList.add("look");
     });
     showPool();
   }
@@ -976,14 +1013,25 @@
   }
   const setupText = (s) => s.quiet === 1 ? T[lang].stopAll : T[lang].setup;
   function showStep() {
-    const s = TOUR[step], said = s[lang];
+    const s = TOUR[step], said = s[lang], finish = step === TOUR.length - 1;
     document.getElementById("step-count").textContent = (step + 1) + " / " + TOUR.length;
-    document.getElementById("step-title").textContent = said.title;
+    // Written only when they change, as they are live regions; what to watch, empty until
+    // the step has run rather than hidden, as a live region shown with its text is often
+    // not read out.
+    const title = document.getElementById("step-title");
+    if (title.textContent !== said.title)
+      title.textContent = said.title;
     rich(document.getElementById("step-text"), said.text);
     const watch = document.getElementById("step-watch");
-    rich(watch, said.watch);
-    watch.dataset.label = T[lang].watch;
-    watch.hidden = said.watch === "" || ran !== step;
+    const seen = finish ? (won ? T[lang].won : "") : ran === step ? said.watch : "";
+    watch.dataset.label = finish ? T[lang].bravo : T[lang].watch;
+    if (watch.dataset.text !== seen) {
+      watch.dataset.text = seen;
+      rich(watch, seen);
+    }
+    const help = document.getElementById("step-help");
+    help.hidden = !finish || helped || won;
+    help.textContent = T[lang].help;
     // The code in English, as the Forth's; its marks in the page's language.
     const code = document.getElementById("step-code");
     const marked = (text) => {
@@ -1000,6 +1048,8 @@
         code.append(/^\{\w+\}$/.test(part) ? marked(T[lang].slotOf(part.slice(1, -1))) : part);
       });
     });
+    if (finish && helped)
+      code.append("\n" + SOLUTION);
     document.getElementById("cost").hidden = !s.cost;
     document.getElementById("step-back").disabled = step === 0;
     document.getElementById("step-next").disabled = step === TOUR.length - 1;
@@ -1007,50 +1057,82 @@
     if (document.activeElement.disabled)
       document.getElementById(step === 0 ? "step-next" : "step-back").focus();
     // Before the Forth is ready, a click would queue the tour on a clock not yet measured.
-    const run = document.getElementById("step-run"), last = step === TOUR.length - 1;
-    run.disabled = !ready || statusState[0] === "coarse" || (ran === step && last);
-    run.textContent = ran === step && !last ? T[lang].onward : T[lang].run;
+    const run = document.getElementById("step-run");
+    run.disabled = !ready || statusState[0] === "coarse" || (ran === step && finish && !helped);
+    run.textContent = ran === step && !finish ? T[lang].onward : T[lang].run;
     showLook();
   }
   function setCost(us) {
     costRange.value = us;
     costValue.textContent = time(us, lang);
   }
-  // tourDone: The lines of the step ended: what to watch said, the button going on.
+  // onPhone: The panels one under the other: the page scrolls to what is spoken of.
+  const onPhone = () => matchMedia("(max-width: 1099px)").matches;
+  function toTour() {
+    if (onPhone())
+      document.querySelector(".tour").scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+  // goTo: Step n, none of its lines typed yet.
+  function goTo(n) {
+    step = n;
+    ran = null;
+    helped = won = false;
+    flipped = -Infinity;
+    view.freezeRow = null;
+    showStep();
+    toTour();
+  }
+  // tourDone: The lines of the step ended, none failed: what to watch said, the button
+  // going on. One failed: the console says why, and the step can be typed again.
   function tourDone() {
     typing = false;
-    ran = typedStep;
+    ran = typeFailed ? null : typedStep;
+    won = false;
+    flipped = -Infinity;
     doneAt = performance.now();
     showStep();
-    if (ran === step && step === TOUR.length - 1)
+    if (ran !== step) {
+      if (typeFailed && onPhone())
+        terminal.scrollIntoView({ block: "center", behavior: "smooth" });
+      return;
+    }
+    if (step === TOUR.length - 1)
       input.focus();
+    else if (onPhone()) {
+      const target = lookTarget(TOUR[step].look[0]);
+      if (target !== null)
+        target.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
   }
   // doneAt: When they ended: the lines take a few ms, and the second click of a double
   // click would else skip all the step shows.
-  let typedStep = 0, doneAt = -Infinity;
+  let typedStep = 0, typeFailed = false, doneAt = -Infinity;
   document.getElementById("step-run").addEventListener("click", () => {
     if (typing || performance.now() - doneAt < 500)
       return;
-    if (ran === step) {
-      step += 1;
-      showStep();
+    const last = step === TOUR.length - 1;
+    if (ran === step && !last) {
+      goTo(step + 1);
       return;
     }
     typing = true;
+    typeFailed = false;
     typedStep = step;
     view.watch(TOUR[step].freeze);
     view.window = TOUR[step].window || SHORT;
     showViews();
     noteDue = setupText(TOUR[step]);
-    for (const [k, line] of TOUR[step].lines.entries()) {
+    // The solution shown is among the lines the button says it types.
+    const lines = last && helped ? [...TOUR[step].lines, ...SOLUTION.split("\n")] : TOUR[step].lines;
+    for (const [k, line] of lines.entries()) {
       const cost = /^(\d+) cost !$/.exec(line) || /^variable cost  (\d+) cost !$/.exec(line);
       if (cost)
         setCost(Number(cost[1]));
       send(line, true, k < TOUR[step].quiet);
     }
   });
-  document.getElementById("step-back").addEventListener("click", () => { step -= 1; ran = null; showStep(); });
-  document.getElementById("step-next").addEventListener("click", () => { step += 1; ran = null; showStep(); });
+  document.getElementById("step-back").addEventListener("click", () => goTo(step - 1));
+  document.getElementById("step-next").addEventListener("click", () => goTo(step + 1));
   costRange.addEventListener("input", () => setCost(Number(costRange.value)));
   costRange.addEventListener("change", () => send(costRange.value + " cost !"));
 
@@ -1110,6 +1192,8 @@
     ready = false;
     cells.forEach((c) => { c.over = c.lately = 0; });
     showPins(0);
+    helped = won = false;
+    flipped = -Infinity;
     statusState = ["loading", ""];
     showStatus();
     showStep();
@@ -1148,14 +1232,15 @@
       else if (m.done) {
         if (filled)
           print(filled === "period" ? T[lang].periodFull : T[lang].full, "note");
-        filled = null;
         // A line of the tour that failed: the rest of its step would bind the words as they
         // were before, or the slider set a variable no word reads.
         if (sentTour && !answered(said)) {
+          typeFailed = true;
           abandon(queue);
           if (sentQuiet && !filled)
             print(said);
         }
+        filled = null;
         busy = false;
         next();
         if (typing && !busy && queue.length === 0)
@@ -1232,6 +1317,14 @@
       input.focus();
   });
 
+  document.getElementById("step-help").addEventListener("click", () => {
+    helped = true;
+    showStep();
+    if (onPhone())
+      toTour();
+    else
+      input.focus();
+  });
   document.getElementById("restart").addEventListener("click", start);
 
   setLang(lang);

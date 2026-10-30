@@ -50,8 +50,10 @@ perl -0pi -e 's{<head>}{<head>
       return e.offsetParent !== null && e.getBoundingClientRect().bottom > innerHeight + 1;
     };
     const side = document.querySelector(".side");
-    const unfit = () => (document.getElementById("step-watch").hidden = document.getElementById("step-watch").textContent === "", ["#terminal", ".board", "#timeline", "#gauge-text", "#pool", "#step-next", "#restart"].filter(out)
-      .concat(side.scrollHeight > side.clientHeight + 1 ? ["tour"] : []));
+    const measure = () => ["#terminal", ".board", "#timeline", "#gauge-text", "#pool", "#step-next", "#restart"].filter(out)
+      .concat(side.scrollHeight > side.clientHeight + 1 ? ["tour"] : []);
+    // With what the step says to watch, written once it has run.
+    const unfit = () => (rich(document.getElementById("step-watch"), TOUR[step][lang].watch), measure());
     shown.size = [innerWidth, innerHeight];
     const runAt = () => Math.round(document.getElementById("step-run").getBoundingClientRect().top);
     shown.runAt = [runAt()];
@@ -199,17 +201,66 @@ perl -0pi -e 's{<head>}{<head>
         document.getElementById("step-back").click();
         while (step !== 0)
           document.getElementById("step-back").click();
-        shown.flow = [watch.hidden, run.textContent];
+        const silent = () => watch.textContent === "";
+        shown.flow = [silent(), run.textContent];
         run.click();
         // A double click: the lines typed by then, the second must not skip what they show.
         setTimeout(() => run.click(), 100);
         setTimeout(() => {
-          shown.flow.push(watch.hidden, run.textContent, document.querySelectorAll(".look").length);
+          shown.flow.push(silent(), run.textContent, document.querySelectorAll(".look").length);
           run.click();
-          shown.flow.push(step, watch.hidden, document.querySelectorAll(".look").length);
-          fetch("/probe?" + encodeURIComponent(JSON.stringify(Object.assign(shown, {
-            errors, output: document.getElementById("output").textContent,
-            pool: document.querySelector("#pool").textContent }))));
+          shown.flow.push(step, silent(), document.querySelectorAll(".look").length);
+          shown.first = document.querySelector("#pool").textContent;
+          // What is written again only if it changed: a live region reads it out each time.
+          const title = document.getElementById("step-title"), said = title.firstChild;
+          showStep();
+          shown.same = title.firstChild === said;
+          // A word gone from the pool: nothing to mark. What to watch not behind an edge.
+          shown.absent = lookTarget("=nothing");
+          shown.clipped = TOUR.flatMap((s) => s.look).filter((l) => l[0] !== "=" &&
+            getComputedStyle(lookTarget(l).parentElement).overflow === "hidden");
+          // A step left, the timeline no longer waits to stop for it.
+          view.watch(3);
+          document.getElementById("step-next").click();
+          shown.waits = view.freezeRow;
+          // The last step, its button not clicked: its answer there, the word seen to work,
+          // and only at the pace asked for.
+          const help = document.getElementById("step-help");
+          while (!document.getElementById("step-next").disabled)
+            document.getElementById("step-next").click();
+          shown.help = [help.hidden, silent()];
+          send(": quick  1 20 lshift toggle ;");
+          send(String.fromCharCode(39) + " quick 100 every");
+          send(String.fromCharCode(39) + " quick 1000 every");
+          setTimeout(() => {
+            shown.help.push(silent());
+            send(STOP_ALL);
+            help.click();
+            shown.help.push(document.getElementById("step-code").textContent.includes("1 20 lshift"));
+            // What the code then shows is what the button types.
+            run.click();
+            setTimeout(() => {
+              shown.help.push(silent());
+              shown.endfit = measure();
+              // A step whose line fails: not done, and a full dictionary said once, in words.
+              const lines = TOUR[0].lines, typed = full;
+              TOUR[0].lines = ["nosuchword"];
+              full = () => "dictionary";
+              document.getElementById("step-back").click();
+              while (step !== 0)
+                document.getElementById("step-back").click();
+              run.click();
+              setTimeout(() => {
+                full = typed;
+                TOUR[0].lines = lines;
+                shown.failed = [ran, silent(), document.getElementById("output").textContent.includes("nosuchword"),
+                                document.getElementById("output").textContent.split(T[lang].full).length - 1];
+                fetch("/probe?" + encodeURIComponent(JSON.stringify(Object.assign(shown, {
+                  errors, output: document.getElementById("output").textContent,
+                  pool: document.querySelector("#pool").textContent }))));
+              }, 1000);
+            }, 3500);
+          }, 1500);
         }, 1000);
         }); });
         }); });
@@ -322,6 +373,18 @@ print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
   elif ! check 's["flow"][0] and not s["flow"][2] and s["flow"][1] != s["flow"][3] and s["flow"][4] >= 2 and s["flow"][5:] == [1, True, 0]'; then
     echo "FAILED  $lang: the steps of the tour do not flow: $shown"
     failed=1
+  elif ! check 's["help"] == [False, True, True, True, False]'; then
+    echo "FAILED  $lang: the last step gives no answer, does not see the word work, or takes another pace: $shown"
+    failed=1
+  elif ! check 's["endfit"] == []'; then
+    echo "FAILED  $lang: the last step, done, needs a scroll: $shown"
+    failed=1
+  elif ! check 's["failed"] == [None, True, False, 1]'; then
+    echo "FAILED  $lang: a step whose line failed shown as done, or its error said twice: $shown"
+    failed=1
+  elif ! check 's["absent"] is None and s["clipped"] == [] and s["waits"] is None and s["same"]'; then
+    echo "FAILED  $lang: what to watch missing or clipped, the timeline still waiting, or the title written again: $shown"
+    failed=1
   elif ! check 'len(set(s["runAt"])) == 1'; then
     echo "FAILED  $lang: the button that types the lines moves from step to step: $shown"
     failed=1
@@ -331,7 +394,7 @@ print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
   elif ! check 're.search(r"›\n: blink", s["output"])'; then
     echo "FAILED  $lang: the answer of a line that sets a step up shown: $shown"
     failed=1
-  elif ! check '"slot 8  ok" in s["output"] and "blink" in s["pool"]'; then
+  elif ! check '"slot 8  ok" in s["output"] and "blink" in s["first"]'; then
     echo "FAILED  $lang: the tour's first step not run: $shown"
     failed=1
   else
