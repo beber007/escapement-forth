@@ -13,7 +13,11 @@
 
 const node = typeof process !== "undefined";
 const args = node ? process.argv.slice(2) : arguments;
-const now = node ? () => performance.now() : () => preciseTime() * 1000;
+// jsc's preciseTime is the wall's time, which may step back; a browser's never does, nor
+// node's: kept from stepping back, as the kernel takes a step back for a pause left out
+// and the test would not (a line stopped after 9999.97 ms, 2026-10-30).
+let latest = 0;
+const now = node ? () => performance.now() : () => (latest = Math.max(latest, preciseTime() * 1000));
 const read = node ? (p) => require("fs").readFileSync(p) : (p) => new Uint8Array(readFile(p, "binary"));
 const text = node ? (p) => require("fs").readFileSync(p, "utf8") : (p) => readFile(p);
 const say = node ? (s) => process.stdout.write(s + "\n") : print;
