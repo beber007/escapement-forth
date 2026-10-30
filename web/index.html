@@ -18,7 +18,7 @@
     --term-typed: #ffffff; --term-line: #26303a;
     --pcb: #1d5a3c; --pcb-edge: #154530; --pad: #d8b25a;
     --led-off: #2c4a3b; --led-on: #ffb13b; --led-glow: rgba(255, 177, 59, 0.65);
-    --shadow: 0 1px 2px rgba(31, 35, 40, 0.06), 0 8px 24px rgba(31, 35, 40, 0.08);
+    --shadow: 0 1px 2px rgba(31, 35, 40, 0.06), 0 0.5rem 1.5rem rgba(31, 35, 40, 0.08);
     --row0: #1f7a55; --row1: #2f6fb0; --row2: #8a5cc2; --row3: #a86500; --row4: #6e7781;
     --over: #cf222e; --over-bg: rgba(207, 34, 46, 0.10);
   }
@@ -31,236 +31,262 @@
       --term-typed: #ffffff; --term-line: #1e262f;
       --pcb: #15402b; --pcb-edge: #0e2f1f; --pad: #b8954a;
       --led-off: #1f3a2c; --led-on: #ffb13b; --led-glow: rgba(255, 177, 59, 0.6);
-      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0.5rem 1.5rem rgba(0, 0, 0, 0.35);
       --row0: #3fb980; --row1: #58a6ff; --row2: #bc8cff; --row3: #e3b341; --row4: #9198a1;
       --over: #ff7b72; --over-bg: rgba(255, 123, 114, 0.12);
     }
   }
+  /* The whole page in rem: it grows with the window as a zoom would, from the 16 px of a
+     window of 1280 by 680, each step staying in sight. Below that width, in one column. */
+  html { font-size: clamp(16px, min(1.25vw, 2.353vh), 26px); }
+  @media (max-width: 1099px) { html { font-size: 16px; } }
   * { box-sizing: border-box; }
   body {
     margin: 0; color: var(--ink);
-    background: radial-gradient(1200px 500px at 15% -10%, var(--bg-glow), transparent 70%), var(--bg);
-    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(75rem 31.25rem at 15% -10%, var(--bg-glow), transparent 70%), var(--bg);
+    font: 1rem/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     min-height: 100vh;
   }
   code, .mono { font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace; }
-  code { font-size: 0.9em; background: var(--chip); padding: 0.1em 0.35em; border-radius: 4px; }
+  code { font-size: 0.9em; background: var(--chip); padding: 0.1em 0.35em; border-radius: 0.25rem; }
   a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
-  main { max-width: 1080px; margin: 0 auto; padding: 40px 16px 56px; }
+  main { max-width: 80rem; margin: 0 auto; padding: 0.5rem 1rem 3.5rem; }
 
-  header { margin-bottom: 28px; }
-  .eyebrow { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
-             color: var(--accent); margin: 0 0 8px; }
-  h1 { font-size: clamp(2rem, 4vw, 2.8rem); line-height: 1.1; margin: 0 0 12px; letter-spacing: -0.02em; }
-  .lede { color: var(--muted); margin: 0 0 18px; max-width: 68ch; font-size: 1.05rem; }
-  .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-  .lang { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin: 0 0 8px; }
-  .lang button { border: 0; background: var(--panel); padding: 3px 10px; font-size: 0.8rem; color: var(--muted); }
+  header { grid-area: head; min-width: 0; }
+  h1 { font-size: 1.6rem; line-height: 1.1; margin: 0; letter-spacing: -0.02em; }
+  .lede { color: var(--muted); margin: 0.25rem 0 0; font-size: 0.95rem; line-height: 1.35; }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; }
+  .lang { display: flex; border: 1px solid var(--line); border-radius: 0.5rem; overflow: hidden; }
+  .lang button { border: 0; background: var(--panel); padding: 0.1875rem 0.625rem; font-size: 0.8rem; color: var(--muted); }
   .lang button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
-  .badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .badges { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 0.75rem; padding: 0; list-style: none; }
   .badges li { font-size: 0.8rem; color: var(--ink); background: var(--panel); border: 1px solid var(--line);
-               border-radius: 999px; padding: 4px 11px; }
+               border-radius: 62.4375rem; padding: 0.25rem 0.6875rem; }
   .badges li b { color: var(--accent); font-weight: 600; }
 
-  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
-  @media (max-width: 820px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: 0.625rem 0.75rem; align-items: start;
+          grid-template-areas: "head side" "main side"; }
+  @media (max-width: 1099px) { .grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "side" "main"; } }
+  .main { grid-area: main; display: grid; gap: 0.625rem; min-width: 0; }
+  /* The console beside the pool, of one height: all of it in sight on a laptop's window,
+     more room for each where the window has it. */
+  .pair { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 7fr); gap: 0.625rem;
+          height: 18.75rem; }
+  .pair .window { display: flex; flex-direction: column; min-height: 0; }
+  .pair .terminal { flex: 1 1 0; height: auto; min-height: 0; }
+  @media (max-width: 1099px) { .pair { grid-template-columns: minmax(0, 1fr); height: auto; }
+                               .pair .terminal { flex: none; height: 13.75rem; } }
 
-  .window { border-radius: 12px; overflow: hidden; background: var(--term-bg);
+  .window { border-radius: 0.75rem; overflow: hidden; background: var(--term-bg);
             box-shadow: var(--shadow); border: 1px solid var(--term-line); }
-  .bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--term-bar);
+  .bar { display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.75rem; background: var(--term-bar);
          border-bottom: 1px solid var(--term-line); }
-  .dot { width: 11px; height: 11px; border-radius: 50%; background: #3a434d; }
+  .dot { width: 0.6875rem; height: 0.6875rem; border-radius: 50%; background: #3a434d; }
   .dot:nth-child(1) { background: #ff5f57; } .dot:nth-child(2) { background: #febc2e; }
   .dot:nth-child(3) { background: #28c840; }
-  .bar .title { flex: 1; text-align: center; font-size: 0.8rem; color: var(--term-dim); margin-right: 41px; }
+  .bar .title { flex: 1; text-align: center; font-size: 0.8rem; color: var(--term-dim); margin-right: 2.5625rem; }
   .terminal {
-    color: var(--term-ink); padding: 14px 16px; height: 460px; overflow-y: auto; cursor: text;
-    font: 14px/1.5 ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--term-ink); padding: 0.5rem 0.75rem; overflow-y: auto; cursor: text;
+    font: 0.84rem/1.35 ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
     scrollbar-color: var(--term-line) transparent;
   }
   #output { white-space: pre-wrap; word-break: break-word; }
   .terminal .typed { color: var(--term-typed); }
   .terminal .typed::before { content: "› "; color: var(--led-on); }
   .terminal .note { color: var(--term-dim); }
-  .prompt { display: flex; gap: 8px; }
+  .prompt { display: flex; gap: 0.5rem; }
   .prompt::before { content: "›"; color: var(--led-on); }
   .prompt input {
     flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; padding: 0;
     color: var(--term-typed); font: inherit; caret-color: var(--led-on);
   }
-  .status { display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--muted);
-            margin-top: 12px; }
-  .status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-  .status.ready::before { background: #2fbf71; box-shadow: 0 0 0 3px rgba(47, 191, 113, 0.18); }
+  .status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .status.coarse, .status.failed { position: static; width: auto; height: auto; clip-path: none; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--muted); }
+  .status::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--muted); }
+  .status.ready::before { background: #2fbf71; box-shadow: 0 0 0 0.1875rem rgba(47, 191, 113, 0.18); }
   .status.failed::before, .status.coarse::before { background: #e5534b; }
 
-  .side { display: flex; flex-direction: column; gap: 16px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+  /* The tour stays in sight as the page scrolls; first on a phone, the rest under it. */
+  .side { grid-area: side; display: flex; flex-direction: column; gap: 0.5rem; position: sticky; top: 0.5rem;
+          height: calc(42.5rem - 1rem); overflow-y: auto; }
+  /* The tour of one height, its buttons at its foot: they stay where they are, step to step. */
+  .tour { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .steps { margin-top: auto; }
+  .cost:not([hidden]) + .steps { margin-top: 0; }
+  @media (max-width: 1099px) { .side { position: static; height: auto; order: -1; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 0.75rem; padding: 0.625rem 0.75rem;
           box-shadow: var(--shadow); }
   .card h2 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
-             margin: 0 0 12px; font-weight: 600; display: flex; justify-content: space-between; }
+             margin: 0 0 0.375rem; font-weight: 600; display: flex; justify-content: space-between; }
   .card h2 span { text-transform: none; letter-spacing: 0; font-weight: 400; }
   .card h2 span.h { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
 
   /* The pins the words may drive, on a strip of board. */
-  .board { background: linear-gradient(160deg, var(--pcb), var(--pcb-edge)); border-radius: 8px;
-           padding: 12px 10px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
-  .pins { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px 4px; }
-  .pin { display: flex; flex-direction: column; align-items: center; gap: 4px;
-         font: 10px ui-monospace, Menlo, monospace; color: rgba(255, 255, 255, 0.75); }
-  .led { width: 14px; height: 14px; border-radius: 50%; background: var(--led-off);
-         box-shadow: 0 0 0 2px var(--pad), inset 0 -2px 3px rgba(0, 0, 0, 0.35);
+  .board { background: linear-gradient(160deg, var(--pcb), var(--pcb-edge)); border-radius: 0.5rem;
+           padding: 0.375rem 0.5rem; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+  .pins { display: grid; grid-template-columns: repeat(auto-fit, minmax(1.75rem, 1fr)); gap: 0.5rem 0; }
+  .pin { display: flex; flex-direction: column; align-items: center; gap: 2px;
+         font: 0.65rem ui-monospace, Menlo, monospace; color: rgba(255, 255, 255, 0.75); }
+  .led { width: 0.75rem; height: 0.75rem; border-radius: 50%; background: var(--led-off);
+         box-shadow: 0 0 0 2px var(--pad), inset 0 -2px 0.1875rem rgba(0, 0, 0, 0.35);
          transition: background 50ms, box-shadow 50ms; }
   .led.on { background: radial-gradient(circle at 40% 35%, #fff3d6, var(--led-on) 55%);
-            box-shadow: 0 0 0 2px var(--pad), 0 0 10px 3px var(--led-glow); }
+            box-shadow: 0 0 0 2px var(--pad), 0 0 0.625rem 0.1875rem var(--led-glow); }
 
   button { font: inherit; cursor: pointer; color: var(--ink); }
 
-  /* How it works: four steps across, one a row on a phone. */
-  .how { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0 0 28px;
+  /* How it works, after the tour: four steps across, one a row on a phone. */
+  .how { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; margin: 0;
          padding: 0; list-style: none; counter-reset: how; }
   @media (max-width: 820px) { .how { grid-template-columns: minmax(0, 1fr); } }
-  .how li { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
+  .how li { background: var(--panel); border: 1px solid var(--line); border-radius: 0.75rem; padding: 0.875rem 1rem;
             font-size: 0.92rem; color: var(--muted); counter-increment: how; }
-  .how li::before { content: counter(how); display: inline-grid; place-items: center; width: 22px; height: 22px;
+  .how li::before { content: counter(how); display: inline-grid; place-items: center; width: 1.375rem; height: 1.375rem;
                     border-radius: 50%; background: var(--accent); color: var(--accent-ink);
-                    font-size: 0.8rem; font-weight: 700; margin-bottom: 6px; }
+                    font-size: 0.8rem; font-weight: 700; margin-bottom: 0.375rem; }
   .how b { display: block; color: var(--ink); font-size: 0.98rem; margin-bottom: 2px; }
 
   /* The guided tour. */
-  .tour h3 { font-size: 1.05rem; margin: 0 0 6px; }
-  .tour p { margin: 0 0 10px; font-size: 0.92rem; color: var(--muted); }
-  .tour .watch { color: var(--ink); background: var(--chip); border-radius: 8px; padding: 8px 10px; }
+  .tour h3 { font-size: 1rem; margin: 0 0 0.25rem; }
+  .tour p { margin: 0 0 0.5rem; font-size: 0.9rem; line-height: 1.4; color: var(--muted); }
+  .tour .watch { color: var(--ink); background: var(--chip); border-radius: 0.5rem; padding: 0.375rem 0.5rem; }
   .tour .watch::before { content: attr(data-label) " "; font-weight: 600; color: var(--accent); }
-  .tour pre { margin: 0 0 12px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line);
-              border-radius: 8px; font: 11.5px/1.5 ui-monospace, Menlo, monospace; color: var(--ink);
+  .tour pre { margin: 0 0 0.5rem; padding: 0.375rem 0.5rem; background: var(--bg); border: 1px solid var(--line);
+              border-radius: 0.5rem; font: 0.72rem/1.35 ui-monospace, Menlo, monospace; color: var(--ink);
               white-space: pre-wrap; word-break: break-word; }
-  .cost { margin: 0 0 12px; font-size: 0.9rem; }
-  .cost label { display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .cost { margin: auto 0 0.5rem; font-size: 0.86rem; }
+  .cost label { display: flex; justify-content: space-between; margin-bottom: 0.25rem; }
   .cost input { width: 100%; accent-color: var(--accent); }
-  .steps { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; }
-  .steps button { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 8px 12px;
+  .steps { display: grid; grid-template-columns: auto 1fr auto; gap: 0.5rem; }
+  .steps button { border: 1px solid var(--line); background: var(--bg); border-radius: 0.5rem; padding: 0.375rem 0.75rem;
                   font-size: 0.9rem; }
   .steps .run { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
   .steps button:disabled { opacity: 0.45; cursor: default; }
 
-  /* The timeline and the pool, under the console. */
-  .live { margin-top: 20px; display: grid; gap: 16px; }
-  .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 12px; }
+  .rules { margin-top: 2.25rem; }
+  .rules h2 { font-size: 1.05rem; margin: 0 0 0.75rem; }
+  .head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin: 0 0 0.25rem; }
   .head h2 { margin: 0; }
-  .views { display: flex; gap: 6px; }
+  .views { display: flex; gap: 0.375rem; }
   .scale { display: flex; }
-  .views button { border: 1px solid var(--line); background: var(--bg); border-radius: 6px;
-                  padding: 2px 10px; font-size: 0.8rem; }
+  .views button { border: 1px solid var(--line); background: var(--bg); border-radius: 0.375rem;
+                  padding: 2px 0.625rem; font-size: 0.8rem; }
   .scale button { border-radius: 0; margin-left: -1px; }
-  .scale button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
-  .scale button:last-child { border-radius: 0 6px 6px 0; }
+  .scale button:first-child { border-radius: 0.375rem 0 0 0.375rem; margin-left: 0; }
+  .scale button:last-child { border-radius: 0 0.375rem 0.375rem 0; }
   .scale button[aria-disabled="true"] { color: var(--muted); cursor: default; }
-  .scale .span { margin-left: -1px; padding: 2px 8px; min-width: 4.5em; border: 1px solid var(--line); background: var(--bg);
+  .scale .span { margin-left: -1px; padding: 2px 0.5rem; min-width: 4.5em; border: 1px solid var(--line); background: var(--bg);
                  font-size: 0.8rem; text-align: center; }
-  .frozen { margin: 0 0 8px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line);
-            background: var(--bg); font-size: 0.85rem; }
-  .frozen:empty { margin: 0; padding: 0; border: 0; }
-  #timeline { display: block; width: 100%; height: 190px; cursor: grab; touch-action: pan-y; }
+  /* In the legend's place, so that the page does not move as it freezes. */
+  .frozen { margin: 2px 0 0; font-size: 0.78rem; line-height: 1.55; color: var(--ink); }
+  .frozen:empty { display: none; }
+  .frozen:not(:empty) + .legend { display: none; }
+  #timeline { display: block; width: 100%; height: 7.5rem; cursor: grab; touch-action: pan-y; }
   #timeline.dragged { cursor: grabbing; }
   #timeline:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .plot { position: relative; }
-  .tip { position: absolute; z-index: 1; pointer-events: none; max-width: 260px; padding: 6px 8px;
-         border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink);
-         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); font-size: 0.8rem; line-height: 1.35; white-space: pre-line;
+  .tip { position: absolute; z-index: 1; pointer-events: none; max-width: 16.25rem; padding: 0.375rem 0.5rem;
+         border: 1px solid var(--line); border-radius: 0.375rem; background: var(--panel); color: var(--ink);
+         box-shadow: 0 2px 0.5rem rgba(0, 0, 0, 0.15); font-size: 0.8rem; line-height: 1.35; white-space: pre-line;
          width: max-content; }
-  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none;
-            font-size: 0.82rem; color: var(--muted); }
-  .legend i { display: inline-block; vertical-align: middle; margin-right: 6px; }
-  .legend .run { width: 14px; height: 9px; border-radius: 2px;
+  .legend { display: flex; flex-wrap: wrap; gap: 0.25rem 0.875rem; margin: 2px 0 0; padding: 0; list-style: none;
+            font-size: 0.78rem; color: var(--muted); }
+  .legend i { display: inline-block; vertical-align: middle; margin-right: 0.375rem; }
+  .legend .run { width: 0.875rem; height: 0.5625rem; border-radius: 2px;
                  background: linear-gradient(90deg, var(--row0) 25%, var(--row1) 25% 50%, var(--row2) 50% 75%, var(--row3) 75%); }
-  .legend .wait { width: 14px; height: 1px; background: var(--muted); }
-  .legend .tick { width: 1px; height: 9px; background: var(--muted); }
-  .legend .over { width: 14px; height: 9px; border-radius: 2px; background: var(--over); }
-  .summary { margin: 8px 0 0; font-size: 0.82rem; color: var(--muted); }
-  .prow { display: grid; grid-template-columns: 92px repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
-  @media (max-width: 820px) { .prow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .legend .wait { width: 0.875rem; height: 1px; background: var(--muted); }
+  .legend .tick { width: 1px; height: 0.5625rem; background: var(--muted); }
+  .legend .over { width: 0.875rem; height: 0.5625rem; border-radius: 2px; background: var(--over); }
+  .summary { margin: 0.375rem 0 0; font-size: 0.82rem; color: var(--muted); }
+  @media (min-width: 1100px) { .summary { display: none; } }
+  .pool-card { display: flex; flex-direction: column; min-height: 0; }
+  #pool { flex: 1; display: grid; grid-auto-rows: minmax(0, 1fr); gap: 0.3125rem; min-height: 0; }
+  .prow { display: grid; grid-template-columns: 3.125rem repeat(4, minmax(0, 1fr)); gap: 0.3125rem; min-height: 0; }
+  @media (max-width: 1099px) { .prow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
                               .prow .phead { grid-column: 1 / -1; } }
-  .phead { font-size: 0.82rem; color: var(--muted); align-self: center; }
-  .phead b { display: block; color: var(--ink); font-size: 0.95rem; }
-  .cell { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0; font-size: 0.8rem;
+  .phead { font-size: 0.7rem; color: var(--muted); align-self: center; white-space: nowrap; }
+  .phead b { display: block; color: var(--ink); font-size: 0.82rem; }
+  .cell { border: 1px solid var(--line); border-radius: 0.375rem; padding: 0.1875rem 0.375rem; min-width: 0; min-height: 0; overflow: hidden; font-size: 0.76rem; line-height: 1.2;
           color: var(--muted); background: var(--bg); }
   .cell.free { opacity: 0.6; }
   .cell.failed, .cell.overrun { border-color: var(--over); background: var(--over-bg); }
-  .cell .top { display: flex; justify-content: space-between; gap: 6px; }
-  .cell .name { font: 600 0.85rem ui-monospace, Menlo, monospace; color: var(--ink); overflow: hidden;
+  .cell .top { display: flex; justify-content: space-between; gap: 0.375rem; }
+  .cell .name { font: 600 0.8rem ui-monospace, Menlo, monospace; color: var(--ink); overflow: hidden;
                 text-overflow: ellipsis; white-space: nowrap; }
-  .chip { font-size: 0.7rem; border-radius: 999px; padding: 0 7px; background: var(--chip); color: var(--muted); }
+  .figures { white-space: pre-line; }
+  .chip { flex: none; font-size: 0.66rem; border-radius: 62.4375rem; padding: 0 0.3125rem; background: var(--chip); color: var(--muted); }
   .promoted .chip { background: var(--accent); color: var(--accent-ink); }
   .failed .chip { background: var(--over); color: var(--accent-ink); }
-  .bar2 { height: 6px; border-radius: 3px; background: var(--chip); margin: 6px 0 4px; overflow: hidden; }
-  .bar2 i { display: block; height: 100%; width: 0; background: var(--row1); border-radius: 3px; }
+  .bar2 { height: 0.25rem; border-radius: 2px; background: var(--chip); margin: 2px 0; overflow: hidden; }
+  .bar2 i { display: block; height: 100%; width: 0; background: var(--row1); border-radius: 0.1875rem; }
   .bar2 i.past { background: var(--over); }
-  .gauge { position: relative; height: 12px; border-radius: 6px; background: var(--chip); margin: 14px 0 6px; }
-  .gauge i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--accent); border-radius: 6px;
+  .gauge { position: relative; height: 0.5rem; border-radius: 0.375rem; background: var(--chip); margin: 0.375rem 0 2px; }
+  .gauge i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--accent); border-radius: 0.375rem;
              transition: width 200ms; }
-  .gauge b { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--over); }
-  .gauge-text { font-size: 0.85rem; color: var(--muted); }
-  .restart { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 9px;
-             font-size: 0.9rem; color: var(--muted); }
+  .gauge b { position: absolute; top: -0.25rem; bottom: -0.25rem; width: 2px; background: var(--over); }
+  .gauge-text { font-size: 0.78rem; color: var(--muted); }
+  .restart { flex: none; background: transparent; border: 1px solid var(--line); border-radius: 0.5rem; padding: 0.25rem;
+             font-size: 0.8rem; color: var(--muted); }
   .restart:hover { color: var(--ink); border-color: var(--muted); }
   button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  .honest { margin-top: 36px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-            padding: 20px 24px; color: var(--muted); font-size: 0.95rem; }
-  .honest h2 { font-size: 1.05rem; color: var(--ink); margin: 0 0 10px; }
-  .honest ul { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
-  footer { margin-top: 24px; font-size: 0.85rem; color: var(--muted); text-align: center; }
+  .honest { margin-top: 2.25rem; background: var(--panel); border: 1px solid var(--line); border-radius: 0.75rem;
+            padding: 1.25rem 1.5rem; color: var(--muted); font-size: 0.95rem; }
+  .honest h2 { font-size: 1.05rem; color: var(--ink); margin: 0 0 0.625rem; }
+  .honest ul { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.5rem; }
+  footer { margin-top: 1.5rem; font-size: 0.85rem; color: var(--muted); text-align: center; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 <main>
-  <header>
-    <div class="top"><p class="eyebrow">Escapement · WebAssembly</p>
-      <div class="lang" role="group" aria-label="Language" data-i18n-label="lang"><button data-lang="en">EN</button><button data-lang="fr">FR</button></div></div>
-    <h1>Escapement Forth</h1>
-    <p class="lede" data-i18n="lede"><a href="https://github.com/beber007/escapement">Escapement</a>'s Forth console
-      and its real-time kernel, compiled to WebAssembly. They run here, in this page. Follow
-      the tour or type your own words: the timeline and the pool show what the kernel does.</p>
-    <ul class="badges">
-      <li data-i18n="badge1"><b>hard real time</b> · EDF</li>
-      <li data-i18n="badge2"><b>4 tasks</b> · 1, 10, 100, 1000 ms</li>
-      <li data-i18n="badge3"><b>the board's code</b> · unchanged</li>
-      <li data-i18n="badge4"><b>in your browser</b> · nothing is sent</li>
-    </ul>
-  </header>
-
-  <ol class="how" aria-label="How it works" data-i18n-label="how">
-    <li data-i18n="how1"><b>Four tasks, sixteen slots</b>The kernel has four tasks, with periods of 1, 10, 100 and 1000 ms.
-      Each has four slots. You attach words to them from the console: <code>' blink 100 every</code>.</li>
-    <li data-i18n="how2"><b>On trial first</b>A new word is on trial. It runs every period and the kernel
-      measures its time. It gets a tenth of its period. If it goes over, it gets cut.</li>
-    <li data-i18n="how3"><b>Promoted or refused</b>After ten measures within its budget, <code>promote</code>
-      guarantees the word. One condition: all promoted words must fit in 70 % of the processor.</li>
-    <li data-i18n="how4"><b>Deadline first</b>The kernel always runs the task whose deadline is closest (EDF).
-      The 1 ms task interrupts the 1 s task. The console comes after all of them.</li>
-  </ol>
-
   <div class="grid">
-    <div>
+  <header>
+    <div class="top"><h1>Escapement Forth</h1>
+      <div class="lang" role="group" aria-label="Language" data-i18n-label="lang"><button data-lang="en">EN</button><button data-lang="fr">FR</button></div></div>
+    <p class="lede" data-i18n="lede"><a href="https://github.com/beber007/escapement">Escapement</a> runs tasks on a fixed schedule and keeps them on
+      time, even when one of them overruns. It's a real-time kernel, running right here in your browser, with a
+      Forth console. Give it a try.</p>
+  </header>
+    <div class="main">
+      <div class="pair">
       <div class="window">
         <div class="bar" aria-hidden="true"><span class="dot"></span><span class="dot"></span>
-          <span class="dot"></span><span class="title mono">console · Escapement Forth</span></div>
+          <span class="dot"></span><span class="title mono">console</span></div>
         <div class="terminal" id="terminal" aria-live="polite" lang="en">
           <div id="output"></div>
           <div class="prompt"><input id="input" autocomplete="off" spellcheck="false"
                aria-label="Forth input" data-i18n-label="input"></div>
         </div>
       </div>
+      <section class="card pool-card">
+        <h2><span class="h" data-i18n="pool">The pool</span> <span data-i18n="poolnote">longest run / budget</span></h2>
+        <div id="pool"></div>
+      </section>
+      </div>
       <div class="status" id="status">Loading…</div>
+      <div class="board" role="group" aria-label="Pins" data-i18n-label="pins"><div class="pins" id="pins"></div></div>
+      <section class="card timeline-card">
+        <div class="head"><h2><span class="h" data-i18n="live">The timeline: what the kernel runs</span></h2>
+          <span class="views"><span class="scale" role="group" aria-label="Scale" data-i18n-label="scale"><button
+            id="wider" aria-label="Wider" data-i18n-label="wider">−</button><span class="span" id="span" aria-live="polite">200 ms</span><button
+            id="finer" aria-label="Finer" data-i18n-label="finer">+</button></span> <button id="pause">Pause</button></span></div>
+        <div class="plot"><canvas id="timeline" role="img" tabindex="0" aria-label="The tasks the kernel ran, the last 200 ms"></canvas>
+          <div class="tip" id="tip" aria-hidden="true" hidden></div></div>
+        <p class="frozen" id="frozen" aria-live="polite"></p>
+        <ul class="legend">
+          <li><i class="run"></i><span data-i18n="running">running, one color per task</span></li>
+          <li><i class="wait"></i><span data-i18n="waiting">waiting, interrupted</span></li>
+          <li><i class="tick"></i><span data-i18n="release">release</span></li>
+          <li><i class="over"></i><span data-i18n="overlegend">over budget</span></li>
+        </ul>
+        <div class="gauge" aria-hidden="true"><i id="gauge-fill"></i><b id="gauge-bound"></b></div>
+        <div class="gauge-text" id="gauge-text"></div>
+        <p class="summary" id="timeline-summary" aria-live="off"></p>
+      </section>
     </div>
 
     <div class="side">
-      <section class="card">
-        <h2><span class="h" data-i18n="pins">Pins</span> <span class="mono">1 15 lshift toggle</span></h2>
-        <div class="board"><div class="pins" id="pins"></div></div>
-      </section>
       <section class="card tour" aria-label="Guided tour" data-i18n-label="tour">
         <h2><span class="h" data-i18n="tour">Guided tour</span> <span id="step-count"></span></h2>
         <h3 id="step-title" aria-live="polite"></h3>
@@ -281,30 +307,25 @@
     </div>
   </div>
 
-  <div class="live">
-    <section class="card">
-      <div class="head"><h2><span class="h" data-i18n="live">The kernel, live</span></h2>
-        <span class="views"><span class="scale" role="group" aria-label="Scale" data-i18n-label="scale"><button
-          id="wider" aria-label="Wider" data-i18n-label="wider">−</button><span class="span" id="span" aria-live="polite">200 ms</span><button
-          id="finer" aria-label="Finer" data-i18n-label="finer">+</button></span> <button id="pause">Pause</button></span></div>
-      <p class="frozen" id="frozen" aria-live="polite"></p>
-      <div class="plot"><canvas id="timeline" role="img" tabindex="0" aria-label="The tasks the kernel ran, the last 200 ms"></canvas>
-        <div class="tip" id="tip" aria-hidden="true" hidden></div></div>
-      <ul class="legend">
-        <li><i class="run"></i><span data-i18n="running">running, one color per task</span></li>
-        <li><i class="wait"></i><span data-i18n="waiting">waiting, interrupted</span></li>
-        <li><i class="tick"></i><span data-i18n="release">release</span></li>
-        <li><i class="over"></i><span data-i18n="overlegend">over budget</span></li>
-      </ul>
-      <p class="summary" id="timeline-summary" aria-live="off"></p>
-    </section>
-    <section class="card">
-      <h2><span class="h" data-i18n="pool">The pool</span> <span data-i18n="poolnote">longest run and budget</span></h2>
-      <div id="pool"></div>
-      <div class="gauge" aria-hidden="true"><i id="gauge-fill"></i><b id="gauge-bound"></b></div>
-      <div class="gauge-text" id="gauge-text"></div>
-    </section>
-  </div>
+  <section class="rules">
+    <h2 data-i18n="rules">The rules at a glance</h2>
+    <ul class="badges">
+      <li data-i18n="badge1"><b>hard real time</b> · EDF</li>
+      <li data-i18n="badge2"><b>4 tasks</b> · 1, 10, 100, 1000 ms</li>
+      <li data-i18n="badge3"><b>the board's code</b> · unchanged</li>
+      <li data-i18n="badge4"><b>in your browser</b> · nothing is sent</li>
+    </ul>
+    <ol class="how" aria-label="How it works" data-i18n-label="how">
+      <li data-i18n="how1"><b>Four tasks, sixteen slots</b>The kernel has four tasks, with periods of 1, 10, 100 and 1000 ms.
+        Each has four slots. You attach words to them from the console: <code>' blink 100 every</code>.</li>
+      <li data-i18n="how2"><b>On trial first</b>A new word is on trial. It runs every period and the kernel
+        measures its time. It gets a tenth of its period. If it goes over, it gets cut.</li>
+      <li data-i18n="how3"><b>Promoted or refused</b>After ten measures within its budget, <code>promote</code>
+        guarantees the word. One condition: all promoted words must fit in 70 % of the processor.</li>
+      <li data-i18n="how4"><b>Deadline first</b>The kernel always runs the task whose deadline is closest (EDF).
+        The 1 ms task interrupts the 1 s task. The console comes after all of them.</li>
+    </ol>
+  </section>
 
   <section class="honest">
     <h2 data-i18n="honest">What this page is, and what it is not</h2>
@@ -353,6 +374,7 @@
   let filled = null;   // what the line under way said full, from full()
   let sentTour = false, said = "";   // the line under way of the tour, and its output
   let sent = "";       // the line sent, echoed once the worker starts it
+  let sentQuiet = false, noteDue = null;   // a line that sets a step up, and what says so once
   const queue = [];
 
   for (let p = 0; p < 30; p += 1) {
@@ -369,89 +391,92 @@
 
   // The tour: each step's lines typed in turn. {name} is the slot of the word of that
   // name, read from the pool as the line before ended; a line naming none is left out.
+  // quiet: The first lines, which set the step up, typed without showing them: a step can
+  // be run alone, and blink goes on through all but the last.
   const STOP_ALL = "0 stop 1 stop 2 stop 3 stop 4 stop 5 stop 6 stop 7 stop 8 stop 9 stop " +
                    "10 stop 11 stop 12 stop 13 stop 14 stop 15 stop";
+  const BLINK = [": blink  1 15 lshift toggle ;", "' blink 100 every"];
+  const SETUP = [STOP_ALL, ...BLINK];
   const TOUR = [
-    { id: "period", lines: [STOP_ALL, ": blink  1 15 lshift toggle ;", "' blink 100 every"],
+    { id: "period", quiet: 1, lines: [STOP_ALL, ...BLINK],
       en: { title: "Blink an LED",
-            text: "This word blinks the LED on GP15. every runs it every 100 ms. The console answers with its slot number.",
-            watch: "the LED GP15 blinks. On the timeline, the 100 ms row shows each run. In the pool, the slot is on trial." },
-      fr: { title: "Faire clignoter une LED",
-            text: "Ce mot fait clignoter la LED GP15. every le lance toutes les 100 ms. La console te répond avec le numéro de sa case.",
-            watch: "la LED GP15 clignote. Sur la frise, la ligne 100 ms montre chaque exécution. Dans le tableau, la case est à l'essai." } },
-    { id: "cost", cost: true, window: ZOOM,
-      lines: [STOP_ALL, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every"],
-      en: { title: "What a word costs",
-            text: "work keeps the processor busy for cost microseconds, every 10 ms. On trial, a word gets a tenth of its period: 1 ms here.",
-            watch: "move the slider. On the 10 ms row, the runs of work. In the pool, the bar compares its longest run with its budget." },
-      fr: { title: "Ce que coûte un mot",
-            text: "work occupe le processeur pendant cost microsecondes, toutes les 10 ms. À l'essai, un mot a droit à un dixième de sa période : ici 1 ms.",
-            watch: "bouge le curseur. Sur la ligne 10 ms, les exécutions de work. Dans le tableau, la barre compare son temps le plus long à son budget." } },
-    { id: "over", cost: true, window: ZOOM,
-      lines: [STOP_ALL, "variable cost  2000 cost !", ": work  cost @ spend ;", "' work 10 every", "300 ms"],
-      en: { title: "Too long",
-            text: "work asks for 2 ms, but its budget is 1 ms. The Forth cuts it at the first clock tick past 1 ms and counts it as over: spend checks the budget as it waits, like the Forth every sixteen words. work runs again at its next release. The other tasks stay on time.",
-            watch: "red bars on the timeline, and the over count going up in the pool." },
-      fr: { title: "Trop long",
-            text: "work demande 2 ms, mais son budget est de 1 ms. Le Forth le coupe au premier pas d'horloge après 1 ms et compte un dépassement : spend contrôle le budget pendant qu'il attend, comme le Forth tous les seize mots. work repart à son prochain lancement. Les autres tâches restent à l'heure.",
-            watch: "des barres rouges sur la frise, et le nombre de dépassements qui monte dans le tableau." } },
-    { id: "admitted", cost: true, window: ZOOM,
-      lines: [STOP_ALL, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every", "200 ms {work} promote"],
+            text: "Forth programs are built from words. : blink … ; defines a word called blink. 1 15 lshift selects pin 15, and toggle flips it. every runs blink every 100 ms.",
+            watch: "LED GP15 blinks, and the run count in its slot climbs." },
+      fr: { title: "Une LED qui clignote",
+            text: "En Forth, un programme est fait de mots. : blink … ; crée le mot blink. 1 15 lshift désigne la broche 15, et toggle l'inverse. every lance blink toutes les 100 ms.",
+            watch: "la LED GP15 clignote. Dans sa case, le nombre de lancements monte." } },
+    { id: "cost", quiet: 3, cost: true, window: ZOOM,
+      lines: [...SETUP, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every"],
+      en: { title: "Every word gets a budget",
+            text: "spend keeps the processor busy for a given number of microseconds. work calls it every 10 ms. A new word can use a tenth of its period, so 1 ms here. Drag the slider past 1 ms.",
+            watch: "on the timeline's 10 ms row, the bars grow, then turn red. The kernel cuts work off, and it runs again next time." },
+      fr: { title: "Chaque mot a un budget",
+            text: "spend occupe le processeur pendant un nombre de microsecondes. work s'en sert toutes les 10 ms. Un nouveau mot a droit à un dixième de sa période : ici 1 ms. Pousse le curseur au-delà de 1 ms.",
+            watch: "sur la ligne 10 ms de la frise, les barres grandissent, puis passent au rouge. work est coupé, et il repart au lancement suivant." } },
+    { id: "forever", quiet: 3, lines: [...SETUP, ": forever  begin again ;", "' forever 10 every"],
+      en: { title: "A word that never ends",
+            text: "forever loops endlessly. With no limit, it would hog the processor and blink would never get a turn. Before you click, take a guess: will the LED stop?",
+            watch: "forever gets cut off on every run. The LED keeps blinking." },
+      fr: { title: "Un mot qui ne s'arrête jamais",
+            text: "forever tourne sans fin. Sans limite, il garderait le processeur et blink ne passerait plus. Avant de cliquer, devine : la LED va-t-elle s'arrêter ?",
+            watch: "forever est coupé à chaque lancement. La LED continue de clignoter." } },
+    { id: "fails", quiet: 3, lines: [...SETUP, ": bad  drop ;", "' bad 1 every"],
+      en: { title: "A word that crashes",
+            text: "Forth keeps its values on a stack. bad pops a value from an empty stack, which is an error. A word that runs too long gets cut off and runs again next time. A word with an error stops for good.",
+            watch: "its slot shows failed and stack empty. The LED keeps blinking." },
+      fr: { title: "Un mot qui plante",
+            text: "Forth range ses valeurs sur une pile. bad retire une valeur alors que la pile est vide. C'est une erreur. Un mot trop long est coupé, puis relancé. Un mot en erreur est arrêté pour de bon.",
+            watch: "sa case passe en échec et affiche stack empty. La LED continue." } },
+    { id: "admitted", quiet: 3, window: ZOOM,
+      lines: [...SETUP, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every", "200 ms {work} promote"],
       en: { title: "Promoted",
-            text: "After ten runs within its budget, promote can guarantee the word. Its new budget is its longest run, plus a quarter, plus 1 µs. The word now counts in the processor's load. If you attach it again, its trial starts over.",
-            watch: "the slot turns promoted and the load goes up. Push the slider past the budget: work gets cut. A browser measures time to a tenth of a millisecond at best, often only to a millisecond, so a run can go over on its own." },
+            text: "Until now, words have been on trial while the kernel timed them. After ten runs within budget, promote reserves a share of the processor for a word. 4 is the slot number that every gave us, and 200 ms allows time for the ten runs.",
+            watch: "the slot turns promoted and the load gauge rises." },
       fr: { title: "Promu",
-            text: "Après dix exécutions dans son budget, promote peut garantir le mot. Son nouveau budget est son temps le plus long, plus un quart, plus 1 µs. Le mot compte alors dans la charge du processeur. Si tu le rattaches, son essai recommence.",
-            watch: "la case passe à promu et la charge monte. Pousse le curseur au-delà du budget : work est coupé. Un navigateur mesure le temps au dixième de milliseconde au mieux, souvent à la milliseconde seulement, donc un dépassement de budget peut arriver tout seul." } },
-    { id: "preempted", freeze: 3,
-      lines: [STOP_ALL, ": long  80000 spend ;  : busy  500 spend ;", "' long 1000 every", "' busy 10 every"],
-      en: { title: "Interrupted",
-            text: "long runs every 1 s and lasts 80 ms. busy lasts 500 µs and goes ahead of it every 10 ms, because its deadline is closer. long goes on after it. The timeline freezes after the next run of long. Click Resume to go on.",
-            watch: "the 1 s row broken into pieces, a thin line where long waits, and the 10 ms row running in the gaps." },
-      fr: { title: "Interrompu",
-            text: "long tourne toutes les secondes et dure 80 ms. busy dure 500 µs et passe devant lui toutes les 10 ms, car son échéance est plus proche. long reprend après lui. La frise se fige après la prochaine exécution de long. Clique sur Reprendre pour continuer.",
-            watch: "la ligne 1 s coupée en morceaux, un trait fin là où long attend, et la ligne 10 ms qui passe dans les trous." } },
-    { id: "refused",
-      lines: [STOP_ALL, ": big10  700 spend ;  : big100  9500 spend ;",
-              "' big10 10 every ' big10 10 every ' big10 10 every ' big10 10 every",
-              "' big100 100 every ' big100 100 every ' big100 100 every ' big100 100 every",
-              "1300 ms", "4 promote 5 promote 6 promote 7 promote", "8 promote 9 promote 10 promote 11 promote"],
+            text: "Jusqu'ici, les mots sont à l'essai : le noyau mesure leur temps. Après dix lancements dans le budget, promote réserve au mot une part du processeur. every a donné le numéro de sa case, ici 4. 200 ms laisse le temps de faire les dix lancements.",
+            watch: "la case passe à promu et la jauge de charge monte." } },
+    { id: "refused", quiet: 3,
+      lines: [...SETUP, ": big  700 spend ;  : huge  9500 spend ;",
+              "' big 10 every ' big 10 every ' big 10 every ' big 10 every",
+              "' huge 100 every ' huge 100 every ' huge 100 every",
+              "1300 ms", "4 promote 5 promote 6 promote 7 promote", "9 promote 10 promote 11 promote"],
       en: { title: "Refused",
-            text: "Everything is stopped, then eight words that use most of their budget, then their promotion. Together, promoted words cannot go past 70 % of the processor. Beyond that, promote refuses and the word stays on trial.",
-            watch: "the load gets close to the red mark, then the console answers refused." },
+            text: "Each promotion reserves a share of the processor, and the total can't exceed 70 %. Here, seven words ask for promotion, one after another.",
+            watch: "the console shows the load after each promotion. Past the limit, a word gets refused and stays on trial." },
       fr: { title: "Refusé",
-            text: "Tout est arrêté, puis huit mots qui prennent l'essentiel de leur budget, puis leur promotion. Ensemble, les mots promus ne peuvent pas dépasser 70 % du processeur. Au-delà, promote refuse et le mot reste à l'essai.",
-            watch: "la charge s'approche du trait rouge, puis la console répond refused." } },
-    { id: "fails", lines: [STOP_ALL, ": bad  drop ;", "' bad 1 every"],
-      en: { title: "A word that fails",
-            text: "bad takes a value from an empty stack. It fails on its first run and is stopped. Its error is kept. The other slots keep running.",
-            watch: "the slot shows failed. Nothing else changes." },
-      fr: { title: "Un mot qui échoue",
-            text: "bad prend une valeur sur une pile vide. Il échoue dès sa première exécution et il est arrêté. Son erreur est gardée. Les autres cases continuent.",
-            watch: "la case passe en échec. Rien d'autre ne change." } },
-    { id: "yours", lines: [STOP_ALL],
+            text: "Chaque promotion réserve une part du processeur. Le total ne peut pas dépasser 70 %. Ici, sept mots demandent leur promotion, l'un après l'autre.",
+            watch: "la console donne la charge après chaque promotion. Au-delà de la limite, le mot reçoit refused et reste à l'essai." } },
+    { id: "preempted", quiet: 3, freeze: 3,
+      lines: [...SETUP, ": long  80000 spend ;  : busy  500 spend ;", "' long 1000 every", "' busy 10 every"],
+      en: { title: "Who goes first?",
+            text: "long takes 80 ms, once a second. busy takes 0.5 ms, every 10 ms. If busy had to wait for long to finish, it would miss eight runs. So the kernel always picks the word whose deadline is closest, meaning its next run is soonest. The timeline freezes so you can see this. Click Resume to continue.",
+            watch: "the 1 s row is broken into pieces, and the 10 ms row runs in the gaps." },
+      fr: { title: "Qui passe d'abord ?",
+            text: "long dure 80 ms, toutes les secondes. busy dure 0,5 ms, toutes les 10 ms. S'il attendait la fin de long, busy raterait huit lancements. Le noyau fait donc passer le mot dont le prochain lancement est le plus proche. On appelle ça son échéance. La frise se fige pour que tu le voies. Clique sur Reprendre pour continuer.",
+            watch: "la ligne 1 s est coupée en morceaux. La ligne 10 ms passe dans les trous." } },
+    { id: "yours", quiet: 1, lines: [STOP_ALL],
       en: { title: "Your turn",
-            text: "Everything is stopped. Type your own words. words lists the known words, slots shows the pool, and the Restart the Forth button starts it over.",
+            text: "Everything is stopped. Now make LED GP20 blink once a second. Hint: go back to step 1 for a model. words lists every word you can use.",
             watch: "" },
       fr: { title: "À toi",
-            text: "Tout est arrêté. Tape tes propres mots. words liste les mots connus, slots affiche les cases, et le bouton Relancer le Forth le fait repartir de zéro.",
+            text: "Tout est arrêté. Fais clignoter la LED GP20 une fois par seconde. Indice : repars de l'étape 1. words liste les mots connus.",
             watch: "" } },
   ];
 
   // ---- The languages: the page's texts in English, as written above, or in French; the
   // Forth answers in English, as on the board.
   const FR = {
-    lede: 'La console Forth d\'<a href="https://github.com/beber007/escapement">Escapement</a> et son noyau temps réel, compilés en WebAssembly. Ils tournent ici, dans cette page. Suis la visite ou tape tes propres mots : la frise et le tableau montrent ce que fait le noyau.',
+    lede: '<a href="https://github.com/beber007/escapement">Escapement</a> lance des tâches à intervalles fixes et garde leur rythme, même si l\'une d\'elles déborde. C\'est un noyau temps réel. Ici, il tourne dans ta page, avec sa console Forth. Essaie.',
     badge1: "<b>temps réel dur</b> · EDF", badge2: "<b>4 tâches</b> · 1, 10, 100, 1000 ms",
     badge3: "<b>le code de la carte</b> · sans changement", badge4: "<b>dans ton navigateur</b> · rien n'est envoyé",
     how1: "<b>Quatre tâches, seize cases</b>Le noyau a quatre tâches, de période 1, 10, 100 et 1000 ms. Chacune a quatre cases. Tu y attaches des mots depuis la console : <code>' blink 100 every</code>.",
     how2: "<b>D'abord à l'essai</b>Un nouveau mot est à l'essai. Il tourne à chaque période et le noyau mesure son temps. Il a droit à un dixième de sa période. S'il dépasse, il est coupé.",
     how3: "<b>Promu ou refusé</b>Après dix mesures dans son budget, <code>promote</code> garantit le mot. Seule condition : tous les mots promus doivent tenir dans 70 % du processeur.",
     how4: "<b>L'échéance d'abord</b>Le noyau fait toujours passer la tâche dont l'échéance est la plus proche (EDF). La tâche de 1 ms interrompt celle de 1 s. La console passe après toutes.",
-    pins: "Broches", tour: "Visite guidée", cost: "Coût de <code>work</code>", run: "Taper ces lignes",
-    restart: "Relancer le Forth", live: "Le noyau, en direct", running: "en cours, une couleur par tâche",
+    rules: "Les règles, en bref", tour: "Visite guidée", cost: "Coût de <code>work</code>", run: "Taper ces lignes",
+    restart: "Relancer le Forth", live: "La frise : ce que lance le noyau", running: "en cours, une couleur par tâche",
     waiting: "en attente, interrompue", release: "lancement", overlegend: "au-delà du budget",
-    pool: "Le tableau des cases", poolnote: "exécution la plus longue et budget",
+    pool: "Le tableau des cases", poolnote: "temps le plus long / budget",
     honest: "Ce que cette page est, et ce qu'elle n'est pas",
     honest1: "Le Forth et le noyau sont le code de la carte, compilé tel quel : la console et les cases (<code>src/</code>), le noyau dur d'Escapement sous EDF (<code>EscapementHard.c</code>) et les quatre tâches du Pico, une par période. Seule la couche du dessous change (<code>web/platform_web.c</code>, <code>web/kernel/</code>).",
     honest2: "Ici, la console est la tâche de fond du noyau. Les cases l'interrompent, et s'interrompent entre elles, là où le Forth lit l'horloge : tous les seize mots. Sur la carte, la console a son propre cœur et ne retarde jamais une case.",
@@ -459,7 +484,7 @@
     honest4: "Les temps affichés sont ceux de ton navigateur, pas du Pico. Ils sont lus au dixième de milliseconde, ou à la milliseconde selon le navigateur, et plus grossièrement là où il protège ta vie privée, ce que la page dit alors. Un mot très court peut donc afficher 0, et une tâche vide n'a pas de largeur sur la frise. Cette page ne dit rien du coût du noyau sur une vraie puce, ni de sa consommation.",
     honest5: "Une ligne tapée est arrêtée au bout de 10 s, comme Ctrl-C sur la carte. Le dictionnaire dure le temps de la page : <code>save</code> n'a pas de flash où écrire.",
   };
-  const FR_LABEL = { scale: "Échelle", lang: "Langue", how: "Comment ça marche", input: "Entrée Forth", tour: "Visite guidée",
+  const FR_LABEL = { pins: "Broches", scale: "Échelle", lang: "Langue", how: "Comment ça marche", input: "Entrée Forth", tour: "Visite guidée",
                      back: "Étape précédente", next: "Étape suivante", wider: "Plus large", finer: "Plus fin" };
   const T = {
     en: { loading: "Loading…", ready: "Ready. The Forth runs in this page. Nothing is sent.",
@@ -471,13 +496,13 @@
           failed: "The Forth could not start: ",
           welcome: "Escapement Forth, in WebAssembly. Type a line and press Enter, or follow the tour.\n",
           budget: "trial budget ", free: "free", trial: "trial", promoted: "promoted", failedChip: "failed",
-          figures: (e) => "max " + time(e.max, "en") + " of " + time(e.budget, "en") + " · runs " + e.runs +
-                          (e.over > 0 ? " · over " + e.over : ""),
-          gauge: (l, b) => "Guaranteed load: " + share(l, "en") + " of the processor (the slots' own cost included). Limit: " + share(b, "en") + ".",
+          figures: (e) => time(e.max, "en") + " / " + time(e.budget, "en") + "\n" + e.runs + " runs" +
+                          (e.over > 0 ? ", " + e.over + " cut" : ""),
+          gauge: (l, b) => "Reserved load: " + share(l, "en") + " of the processor, slots' own cost included. Limit: " + share(b, "en") + ".",
           runs: (n) => n + (n === 1 ? " run" : " runs"),
           releases: (n) => n + (n === 1 ? " release" : " releases"),
           summary: (w, rows, over) => "In the last " + w + ": " + rows + "; " + over + " over budget.",
-          watch: "Watch:", slotOf: (name) => "‹slot of " + name + "›", now: "now", pause: "Pause", resume: "Resume", frozen: "Frozen. Drag it, or use the arrow keys, to look back up to 10 s. Click Resume to go on.", stopAll: "‹stop every slot›",
+          watch: "Watch:", slotOf: (name) => "‹slot of " + name + "›", now: "now", pause: "Pause", resume: "Resume", frozen: "Frozen. Drag it to look back up to 10 s. Click Resume to continue.", stopAll: "‹stop every slot›", setup: "‹setup: stop every slot, restart blink›",
           tipTask: (row, names) => "Task " + row + (names ? ": " + names : ", no word"), tipConsole: "A line of the console",
           tipAgo: (ago) => "Started " + ago + " ago", tipRunning: "Still running",
           tipTook: (wall, own) => "Took " + wall + (own === wall ? "" : ", " + own + " of it running"), tipOver: "Over budget, cut" },
@@ -490,16 +515,15 @@
           failed: "Le Forth n'a pas pu démarrer : ",
           welcome: "Escapement Forth, en WebAssembly. Tape une ligne puis Entrée, ou suis la visite.\n",
           budget: "budget d'essai ", free: "libre", trial: "essai", promoted: "promu", failedChip: "en échec",
-          figures: (e) => "max " + time(e.max, "fr") + " sur " + time(e.budget, "fr") + " · " + e.runs +
-                          (e.runs < 2 ? " exécution" : " exécutions") +
-                          (e.over > 0 ? " · " + e.over + (e.over < 2 ? " dépassement" : " dépassements") : ""),
-          gauge: (l, b) => "Charge garantie : " + share(l, "fr") + " du processeur (coût des cases compris). Limite : " + share(b, "fr") + ".",
+          figures: (e) => time(e.max, "fr") + " / " + time(e.budget, "fr") + "\n" + e.runs + " fois" +
+                          (e.over > 0 ? ", " + e.over + (e.over < 2 ? " coupé" : " coupés") : ""),
+          gauge: (l, b) => "Charge réservée : " + share(l, "fr") + " du processeur, coût des cases compris. Limite : " + share(b, "fr") + ".",
           runs: (n) => n + (n < 2 ? " exécution" : " exécutions"),
           releases: (n) => n + (n < 2 ? " lancement" : " lancements"),
           summary: (w, rows, over) => (w === "1 s" ? "Sur la dernière seconde" : "Sur les " + w.replace(" ", " dernières ").replace(/ s$/, " secondes")) +
                                        " : " + rows + " ; " + over + " au-delà du budget.",
-          watch: "Regarde :", slotOf: (name) => "‹case de " + name + "›", now: "maintenant", pause: "Pause", resume: "Reprendre", frozen: "Frise figée. Fais-la glisser, ou utilise les flèches, pour remonter jusqu’à 10 s. Clique sur Reprendre pour continuer.",
-          stopAll: "‹arrêter toutes les cases›",
+          watch: "Regarde :", slotOf: (name) => "‹case de " + name + "›", now: "maintenant", pause: "Pause", resume: "Reprendre", frozen: "Frise figée. Fais-la glisser pour remonter jusqu’à 10 s. Clique sur Reprendre pour continuer.",
+          stopAll: "‹arrêter toutes les cases›", setup: "‹remise en place : tout arrêter, relancer blink›",
           tipTask: (row, names) => "Tâche " + row + (names ? " : " + names : ", sans mot"), tipConsole: "Une ligne de la console",
           tipAgo: (ago) => "Lancée il y a " + ago, tipRunning: "Encore en cours",
           tipTook: (wall, own) => "A duré " + wall + (own === wall ? "" : ", dont " + own + " d'exécution"), tipOver: "Au-delà du budget, coupée" },
@@ -538,10 +562,10 @@
 
   // send: The line given to the Forth once the line before is done, and echoed as the
   // board's console does, " ok" after it on the same line.
-  function send(line, tour) {
+  function send(line, tour, quiet) {
     if (worker === null)
       return;
-    queue.push({ line, tour: tour === true });
+    queue.push({ line, tour: tour === true, quiet: quiet === true });
     next();
   }
 
@@ -554,6 +578,7 @@
     busy = true;
     sent = item.line;
     sentTour = item.tour;
+    sentQuiet = item.quiet;
     worker.postMessage(item.line);
   }
 
@@ -577,29 +602,32 @@
     }
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, w, h);
-    const label = w < 480 ? 64 : 96, axis = 18, row = (h - axis) / ROWS.length;
+    const rem = parseFloat(css.fontSize) / 16;
+    const label = (w < 480 ? 64 : 96) * rem, axis = 18 * rem, row = (h - axis) / ROWS.length;
     const names = rowNames(pool), quiet = (r) => r < 4 && names[r] === "";
     const WINDOW = view.window, right = view.edge(), left = right - WINDOW;
     // now: The clock the axis counts back from: where the view stopped, scrolled back or not.
     const now = view.stopped !== null ? view.stopped : right;
     layout = { label, row, left, right, now, WINDOW, w };
     const x = (t) => label + (w - label) * (t - left) / WINDOW;
-    context.font = "11px ui-monospace, Menlo, monospace";
+    context.font = 11.5 * rem + "px ui-monospace, Menlo, monospace";
     context.textBaseline = "middle";
     // Each period with the words bound to it; a row with none drawn faint.
-    const fit = (text) => {
-      if (context.measureText(text).width <= label - 6)
+    const fit = (text, room) => {
+      if (context.measureText(text).width <= room)
         return text;
-      while (text.length > 1 && context.measureText(text + "…").width > label - 6)
+      while (text.length > 1 && context.measureText(text + "…").width > room)
         text = text.slice(0, -1);
       return text + "…";
     };
     for (let r = 0; r < ROWS.length; r += 1) {
       context.fillStyle = color("--muted");
-      context.fillText(ROWS[r], 0, row * r + row / 2 - (r < 4 && names[r] ? 6 : 0));
+      // Its words under the period, or beside it where a row is too low for two lines.
+      const low = row < 30 * rem, indent = low ? context.measureText("100 ms ").width : 0;
+      context.fillText(ROWS[r], 0, row * r + row / 2 - (!low && r < 4 && names[r] ? 6 * rem : 0));
       if (r < 4 && names[r]) {
         context.fillStyle = color("--ink");
-        context.fillText(fit(names[r]), 0, row * r + row / 2 + 7);
+        context.fillText(fit(names[r], label - 6 - indent), indent, row * r + row / 2 + (low ? 0 : 7 * rem));
       }
       context.fillStyle = color("--line");
       context.fillRect(label, row * (r + 1) - 0.5, w - label, 1);
@@ -647,7 +675,7 @@
       const at = Math.max(label + half, Math.min(w - half, x(now - k * mark)));
       if (at + half > free - 4)
         continue;
-      context.fillText(text, at, h - 4);
+      context.fillText(text, at, h - 4 * rem);
       free = at - half;
     }
     context.textAlign = "left";
@@ -862,6 +890,7 @@
       const fill = document.createElement("i");
       bar.append(fill);
       const figures = document.createElement("div");
+      figures.className = "figures";
       cell.append(top, bar, figures);
       prow.append(cell);
       cells.push({ cell, word, chip, fill, figures });
@@ -893,11 +922,11 @@
       }
       c.fill.style.width = Math.min(100, e.max / Math.max(e.budget, 1) * 100) + "%";
       c.fill.className = e.max > e.budget ? "past" : "";
-      c.figures.textContent = T[lang].figures(e) + (failed ? " · " + e.error : "");
+      c.figures.textContent = failed ? e.error : T[lang].figures(e);
     });
     gaugeFill.style.width = Math.min(100, load / 10000) + "%";
     gaugeBound.style.left = loadBound / 10000 + "%";
-    heads.forEach((h, p) => { h.textContent = T[lang].budget + time(PERIODS[p] / 10, lang); });
+    heads.forEach((h) => { h.textContent = ""; });
     gaugeText.textContent = T[lang].gauge(load, loadBound);
     // cost, the slider's variable, defined with work: before, its line would fail.
     costRange.disabled = !pool.some((e) => e.state !== 0 && e.name === "work");
@@ -907,6 +936,7 @@
   let step = 0;
   const costRange = document.getElementById("cost-range");
   const costValue = document.getElementById("cost-value");
+  const setupText = (s) => s.quiet === 1 ? T[lang].stopAll : T[lang].setup;
   function showStep() {
     const s = TOUR[step], said = s[lang];
     document.getElementById("step-count").textContent = (step + 1) + " / " + TOUR.length;
@@ -925,15 +955,12 @@
       return mark;
     };
     code.textContent = "";
-    s.lines.forEach((l, k) => {
-      if (k > 0)
-        code.append("\n");
-      if (l === STOP_ALL)
-        code.append(marked(T[lang].stopAll));
-      else
-        l.split(/(\{\w+\})/).forEach((part) => {
-          code.append(/^\{\w+\}$/.test(part) ? marked(T[lang].slotOf(part.slice(1, -1))) : part);
-        });
+    code.append(marked(setupText(s)));
+    s.lines.slice(s.quiet).forEach((l) => {
+      code.append("\n");
+      l.split(/(\{\w+\})/).forEach((part) => {
+        code.append(/^\{\w+\}$/.test(part) ? marked(T[lang].slotOf(part.slice(1, -1))) : part);
+      });
     });
     document.getElementById("cost").hidden = !s.cost;
     document.getElementById("step-back").disabled = step === 0;
@@ -952,11 +979,12 @@
     view.watch(TOUR[step].freeze);
     view.window = TOUR[step].window || SHORT;
     showViews();
-    for (const line of TOUR[step].lines) {
+    noteDue = setupText(TOUR[step]);
+    for (const [k, line] of TOUR[step].lines.entries()) {
       const cost = /^(\d+) cost !$/.exec(line) || /^variable cost  (\d+) cost !$/.exec(line);
       if (cost)
         setCost(Number(cost[1]));
-      send(line, true);
+      send(line, true, k < TOUR[step].quiet);
     }
   });
   document.getElementById("step-back").addEventListener("click", () => { step -= 1; showStep(); });
@@ -1014,7 +1042,7 @@
     output.textContent = "";
     queue.length = 0;
     busy = fresh = false;
-    filled = null;
+    filled = noteDue = null;
     ready = false;
     cells.forEach((c) => { c.over = c.lately = 0; });
     showPins(0);
@@ -1044,8 +1072,13 @@
         showPool();
       }
       else if (m.start) {
-        print(sent, "typed");   // after what the slots printed before it
-        fresh = true;
+        if (sentQuiet && noteDue !== null) {
+          print(noteDue + "\n", "note");
+          noteDue = null;
+        }
+        if (!sentQuiet)
+          print(sent, "typed");   // after what the slots printed before it
+        fresh = !sentQuiet;
         said = "";
       }
       else if (m.done) {
@@ -1054,8 +1087,11 @@
         filled = null;
         // A line of the tour that failed: the rest of its step would bind the words as they
         // were before, or the slider set a variable no word reads.
-        if (sentTour && !answered(said))
+        if (sentTour && !answered(said)) {
           abandon(queue);
+          if (sentQuiet && !filled)
+            print(said);
+        }
         busy = false;
         next();
       }
@@ -1064,7 +1100,7 @@
         // of the pins alone comes with no text, which would add an empty span each time.
         filled = filled || full(m.text);
         said += m.text;
-        if (m.text === "")
+        if (m.text === "" || sentQuiet)
           ;
         else if (fresh) {
           print(/^\s/.test(m.text) ? m.text : " " + m.text);

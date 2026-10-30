@@ -15,7 +15,8 @@
 # under the mouse; whether it stays held as the page scrolls and over its card, and goes
 # on once the mouse has left the card; whether a drag, the arrow keys once it has the
 # focus and a sideways wheel scroll it back, and a click alone does not; whether its
-# scale steps by its buttons, the keys and a pinch. Each Chrome has WAIT s to say it: a
+# scale steps by its buttons, the keys and a pinch; and whether each step fits a window
+# of 1280 by 680: 823 high for Chrome, of which 143 go to what it draws around the page. Each Chrome has WAIT s to say it: a
 # cold one on the CI's runner took more than 19 s (2026-10-25).
 #   check_page.sh chrome build-directory [port]
 chrome=$1
@@ -43,8 +44,23 @@ perl -0pi -e 's{<head>}{<head>
     document.getElementById("step-run").click();
     const next = document.getElementById("step-next");
     next.focus();
-    while (!next.disabled)
+    // In the window of a small laptop, each step: all it speaks of in sight, without a scroll.
+    const out = (selector) => {
+      const e = document.querySelector(selector);
+      return e.offsetParent !== null && e.getBoundingClientRect().bottom > innerHeight + 1;
+    };
+    const side = document.querySelector(".side");
+    const unfit = () => ["#terminal", ".board", "#timeline", "#gauge-text", "#pool", "#step-next", "#restart"].filter(out)
+      .concat(side.scrollHeight > side.clientHeight + 1 ? ["tour"] : []);
+    shown.size = [innerWidth, innerHeight];
+    const runAt = () => Math.round(document.getElementById("step-run").getBoundingClientRect().top);
+    shown.runAt = [runAt()];
+    shown.unfit = [unfit()];
+    while (!next.disabled) {
       next.click();
+      shown.unfit.push(unfit());
+      shown.runAt.push(runAt());
+    }
     shown.focus = document.activeElement.id;
     shown.note = document.querySelector("#output .note").lang;
     const pause = document.getElementById("pause"), banner = document.getElementById("frozen");
@@ -91,16 +107,23 @@ perl -0pi -e 's{<head>}{<head>
         shown.dragged.push(banner.textContent);
         // As wide as on a phone, scrolled back 2 s, a label at each edge: none over another.
         plot.style.width = "294px";
-        const context = plot.getContext("2d"), fill = context.fillText, labels = [];
+        const context = plot.getContext("2d"), fill = context.fillText, labels = [], column = [];
         context.fillText = function (text, x, y) {
+          if (x === 0)
+            column.push(y);
           if (this.textAlign === "center")
             labels.push([x - this.measureText(text).width / 2, x + this.measureText(text).width / 2]);
           return fill.apply(this, arguments);
         };
         view.window = 1000000;
         view.scroll(-2000000);
+        const names = rowNames;
+        rowNames = () => ["a", "b", "c", "d"];
         // The labels of one frame: those drawn after the next one begins.
-        requestAnimationFrame(() => { labels.length = 0; requestAnimationFrame(() => {
+        requestAnimationFrame(() => { labels.length = column.length = 0; requestAnimationFrame(() => {
+        rowNames = names;
+        // The names of the rows, each on a line of its own at any height of the timeline.
+        shown.names = column.slice().sort((p, q) => p - q).every((y, k, all) => k === 0 || y - all[k - 1] >= 11);
         context.fillText = fill;
         plot.style.width = "";
         const drawn = labels.slice().sort((p, q) => p[0] - q[0]);
@@ -157,17 +180,17 @@ perl -0pi -e 's{<head>}{<head>
         const left = view.frozen - view.window;
         const fake = { row: 4, start: left - 3000, end: null, over: false, runs: [[left - 3000, left - 2000], [left + 1000, null]] };
         view.instances.push(fake);
-        const rect = context.fillRect, column = [];
+        const rect = context.fillRect, over = [];
         context.fillRect = function (x, y, w, h) {
           if (Math.min(x, x + w) < layout.label - 0.5)
-            column.push([x, w]);
+            over.push([x, w]);
           return rect.apply(this, arguments);
         };
-        requestAnimationFrame(() => { column.length = 0; requestAnimationFrame(() => {
+        requestAnimationFrame(() => { over.length = 0; requestAnimationFrame(() => {
         context.fillRect = rect;
         view.instances.splice(view.instances.indexOf(fake), 1);
         view.pause();
-        shown.column = column;
+        shown.column = over;
         shown.summed = summary.textContent.split(":")[0];
         view.window = 200000;
         fetch("/probe?" + encodeURIComponent(JSON.stringify(Object.assign(shown, {
@@ -202,7 +225,7 @@ failed=0
 for lang in en fr; do
   : >"$work/server.log"
   "$chrome" --headless --no-sandbox --user-data-dir="$work/$lang" --enable-logging=stderr --v=0 \
-    --remote-debugging-port=0 --accept-lang=$lang --lang=$lang "http://localhost:$port/" \
+    --remote-debugging-port=0 --window-size=1280,823 --accept-lang=$lang --lang=$lang "http://localhost:$port/" \
     >/dev/null 2>"$work/$lang.log" &
   browser=$!
   deadline=$(($(date +%s) + WAIT))
@@ -260,6 +283,9 @@ print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
   elif ! check 's["scrolled"][0] == s["banner"][1] and s["scrolled"][1] == s["banner"][1] and s["scrolled"][2] == "" and s["back"][0] == s["back"][1] / 10'; then
     echo "FAILED  $lang: the timeline not scrolled back by the arrow keys or a sideways wheel, or by a wheel up: $shown"
     failed=1
+  elif ! check 's["names"]'; then
+    echo "FAILED  $lang: the names of the rows over one another: $shown"
+    failed=1
   elif ! check 's["labels"] is True'; then
     echo "FAILED  $lang: labels of the axis over one another: $shown"
     failed=1
@@ -277,6 +303,15 @@ print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
     failed=1
   elif ! check 's["dragged"][0] == "" and s["dragged"][1] == s["banner"][1] and s["dragged"][2] > 0 and s["dragged"][3] == ""'; then
     echo "FAILED  $lang: the timeline stopped by a click or a later arrow, or not by a drag: $shown"
+    failed=1
+  elif ! check 'len(set(s["runAt"])) == 1'; then
+    echo "FAILED  $lang: the button that types the lines moves from step to step: $shown"
+    failed=1
+  elif ! check 's["size"][1] <= 680 and all(u == [] for u in s["unfit"])'; then
+    echo "FAILED  $lang: a step needs a scroll: $shown"
+    failed=1
+  elif ! check 're.search(r"›\n: blink", s["output"])'; then
+    echo "FAILED  $lang: the answer of a line that sets a step up shown: $shown"
     failed=1
   elif ! check '"slot 8  ok" in s["output"] and "blink" in s["pool"]'; then
     echo "FAILED  $lang: the tour's first step not run: $shown"
