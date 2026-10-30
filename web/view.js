@@ -170,12 +170,12 @@ function resolve(line, pool) {
 }
 
 // pending: The next line of queue to send, typed as it was or of the tour resolved, and
-// whether of the tour; null if none.
+// whether of the tour and shown or not; null if none.
 function pending(queue, pool) {
   while (queue.length > 0) {
     const item = queue.shift(), line = item.tour ? resolve(item.line, pool) : item.line;
     if (line !== null)
-      return { line, tour: item.tour };
+      return { line, tour: item.tour, quiet: item.quiet === true };
   }
   return null;
 }

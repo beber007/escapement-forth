@@ -186,6 +186,8 @@ function trace() {
 const block = source.slice(source.indexOf("const STOP_ALL ="), source.indexOf("];", source.indexOf("const TOUR = [")) + 2);
 const tour = Function("ZOOM", block + " return TOUR;")(V.ZOOM);
 check("the page has a tour", tour.length >= 6, tour.length);
+check("  each step can run alone, blink set up but in the first and the last", tour.every((s, k) =>
+      s.lines[0].startsWith("0 stop") && s.quiet === (k === 0 || k === tour.length - 1 ? 1 : 3)), "");
 check("each step said in English and in French", tour.every((s) => ["en", "fr"].every((l) =>
       s[l] && s[l].title && s[l].text && typeof s[l].watch === "string")), "");
 
@@ -225,7 +227,7 @@ check("each row named by its words", JSON.stringify(V.rowNames(bound)) === '["",
 // of 500 us takes some width.
 check("the timeline's views", V.WINDOWS.join() === "20000,50000,100000,200000,500000,1000000,2000000,5000000,10000000" &&
       V.ZOOM === 20000, V.WINDOWS);
-check("  the steps of a cost seen at 20 ms", ["cost", "over", "admitted"].every((id) =>
+check("  the steps of a cost seen at 20 ms", ["cost", "admitted"].every((id) =>
       tour.find((x) => x.id === id).window === V.ZOOM) && tour.every((x) => x.window === undefined ||
       V.WINDOWS.includes(x.window)), tour.map((x) => x.window));
 
@@ -391,11 +393,20 @@ const STEPS = {
     const e = view().slots[named("work")];
     check("  work measured within its budget of 1 ms", e.runs > 10 && e.max >= 500 && e.max <= 1000 &&
           e.budget === 1000 && e.over === 0, e);
-  },
-  over: (out) => {
-    const e = view().slots[named("work")];
-    check("  work over its budget, counted", e.over > 0, e);
+    line("2000 cost !");
+    idle(300);
+    const o = view().slots[named("work")];
+    check("  past the budget by the slider, over, counted", o.over > 0, o);
     check("  its runs ended over in the trace", trace().some((x) => x.kind === 2 && x.period === 1 && x.over), "");
+  },
+  forever: (out) => {
+    const before = view().slots[named("blink")].runs;
+    seen = [];
+    idle(500);
+    const e = view().slots[named("forever")], b = view().slots[named("blink")];
+    check("  forever cut at each run", e.runs > 10 && e.over >= e.runs - 1 && e.error === "", e);
+    check("  blink goes on, never over", b.runs - before >= 4 && b.over === 0 && seen.some((q) => q & 1 << 15) &&
+          seen.some((q) => !(q & 1 << 15)), [before, b, seen]);
   },
   admitted: (out) => {
     check("  work promoted", /promoted, wcet /.test(out), out);
@@ -424,10 +435,16 @@ const STEPS = {
     check("  promotions until the bound, then refused", (out.match(/promoted, wcet/g) || []).length >= 5 &&
           /refused, load 7/.test(out), out);
     check("  the load under its bound", view().load <= 700000, view().load);
+    // One word past the limit, or two where the clock's step makes each cost more.
+    check("  the last word left on trial", view().slots[11].state === 1, view().slots);
+    check("  blink on trial, the words around it", named("blink") === 8, named("blink"));
   },
   fails: (out) => {
     idle(100);
     check("  bad failed, its error kept", view().slots[named("bad")].error === "stack empty", view().slots[named("bad")]);
+    const before = view().slots[named("blink")].runs;
+    idle(300);
+    check("  blink goes on", view().slots[named("blink")].runs - before >= 2, view().slots[named("blink")]);
   },
   yours: (out) => check("  every slot free", view().slots.every((e) => e.state === 0), view().slots),
 };
