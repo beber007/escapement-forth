@@ -159,7 +159,9 @@
   .frozen { margin: 0 0 8px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line);
             background: var(--bg); font-size: 0.85rem; }
   .frozen:empty { margin: 0; padding: 0; border: 0; }
-  #timeline { display: block; width: 100%; height: 190px; }
+  #timeline { display: block; width: 100%; height: 190px; cursor: grab; touch-action: pan-y; }
+  #timeline.dragged { cursor: grabbing; }
+  #timeline:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .plot { position: relative; }
   .tip { position: absolute; z-index: 1; pointer-events: none; max-width: 260px; padding: 6px 8px;
          border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink);
@@ -284,7 +286,7 @@
           data-window="20000">20 ms</button><button data-window="200000">200 ms</button><button
           data-window="1000000">1 s</button></span> <button id="pause">Pause</button></span></div>
       <p class="frozen" id="frozen" aria-live="polite"></p>
-      <div class="plot"><canvas id="timeline" role="img" aria-label="The tasks the kernel ran, the last 200 ms"></canvas>
+      <div class="plot"><canvas id="timeline" role="img" tabindex="0" aria-label="The tasks the kernel ran, the last 200 ms"></canvas>
         <div class="tip" id="tip" aria-hidden="true" hidden></div></div>
       <ul class="legend">
         <li><i class="run"></i><span data-i18n="running">running, one color per task</span></li>
@@ -473,7 +475,7 @@
           runs: (n) => n + (n === 1 ? " run" : " runs"),
           releases: (n) => n + (n === 1 ? " release" : " releases"),
           summary: (w, rows, over) => "In the last " + w + ": " + rows + "; " + over + " over budget.",
-          watch: "Watch:", slotOf: (name) => "‹slot of " + name + "›", now: "now", pause: "Pause", resume: "Resume", frozen: "Frozen. Click Resume to go on.", stopAll: "‹stop every slot›",
+          watch: "Watch:", slotOf: (name) => "‹slot of " + name + "›", now: "now", pause: "Pause", resume: "Resume", frozen: "Frozen. Drag it, or use the arrow keys, to look back up to 10 s. Click Resume to go on.", stopAll: "‹stop every slot›",
           tipTask: (row, names) => "Task " + row + (names ? ": " + names : ", no word"), tipConsole: "A line of the console",
           tipAgo: (ago) => "Started " + ago + " ago", tipRunning: "Still running",
           tipTook: (wall, own) => "Took " + wall + (own === wall ? "" : ", " + own + " of it running"), tipOver: "Over budget, cut" },
@@ -493,7 +495,7 @@
           runs: (n) => n + (n < 2 ? " exécution" : " exécutions"),
           releases: (n) => n + (n < 2 ? " lancement" : " lancements"),
           summary: (w, rows, over) => "Sur les " + w.replace(" ", " dernières ") + " : " + rows + " ; " + over + " au-delà du budget.",
-          watch: "Regarde :", slotOf: (name) => "‹case de " + name + "›", now: "maintenant", pause: "Pause", resume: "Reprendre", frozen: "Frise figée. Clique sur Reprendre pour continuer.",
+          watch: "Regarde :", slotOf: (name) => "‹case de " + name + "›", now: "maintenant", pause: "Pause", resume: "Reprendre", frozen: "Frise figée. Fais-la glisser, ou utilise les flèches, pour remonter jusqu’à 10 s. Clique sur Reprendre pour continuer.",
           stopAll: "‹arrêter toutes les cases›",
           tipTask: (row, names) => "Tâche " + row + (names ? " : " + names : ", sans mot"), tipConsole: "Une ligne de la console",
           tipAgo: (ago) => "Lancée il y a " + ago, tipRunning: "Encore en cours",
@@ -575,7 +577,9 @@
     const label = w < 480 ? 64 : 96, axis = 18, row = (h - axis) / ROWS.length;
     const names = rowNames(pool), quiet = (r) => r < 4 && names[r] === "";
     const WINDOW = view.window, right = view.edge(), left = right - WINDOW;
-    layout = { label, row, left, right, WINDOW, w };
+    // now: The clock the axis counts back from: where the view stopped, scrolled back or not.
+    const now = view.stopped !== null ? view.stopped : right;
+    layout = { label, row, left, right, now, WINDOW, w };
     const x = (t) => label + (w - label) * (t - left) / WINDOW;
     context.font = "11px ui-monospace, Menlo, monospace";
     context.textBaseline = "middle";
@@ -627,11 +631,18 @@
     }
     context.fillStyle = color("--muted");
     context.textBaseline = "alphabetic";
-    const span = WINDOW / 1000, mark = span / 4;
-    for (let ms = 0; ms <= span; ms += mark) {
-      const at = label + (w - label) * (span - ms) / span;
-      context.textAlign = ms === 0 ? "right" : ms === span ? "left" : "center";
-      context.fillText(ms === 0 ? T[lang].now : "−" + ms + " ms", at, h - 4);
+    context.textAlign = "center";
+    const mark = WINDOW / 4;
+    // From the right, each label kept inside the plot, left out if it would cover the one
+    // drawn before it: at the width of a phone, or one pushed in from an edge.
+    let free = Infinity;
+    for (let k = Math.ceil((now - right) / mark); now - k * mark >= left; k += 1) {
+      const text = k === 0 ? T[lang].now : "−" + time(k * mark, lang), half = context.measureText(text).width / 2;
+      const at = Math.max(label + half, Math.min(w - half, x(now - k * mark)));
+      if (at + half > free - 4)
+        continue;
+      context.fillText(text, at, h - 4);
+      free = at - half;
     }
     context.textAlign = "left";
     if (performance.now() - summed > 500) {
@@ -655,6 +666,8 @@
   }
   scaleButtons.forEach((b) => b.addEventListener("click", () => {
     view.window = Number(b.dataset.window);
+    if (view.frozen !== null)
+      view.scroll(0);
     showViews();
   }));
   // The mouse over the timeline's card holds it where it is, Pause and its note left as
@@ -662,7 +675,7 @@
   // under it; a touch does not: Pause does that.
   function describe(i) {
     const lines = [i.row === 4 ? T[lang].tipConsole : T[lang].tipTask(ROWS[i.row], rowNames(pool)[i.row]),
-                   T[lang].tipAgo(time(layout.right - i.start, lang))];
+                   T[lang].tipAgo(time(layout.now - i.start, lang))];
     if (i.end === null || i.end > layout.right)
       lines.push(T[lang].tipRunning);
     else {
@@ -697,8 +710,64 @@
     tip.style.top = (py + 14 + tip.offsetHeight > box.height ? Math.max(0, py - 10 - tip.offsetHeight) : py + 14) + "px";
   }
   card.addEventListener("pointermove", (event) => {
-    if (event.pointerType !== "touch" && layout !== null)
+    if (event.pointerType !== "touch" && layout !== null && drag === null)
       hover(event.clientX, event.clientY);
+  });
+
+  // The timeline scrolled back by a drag, of the mouse or a finger, a sideways wheel or
+  // the arrow keys: stopped where it was, Resume back to the clock.
+  function scrollBy(dt) {
+    // At the clock, nothing later to move to: the timeline left going.
+    if (view.frozen === null && dt >= 0)
+      return;
+    const was = view.frozen;
+    view.scroll(dt);
+    tip.hidden = true;
+    if (was === null)
+      showViews();
+  }
+  const perPixel = () => layout.WINDOW / (layout.w - layout.label);
+  // drag: The pointer pressed on the timeline, and its x; moved, once past a few pixels so
+  // that a click does not stop it.
+  let drag = null;
+  canvas.addEventListener("pointerdown", (event) => {
+    if (layout === null || event.button !== 0)
+      return;
+    drag = { id: event.pointerId, x: event.clientX, moved: false };
+    canvas.setPointerCapture(event.pointerId);
+  });
+  canvas.addEventListener("pointermove", (event) => {
+    if (drag === null || event.pointerId !== drag.id)
+      return;
+    const dx = event.clientX - drag.x;
+    if (!drag.moved && Math.abs(dx) < 4)
+      return;
+    drag.moved = true;
+    canvas.classList.add("dragged");
+    drag.x = event.clientX;
+    scrollBy(-dx * perPixel());
+  });
+  const dropped = (event) => {
+    if (drag !== null && event.pointerId === drag.id) {
+      drag = null;
+      canvas.classList.remove("dragged");
+    }
+  };
+  canvas.addEventListener("pointerup", dropped);
+  canvas.addEventListener("pointercancel", dropped);
+  // A wheel sideways, a trackpad's two fingers, or with Shift; up and down left to the page.
+  canvas.addEventListener("wheel", (event) => {
+    const d = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.shiftKey ? event.deltaY : 0;
+    if (d === 0 || layout === null)
+      return;
+    event.preventDefault();
+    scrollBy(d * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? layout.w : 1) * perPixel());
+  }, { passive: false });
+  canvas.addEventListener("keydown", (event) => {
+    if ((event.key !== "ArrowLeft" && event.key !== "ArrowRight") || layout === null)
+      return;
+    event.preventDefault();
+    scrollBy((event.key === "ArrowLeft" ? -1 : 1) * layout.WINDOW / 10);
   });
   // letGo: The timeline let go; also when the page hides, or scrolls the card from under
   // the mouse, as some browsers then send no pointerleave. A scroll that leaves the mouse

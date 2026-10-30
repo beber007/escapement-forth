@@ -237,18 +237,20 @@ function feed(t, from, to) {
   t.traced({ trace: pairs, clock: to & 0x3fffffff });
 }
 let t = V.timeline(() => {});
-feed(t, 0, 3000000);
-check("the timeline keeps the last 2 s", t.instances.length <= 2010 && t.instances[0].start >= 999000,
+feed(t, 0, 13000000);
+check("the timeline keeps the last 10 s", t.instances.length >= 10009 && t.instances.length <= 10020 && t.instances[0].start >= 2999000,
       [t.instances.length, t.instances[0]]);
 const long = t.instances.find((i) => i.row === 3);
 check("  an instance of 1 s, its runs between those of 1 ms", long.end - long.start === 30200 &&
       long.runs.length === 32, long);
 t.pause();
 const at = t.frozen;
-feed(t, 3000000, 10000000);
-check("  bounded while stopped too", t.instances.length <= 3020, t.instances.length);
-check("  keeping what it shows", t.instances.filter((i) => i.end <= at && i.end >= at - 1000000).length >= 999,
+feed(t, 13000000, 40000000);
+check("  bounded while stopped too", t.instances.length <= 20040, t.instances.length);
+check("  keeping the 10 s before it stopped", t.instances.filter((i) => i.end <= at && i.end >= at - 10000000).length >= 10009,
       t.instances.filter((i) => i.end <= at).length);
+t.scroll(-100000000);
+check("  scrolled back to the first of them", t.frozen === at - 10000000 + t.window, [t.frozen, at]);
 t.window = 1000000;
 t.reset();
 check("  started anew, let go, of 200 ms", t.instances.length === 0 && t.frozen === null &&
@@ -279,6 +281,33 @@ t.held = null;
 check("  Pause there stops it there", t.frozen === held && t.edge() === held, [t.frozen, held]);
 t.pause();
 check("  let go, it follows the clock", t.edge() === t.clock, [t.edge(), t.clock]);
+// Scrolled: the view stops where it was, then moves within what it keeps, Pause back to
+// the clock.
+t = V.timeline(() => {});
+feed(t, 0, 3000000);
+t.scroll(-500000);
+check("the timeline scrolled stops and moves back", t.frozen === 2500000 && t.edge() === 2500000, t.frozen);
+feed(t, 3000000, 4000000);
+t.scroll(1000000000);
+check("  no later than where it stopped", t.frozen === 3000000, t.frozen);
+t.scroll(-1000000000);
+check("  no earlier than its first instance", t.frozen === t.instances[0].start + t.window && t.instances[0].start === 0,
+      [t.frozen, t.instances[0]]);
+t.pause();
+check("  Pause back to the clock", t.frozen === null && t.edge() === 4000000, t.edge());
+t.held = 3500000;
+t.scroll(-1000);
+check("  held, stopped where it was held", t.frozen === 3499000, t.frozen);
+t = V.timeline(() => {});
+feed(t, 0, 12000000);
+t.held = t.clock;
+feed(t, 12000000, 30000000);
+t.scroll(-1000000000);
+check("  held long, scrolled back through the 10 s before", t.frozen === 12000000 - 10000000 + t.window, t.frozen);
+t.window = 1000000;
+t.scroll(0);
+check("  a wider scale kept within them", t.frozen === 12000000 - 10000000 + 1000000, t.frozen);
+
 // hit: The instance of a row under the pointer, the nearest within the slack, none past it
 // nor past the view's edges.
 t = V.timeline(() => {});

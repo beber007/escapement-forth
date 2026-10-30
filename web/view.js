@@ -8,15 +8,15 @@
 
 const ZOOM = 20000, SHORT = 200000, LONG = 1000000;   // us of the timeline's views
 const WINDOWS = [ZOOM, SHORT, LONG];
-const KEPT = 2 * LONG;                  // us of instances kept behind the clock
+const KEPT = 10 * LONG;                 // us of instances kept behind the clock
 
 // timeline: What the kernel ran, from the trace: each instance of a task, the runs of it
 // between the tasks that preempted it, the row 4 the console's lines. frozen, if not null,
-// the clock the view stops at; onFreeze called when the view stops by itself. held, if not
-// null, the clock the view stays at while the pointer is over it, the page's Pause and its
-// note left as they are.
+// the clock the view stops at, and stopped the clock it stopped at, scrolled back from;
+// onFreeze called when the view stops by itself. held, if not null, the clock the view
+// stays at while the pointer is over it, the page's Pause and its note left as they are.
 function timeline(onFreeze) {
-  const view = { window: SHORT, instances: [], clock: 0, frozen: null, freezeRow: null, held: null };
+  const view = { window: SHORT, instances: [], clock: 0, frozen: null, stopped: null, freezeRow: null, held: null };
   let nested = [], base = 0, lastRaw = -1;
 
   // unwrap: The kernel's clock counts modulo 2^30.
@@ -52,7 +52,7 @@ function timeline(onFreeze) {
     if (row === view.freezeRow && view.frozen === null && t - instance.start >= 20000) {
       view.freezeRow = null;
       view.window = SHORT;
-      view.frozen = t + Math.min(20000, SHORT - (t - instance.start));
+      view.frozen = view.stopped = t + Math.min(20000, SHORT - (t - instance.start));
       onFreeze();
     }
     const below = nested[nested.length - 1];
@@ -60,8 +60,8 @@ function timeline(onFreeze) {
       below.runs.push([t, null]);
   }
 
-  // traced: A message of telemetry. Kept: the instances of the last KEPT us, and while
-  // frozen those the view shows.
+  // traced: A message of telemetry. Kept: the instances of the last KEPT us, and those of
+  // the KEPT us before where the view stopped or is held, to be scrolled back through.
   view.traced = (m) => {
     for (let k = 0; k < m.trace.length; k += 2) {
       const t = unwrap(m.trace[k]), kind = m.trace[k + 1] & 0xff;
@@ -76,20 +76,30 @@ function timeline(onFreeze) {
         end(4, t, false);
     }
     view.clock = Math.max(view.clock, unwrap(m.clock));
-    const at = view.frozen !== null ? view.frozen : view.held;
-    const shown = (i) => at !== null && i.start <= at && i.end >= at - LONG;
-    view.instances = view.instances.filter((i) => i.end === null || i.end >= view.clock - KEPT || shown(i));
+    const near = (i, at, behind) => at !== null && i.start <= at && i.end >= at - behind;
+    view.instances = view.instances.filter((i) => i.end === null || i.end >= view.clock - KEPT ||
+                                                  near(i, view.stopped, KEPT) || near(i, view.held, KEPT));
   };
 
   // pause: The view stopped where it is, or let go.
   view.pause = () => {
-    view.frozen = view.frozen === null ? view.edge() : null;
+    view.frozen = view.stopped = view.frozen === null ? view.edge() : null;
     view.freezeRow = null;
+  };
+
+  // scroll: The view stopped where it is, then moved dt us, within the KEPT us before it
+  // stopped and what is kept of them.
+  view.scroll = (dt) => {
+    if (view.frozen === null)
+      view.pause();
+    const first = view.instances.length > 0 ? view.instances[0].start : view.stopped;
+    const earliest = Math.min(view.stopped, Math.max(view.stopped - KEPT, first) + view.window);
+    view.frozen = Math.max(earliest, Math.min(view.stopped, view.frozen + dt));
   };
 
   // watch: The view let go, to stop on the next long instance of row if not undefined.
   view.watch = (row) => {
-    view.frozen = null;
+    view.frozen = view.stopped = null;
     view.freezeRow = row === undefined ? null : row;
   };
 
@@ -97,7 +107,7 @@ function timeline(onFreeze) {
   view.reset = () => {
     view.instances = [];
     view.clock = 0;
-    view.frozen = view.freezeRow = view.held = null;
+    view.frozen = view.stopped = view.freezeRow = view.held = null;
     view.window = SHORT;
     nested = [];
     base = 0;
