@@ -116,9 +116,27 @@ perl -0pi -e 's{<head>}{<head>
         pause.click();
         plot.dispatchEvent(new WheelEvent("wheel", { deltaY: -40, bubbles: true, cancelable: true }));
         shown.scrolled.push(banner.textContent);
+        // An instance of the console begun before the left edge, a run of it ended there:
+        // nothing drawn over the column of the rows.
+        view.pause();
+        const left = view.frozen - view.window;
+        const fake = { row: 4, start: left - 3000, end: null, over: false, runs: [[left - 3000, left - 2000], [left + 1000, null]] };
+        view.instances.push(fake);
+        const rect = context.fillRect, column = [];
+        context.fillRect = function (x, y, w, h) {
+          if (Math.min(x, x + w) < layout.label - 0.5)
+            column.push([x, w]);
+          return rect.apply(this, arguments);
+        };
+        requestAnimationFrame(() => { column.length = 0; requestAnimationFrame(() => {
+        context.fillRect = rect;
+        view.instances.splice(view.instances.indexOf(fake), 1);
+        view.pause();
+        shown.column = column;
         fetch("/probe?" + encodeURIComponent(JSON.stringify(Object.assign(shown, {
           errors, output: document.getElementById("output").textContent,
           pool: document.querySelector("#pool").textContent }))));
+        }); });
         }); });
       }, 1000);
     }, 1000);
@@ -207,6 +225,9 @@ print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
     failed=1
   elif ! check 's["labels"] is True'; then
     echo "FAILED  $lang: labels of the axis over one another: $shown"
+    failed=1
+  elif ! check 's["column"] == []'; then
+    echo "FAILED  $lang: a run before the left edge drawn over the column of the rows: $shown"
     failed=1
   elif ! check 's["focus"][1]'; then
     echo "FAILED  $lang: the timeline cannot have the focus: $shown"

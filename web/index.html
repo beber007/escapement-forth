@@ -623,7 +623,10 @@
       context.globalAlpha = quiet(i.row) ? 0.2 : 0.55;
       context.fillRect(x(Math.max(i.start, left)), top + row / 2 - 0.5, x(Math.min(stop, right)) - x(Math.max(i.start, left)), 1);
       context.globalAlpha = quiet(i.row) ? 0.35 : 1;
+      // A run of it outside the view left out: drawn, it would reach back over the rows' names.
       for (const [a, b] of i.runs) {
+        if ((b !== null && b < left) || a > right)
+          continue;
         const from = x(Math.max(a, left)), to = x(Math.min(b === null ? right : b, right));
         context.fillRect(from, top + row * 0.22, to - from, row * 0.56);
       }
