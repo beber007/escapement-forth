@@ -490,7 +490,10 @@ idle(100);
 // 626 us run past it (2026-10-29); here 0.15 and 0.3 ms. Read to the ms, such a pause is
 // under a step and cannot be seen. churn, a loop of some 400 us, reads the clock only at
 // the Forth's checks of its budget, every few us: a jump past a step there is a pause too
-// (a review).
+// (a review). A word promoted gets the longest run of its trial and a quarter as budget;
+// churn's own time varies more than that under jsc as it compiles and collects, and a
+// trial of 300 ms let it pass its budget by itself, up to 7 runs in 100: its trial is
+// longer (2026-10-30).
 if (STEP < 1) {
   line("variable n  20000 n !");
   line(": churn  0 begin 1+ dup n @ = until drop ;");
@@ -502,7 +505,7 @@ if (STEP < 1) {
 for (const [word, ms] of STEP < 1 ? [["work", 0.15], ["work", 0.3], ["churn", 0.3]] : []) {
   r = line("' " + word + " 10 every");
   const slot = number(r.out.replace("slot", ""));
-  idle(300);
+  idle(word === "churn" ? 1500 : 300);
   line(slot + " promote");
   const before = view().slots[slot].runs, from = paused;
   pauseEvery = 1;
