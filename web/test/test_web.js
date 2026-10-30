@@ -186,6 +186,8 @@ function trace() {
 const block = source.slice(source.indexOf("const STOP_ALL ="), source.indexOf("];", source.indexOf("const TOUR = [")) + 2);
 const tour = Function("ZOOM", block + " return TOUR;")(V.ZOOM);
 check("the page has a tour", tour.length >= 6, tour.length);
+check("  its code marked in pairs", tour.every((s) => ["en", "fr"].every((l) =>
+      (s[l].text + s[l].watch).split("`").length % 2 === 1)), "");
 check("  each step can run alone, blink set up but in the first and the last", tour.every((s, k) =>
       s.lines[0].startsWith("0 stop") && s.quiet === (k === 0 || k === tour.length - 1 ? 1 : 3)), "");
 check("each step said in English and in French", tour.every((s) => ["en", "fr"].every((l) =>

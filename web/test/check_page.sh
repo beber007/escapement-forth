@@ -50,8 +50,8 @@ perl -0pi -e 's{<head>}{<head>
       return e.offsetParent !== null && e.getBoundingClientRect().bottom > innerHeight + 1;
     };
     const side = document.querySelector(".side");
-    const unfit = () => ["#terminal", ".board", "#timeline", "#gauge-text", "#pool", "#step-next", "#restart"].filter(out)
-      .concat(side.scrollHeight > side.clientHeight + 1 ? ["tour"] : []);
+    const unfit = () => (document.getElementById("step-watch").hidden = document.getElementById("step-watch").textContent === "", ["#terminal", ".board", "#timeline", "#gauge-text", "#pool", "#step-next", "#restart"].filter(out)
+      .concat(side.scrollHeight > side.clientHeight + 1 ? ["tour"] : []));
     shown.size = [innerWidth, innerHeight];
     const runAt = () => Math.round(document.getElementById("step-run").getBoundingClientRect().top);
     shown.runAt = [runAt()];
@@ -193,9 +193,24 @@ perl -0pi -e 's{<head>}{<head>
         shown.column = over;
         shown.summed = summary.textContent.split(":")[0];
         view.window = 200000;
-        fetch("/probe?" + encodeURIComponent(JSON.stringify(Object.assign(shown, {
-          errors, output: document.getElementById("output").textContent,
-          pool: document.querySelector("#pool").textContent }))));
+        // The flow of a step: what to watch said once its lines are typed, what to watch
+        // marked, and the one button then going to the next step.
+        const run = document.getElementById("step-run"), watch = document.getElementById("step-watch");
+        document.getElementById("step-back").click();
+        while (step !== 0)
+          document.getElementById("step-back").click();
+        shown.flow = [watch.hidden, run.textContent];
+        run.click();
+        // A double click: the lines typed by then, the second must not skip what they show.
+        setTimeout(() => run.click(), 100);
+        setTimeout(() => {
+          shown.flow.push(watch.hidden, run.textContent, document.querySelectorAll(".look").length);
+          run.click();
+          shown.flow.push(step, watch.hidden, document.querySelectorAll(".look").length);
+          fetch("/probe?" + encodeURIComponent(JSON.stringify(Object.assign(shown, {
+            errors, output: document.getElementById("output").textContent,
+            pool: document.querySelector("#pool").textContent }))));
+        }, 1000);
         }); });
         }); });
       }, 1000);
@@ -239,7 +254,7 @@ import re, sys, urllib.parse
 m = re.search(r"GET /probe\?(\S+)", open(sys.argv[1]).read())
 print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
   errors=$(grep -i "uncaught" "$work/$lang.log")
-  check() { python3 -c "import json, re, sys; s = json.loads(sys.argv[1]); sys.exit(0 if $1 else 1)" "$shown"; }
+  check() { python3 -c "import json, re, sys; s = json.loads(sys.argv[1]); sys.exit(0 if ($1) else 1)" "$shown"; }
   if [ -n "$errors" ]; then
     echo "FAILED  $lang: $errors"
     failed=1
@@ -303,6 +318,9 @@ print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
     failed=1
   elif ! check 's["dragged"][0] == "" and s["dragged"][1] == s["banner"][1] and s["dragged"][2] > 0 and s["dragged"][3] == ""'; then
     echo "FAILED  $lang: the timeline stopped by a click or a later arrow, or not by a drag: $shown"
+    failed=1
+  elif ! check 's["flow"][0] and not s["flow"][2] and s["flow"][1] != s["flow"][3] and s["flow"][4] >= 2 and s["flow"][5:] == [1, True, 0]'; then
+    echo "FAILED  $lang: the steps of the tour do not flow: $shown"
     failed=1
   elif ! check 'len(set(s["runAt"])) == 1'; then
     echo "FAILED  $lang: the button that types the lines moves from step to step: $shown"
