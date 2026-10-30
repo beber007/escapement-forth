@@ -29,22 +29,29 @@ const LINE = 128;    // FORTH_LINE
 
 let forth, output = "", pins = 0, seen = [], failures = 0;
 let jump = 0, stallIn = -1;   // ms the clock jumps once, at the stallIn-th reading from now
-// The clock jumps 0.3 ms at the first reading past pauseAt inside a call of the worker,
-// not its first, then pauseEvery ms later; paused counts the jumps.
-let pauseEvery = 0, pauseAt = 0, paused = 0, callReads = -1;
+// The clock jumps pauseMs at the first reading past pauseAt in a call of the worker, not
+// its first. The next jump comes 0.5 to 1.5 pauseEvery later: a pause of the browser
+// lands at any time. A jump every ms, with runs of 500 us end to end, landed again and
+// again at the end of a wait: a few us that a real pause almost never meets (a review,
+// 2026-10-29). paused counts the jumps; seed draws the same intervals each run.
+let pauseEvery = 0, pauseMs = 0, pauseAt = 0, paused = 0, callReads = -1, seed = 1;
 const t0 = now(), wasm = new WebAssembly.Module(read(args[0]));
 // boot: A Forth anew, as the page's Restart starts it.
 function boot() {
   forth = new WebAssembly.Instance(wasm, { env: {
     web_now: () => {
+      // One reading of the wall: a second, made only while pausing, slowed a loop that
+      // reads the clock every few us by a quarter, past the budget it was promoted with.
+      const wall = now();
       if (stallIn >= 0 && stallIn-- === 0)
         jump += 50;
-      if (pauseEvery > 0 && callReads >= 0 && callReads++ > 0 && now() >= pauseAt) {
-        jump += 0.3;
+      if (pauseEvery > 0 && callReads >= 0 && callReads++ > 0 && wall >= pauseAt) {
+        jump += pauseMs;
         paused += 1;
-        pauseAt = now() + pauseEvery;
+        seed = Math.imul(seed, 1103515245) + 12345 & 0x7fffffff;
+        pauseAt = wall + pauseEvery * (0.5 + seed / 0x7fffffff);
       }
-      const t = now() - t0 + jump;
+      const t = wall - t0 + jump;
       return STEP === 0 ? t : Math.floor(t / STEP) * STEP;
     },
     web_write: (p, n, q) => {
@@ -424,22 +431,33 @@ check("two spends of a run held as one, within its budget", e.runs > 10 && e.max
 stopAll();
 idle(100);
 
-// Short pauses of the browser in the runs of a promoted word are not its own: 0.3 ms,
-// under WEB_STALL_US, made a word of 500 us promoted with a budget of 626 us run past it
-// in Chrome (2026-10-29). Read to the ms, such a pause is under a step and cannot be seen.
+// Short pauses of the browser in the runs of a promoted word are not its own: in Chrome,
+// 0.2 to 0.6 ms, under WEB_STALL_US, made a word of 500 us promoted with a budget of
+// 626 us run past it (2026-10-29); here 0.15 and 0.3 ms. Read to the ms, such a pause is
+// under a step and cannot be seen. churn, a loop of some 400 us, reads the clock only at
+// the Forth's checks of its budget, every few us: a jump past a step there is a pause too
+// (a review).
 if (STEP < 1) {
+  line("variable n  20000 n !");
+  line(": churn  0 begin 1+ dup n @ = until drop ;");
+  r = line("now churn now swap - .");
+  check("churn timed", number(r.out) > 0, r.out);
+  line(Math.round(20000 * 400 / number(r.out)) + " n !");
   line(": work  500 spend ;");
-  r = line("' work 10 every");
+}
+for (const [word, ms] of STEP < 1 ? [["work", 0.15], ["work", 0.3], ["churn", 0.3]] : []) {
+  r = line("' " + word + " 10 every");
   const slot = number(r.out.replace("slot", ""));
   idle(300);
   line(slot + " promote");
-  const before = view().slots[slot].runs;
+  const before = view().slots[slot].runs, from = paused;
   pauseEvery = 1;
+  pauseMs = ms;
   idle(1000);
   pauseEvery = 0;
   e = view().slots[slot];
-  check("short pauses of the browser left out of a promoted word", e.state === 2 &&
-        e.runs - before > 80 && paused > 20 && e.over === 0, [e, before, paused]);
+  check("short pauses of the browser left out of a promoted " + word + ", of " + ms + " ms", e.state === 2 &&
+        e.runs - before > 80 && paused - from > 20 && e.over === 0, [e, before, paused - from]);
   stopAll();
   idle(100);
 }
