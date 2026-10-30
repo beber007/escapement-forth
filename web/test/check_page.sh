@@ -12,8 +12,9 @@
 # could be run before the Forth was ready, its clock not yet measured. Then it runs the
 # first step, a line sent and answered, and says what the console and the pool show,
 # and where the focus is once Next has gone through the tour, and what the timeline says
-# under the mouse. Each Chrome has WAIT s to
-# say it: a cold one on the CI's runner took more than 19 s (2026-10-25).
+# under the mouse; whether it stays held as the page scrolls and over its card, and goes
+# on once the mouse has left the card. Each Chrome has WAIT s to say it: a cold one on
+# the CI's runner took more than 19 s (2026-10-25).
 #   check_page.sh chrome build-directory [port]
 chrome=$1
 build=$2
@@ -55,11 +56,26 @@ perl -0pi -e 's{<head>}{<head>
     plot.dispatchEvent(new PointerEvent("pointermove", { pointerType: "mouse", bubbles: true,
       clientX: box.right - 30, clientY: box.top + (box.height - 18) / 10 }));
     shown.tip = [tip.hidden ? null : tip.textContent, banner.textContent];
+    dispatchEvent(new Event("scroll"));
+    shown.tip.push(!tip.hidden);
     plot.dispatchEvent(new PointerEvent("pointerleave", { pointerType: "mouse" }));
     shown.tip.push(tip.hidden);
-    setTimeout(() => fetch("/probe?" + encodeURIComponent(JSON.stringify(Object.assign(shown, {
-      errors, output: document.getElementById("output").textContent,
-      pool: document.querySelector("#pool").textContent })))), 2000);
+    // The edge drawn, layout.right, against the one held: the page script shares them.
+    const card = plot.closest(".card"), scale = document.querySelector("[data-window]").getBoundingClientRect();
+    card.dispatchEvent(new PointerEvent("pointerleave", { pointerType: "mouse" }));
+    const free = layout.right;
+    setTimeout(() => {
+      shown.moved = layout.right - free;
+      document.querySelector("[data-window]").dispatchEvent(new PointerEvent("pointermove", { pointerType: "mouse",
+        bubbles: true, clientX: scale.left + 5, clientY: scale.top + 5 }));
+      const held = view.held;
+      setTimeout(() => {
+        shown.still = held !== null && view.held === held && layout.right === held;
+        fetch("/probe?" + encodeURIComponent(JSON.stringify(Object.assign(shown, {
+          errors, output: document.getElementById("output").textContent,
+          pool: document.querySelector("#pool").textContent }))));
+      }, 1000);
+    }, 1000);
   }, '$SETTLE'000);
 </script>
 </body>}' "$work/site/index.html"
@@ -128,8 +144,17 @@ print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
   elif ! check 's["banner"][0] == "" and s["banner"][1] not in ("", True) and s["banner"][2] == ""'; then
     echo "FAILED  $lang: the timeline stopped without saying so: $shown"
     failed=1
-  elif ! check 's["tip"][0] is not None and s["tip"][0].startswith({"en": "Task 1 ms", "fr": "Tâche 1 ms"}["'$lang'"]) and s["tip"][1] == "" and s["tip"][2]'; then
+  elif ! check 's["tip"][0] is not None and s["tip"][0].startswith({"en": "Task 1 ms", "fr": "Tâche 1 ms"}["'$lang'"]) and s["tip"][1] == "" and s["tip"][3]'; then
     echo "FAILED  $lang: the timeline said nothing under the mouse, or kept it: $shown"
+    failed=1
+  elif ! check 's["tip"][2]'; then
+    echo "FAILED  $lang: the timeline let go as the page scrolled, the mouse still over it: $shown"
+    failed=1
+  elif ! check 's["moved"] > 500000'; then
+    echo "FAILED  $lang: the timeline held, the mouse gone from its card: $shown"
+    failed=1
+  elif ! check 's["still"]'; then
+    echo "FAILED  $lang: the timeline let go, the mouse still over its card: $shown"
     failed=1
   elif ! check '"slot 8  ok" in s["output"] and "blink" in s["pool"]'; then
     echo "FAILED  $lang: the tour's first step not run: $shown"
