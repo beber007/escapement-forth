@@ -12,9 +12,11 @@ const KEPT = 2 * LONG;                  // us of instances kept behind the clock
 
 // timeline: What the kernel ran, from the trace: each instance of a task, the runs of it
 // between the tasks that preempted it, the row 4 the console's lines. frozen, if not null,
-// the clock the view stops at; onFreeze called when the view stops by itself.
+// the clock the view stops at; onFreeze called when the view stops by itself. held, if not
+// null, the clock the view stays at while the pointer is over it, the page's Pause and its
+// note left as they are.
 function timeline(onFreeze) {
-  const view = { window: SHORT, instances: [], clock: 0, frozen: null, freezeRow: null };
+  const view = { window: SHORT, instances: [], clock: 0, frozen: null, freezeRow: null, held: null };
   let nested = [], base = 0, lastRaw = -1;
 
   // unwrap: The kernel's clock counts modulo 2^30.
@@ -74,13 +76,14 @@ function timeline(onFreeze) {
         end(4, t, false);
     }
     view.clock = Math.max(view.clock, unwrap(m.clock));
-    const shown = (i) => view.frozen !== null && i.start <= view.frozen && i.end >= view.frozen - LONG;
+    const at = view.frozen !== null ? view.frozen : view.held;
+    const shown = (i) => at !== null && i.start <= at && i.end >= at - LONG;
     view.instances = view.instances.filter((i) => i.end === null || i.end >= view.clock - KEPT || shown(i));
   };
 
   // pause: The view stopped where it is, or let go.
   view.pause = () => {
-    view.frozen = view.frozen === null ? view.clock : null;
+    view.frozen = view.frozen === null ? view.edge() : null;
     view.freezeRow = null;
   };
 
@@ -94,14 +97,34 @@ function timeline(onFreeze) {
   view.reset = () => {
     view.instances = [];
     view.clock = 0;
-    view.frozen = view.freezeRow = null;
+    view.frozen = view.freezeRow = view.held = null;
     view.window = SHORT;
     nested = [];
     base = 0;
     lastRaw = -1;
   };
 
+  // edge: The clock at the view's right edge.
+  view.edge = () => view.frozen !== null ? view.frozen : view.held !== null ? view.held : view.clock;
+
   return view;
+}
+
+// hit: The instance of row drawn between left and right nearest t, running, waiting or
+// within slack us of it, null if none: at 200 ms across, a pixel holds 250 us, and a run
+// of the 1 ms task a few.
+function hit(instances, row, t, slack, left, right) {
+  let best = null, gap = slack;
+  for (const i of instances) {
+    if (i.row !== row || i.start > right || (i.end !== null && i.end < left))
+      continue;
+    const d = t < i.start ? i.start - t : i.end !== null && t > i.end ? t - i.end : 0;
+    if (d <= gap) {
+      best = i;
+      gap = d;
+    }
+  }
+  return best;
 }
 
 // rowNames: For each period, the names of the words bound in its slots, "" for none.

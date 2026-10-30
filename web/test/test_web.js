@@ -138,7 +138,7 @@ const pend = (queue, pool) => {
   const item = V.pending(queue, pool);
   return item === null ? null : item.line;
 };
-const V = Function(text(args[3]) + " return { timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, rowNames, WINDOWS, ZOOM };")();
+const V = Function(text(args[3]) + " return { timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, rowNames, hit, WINDOWS, ZOOM };")();
 
 forth.web_init();
 take();
@@ -264,6 +264,31 @@ t = V.timeline(() => {});
 feed(t, 0x3fff0000 - 0x3fff0000 % 1000000, 0x40100000);
 check("  its clock past 2^30", t.clock === 0x40100000 && t.instances.every((i) => i.end === null || i.end > i.start),
       t.clock);
+
+// Held under the pointer: the view stays where it was, what it shows kept, and Pause
+// stops it there; let go, it follows the clock again.
+t = V.timeline(() => {});
+feed(t, 0, 1500000);
+t.held = t.clock;
+const held = t.held;
+feed(t, 1500000, 5000000);
+check("the timeline held under the pointer", t.edge() === held && t.frozen === null &&
+      t.instances.some((i) => i.row === 3 && i.start === 1000000), [t.edge(), held]);
+t.pause();
+t.held = null;
+check("  Pause there stops it there", t.frozen === held && t.edge() === held, [t.frozen, held]);
+t.pause();
+check("  let go, it follows the clock", t.edge() === t.clock, [t.edge(), t.clock]);
+// hit: The instance of a row under the pointer, the nearest within the slack, none past it
+// nor past the view's edges.
+t = V.timeline(() => {});
+feed(t, 0, 1000000);
+const one = V.hit(t.instances, 0, 999050, 0, 0, 1000000), close = V.hit(t.instances, 0, 999140, 100, 0, 1000000);
+const none = V.hit(t.instances, 0, 999500, 100, 0, 1000000);
+const drawn = V.hit(t.instances, 0, 998990, 100, 0, 1000000), after = V.hit(t.instances, 0, 998990, 100, 0, 998990);
+check("  the instance under the pointer", one !== null && one.start === 999001 && close === one &&
+      none === null && drawn === one && after === null && V.hit(t.instances, 3, 15000, 0, 0, 1000000).start === 0,
+      [one, close, none, drawn, after]);
 
 // The lines of the tour, a word's slot named; the lines typed, as typed.
 const pool = [{ state: 0, name: "" }, { state: 1, name: "work" }];
