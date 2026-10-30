@@ -138,7 +138,7 @@ const pend = (queue, pool) => {
   const item = V.pending(queue, pool);
   return item === null ? null : item.line;
 };
-const V = Function(text(args[3]) + " return { timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, rowNames, hit, WINDOWS, ZOOM };")();
+const V = Function(text(args[3]) + " return { timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, rowNames, hit, span, WINDOWS, ZOOM };")();
 
 forth.web_init();
 take();
@@ -204,8 +204,9 @@ check("each text of the script in English and in French", Object.keys(T.en).sort
 
 check("  in French, 0 and 1 singular", T.fr.runs(0) === "0 exécution" && T.fr.runs(1) === "1 exécution" &&
       T.fr.runs(2) === "2 exécutions" && T.en.runs(0) === "0 runs", [T.fr.runs(0), T.en.runs(0)]);
-check("  in French, the number before dernières", T.fr.summary(V.time(1000000, "fr"), "", "").startsWith("Sur les 1000 dernières ms :"),
-      T.fr.summary(V.time(1000000, "fr"), "", ""));
+const summed = [200000, 1000000, 10000000].map((us) => T.fr.summary(V.span(us, "fr"), "", "").split(" :")[0]);
+check("  in French, the number before dernières, in s from 1 s", summed.join("|") ===
+      "Sur les 200 dernières ms|Sur la dernière seconde|Sur les 10 dernières secondes", summed);
 
 // The timeline's rows named by the words bound in each period, the free slots left out;
 // a row with none named "".
@@ -218,7 +219,8 @@ check("each row named by its words", JSON.stringify(V.rowNames(bound)) === '["",
 
 // The views of the timeline, shortest first: the steps of a cost seen at 20 ms, where a run
 // of 500 us takes some width.
-check("the timeline's views", V.WINDOWS.join() === "20000,200000,1000000" && V.ZOOM === 20000, V.WINDOWS);
+check("the timeline's views", V.WINDOWS.join() === "20000,50000,100000,200000,500000,1000000,2000000,5000000,10000000" &&
+      V.ZOOM === 20000, V.WINDOWS);
 check("  the steps of a cost seen at 20 ms", ["cost", "over", "admitted"].every((id) =>
       tour.find((x) => x.id === id).window === V.ZOOM) && tour.every((x) => x.window === undefined ||
       V.WINDOWS.includes(x.window)), tour.map((x) => x.window));
@@ -307,6 +309,33 @@ check("  held long, scrolled back through the 10 s before", t.frozen === 1200000
 t.window = 1000000;
 t.scroll(0);
 check("  a wider scale kept within them", t.frozen === 12000000 - 10000000 + 1000000, t.frozen);
+
+// Zoomed: a scale step by step, kept within the views; stopped, about the time under the
+// pointer; held, what a view of 10 s shows kept.
+t = V.timeline(() => {});
+t.zoom(1);
+const finer = t.window;
+t.zoom(20);
+const widest = t.window;
+t.zoom(-20);
+check("the timeline zoomed a step, within its views", finer === 500000 && widest === 10000000 && t.window === 20000,
+      [finer, widest, t.window]);
+t.window = 200000;
+feed(t, 0, 12000000);
+t.scroll(-1000000);
+t.zoom(-1, 10950000);
+check("  stopped, about the time under the pointer", t.window === 100000 && t.frozen === 10975000, [t.window, t.frozen]);
+t.zoom(1, 10000000);
+t.zoom(1, 10000000);
+check("  no later than where it stopped", t.window === 500000 && t.frozen === t.stopped, [t.frozen, t.stopped]);
+t = V.timeline(() => {});
+feed(t, 0, 12000000);
+t.window = 10000000;
+t.held = t.clock;
+feed(t, 12000000, 30000000);
+check("  held, the 10 s it shows kept", t.instances.some((i) => i.start === 3000001), t.instances[0]);
+check("a span of the axis, in s from 1 s", V.span(2000000, "fr") === "2 s" && V.span(1250000, "fr") === "1,25 s" &&
+      V.span(500000, "en") === "500 ms" && V.span(12500, "fr") === "12,5 ms", [V.span(1250000, "fr"), V.span(12500, "fr")]);
 
 // hit: The instance of a row under the pointer, the nearest within the slack, none past it
 // nor past the view's edges.

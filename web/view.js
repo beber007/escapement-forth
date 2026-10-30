@@ -7,7 +7,7 @@
 // times and shares as the page writes them.
 
 const ZOOM = 20000, SHORT = 200000, LONG = 1000000;   // us of the timeline's views
-const WINDOWS = [ZOOM, SHORT, LONG];
+const WINDOWS = [ZOOM, 50000, 100000, SHORT, 500000, LONG, 2000000, 5000000, 10000000];
 const KEPT = 10 * LONG;                 // us of instances kept behind the clock
 
 // timeline: What the kernel ran, from the trace: each instance of a task, the runs of it
@@ -85,6 +85,18 @@ function timeline(onFreeze) {
   view.pause = () => {
     view.frozen = view.stopped = view.frozen === null ? view.edge() : null;
     view.freezeRow = null;
+  };
+
+  // zoom: The view's scale steps of WINDOWS finer or wider, within them; stopped, about
+  // the clock at if not undefined, that time staying where it is drawn.
+  view.zoom = (steps, at) => {
+    const was = view.window, k = Math.max(0, Math.min(WINDOWS.length - 1, WINDOWS.indexOf(was) + steps));
+    view.window = WINDOWS[k];
+    if (view.frozen !== null) {
+      if (at !== undefined)
+        view.frozen = at + (view.frozen - at) * view.window / was;
+      view.scroll(0);
+    }
   };
 
   // scroll: The view stopped where it is, then moved dt us, within the KEPT us before it
@@ -214,6 +226,11 @@ function abandon(queue) {
 // as the budget, and a worst case admitted above it.
 function time(us, lang) {
   return us < 1000 ? us + " µs" : decimal(String(us / 1000), lang) + " ms";
+}
+
+// span: us as the axis and the scale write it: from 1 s, in s.
+function span(us, lang) {
+  return us < 1000000 ? time(us, lang) : decimal(String(us / 1000000), lang) + " s";
 }
 
 function share(ppm, lang) {
