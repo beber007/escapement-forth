@@ -228,13 +228,18 @@ function time(us, lang) {
   return us < 1000 ? us + " µs" : decimal(String(us / 1000), lang) + " ms";
 }
 
+// count: A count as a slot of the pool writes it, which has room for few digits.
+function count(n) {
+  return n < 1000 ? String(n) : Math.floor(n / 1000) + "k";
+}
+
 // span: us as the axis and the scale write it: from 1 s, in s.
 function span(us, lang) {
   return us < 1000000 ? time(us, lang) : decimal(String(us / 1000000), lang) + " s";
 }
 
 function share(ppm, lang) {
-  return decimal((Math.ceil(ppm / 1000) / 10).toFixed(1), lang) + " %";
+  return decimal((Math.ceil(ppm / 1000) / 10).toFixed(1), lang) + (lang === "fr" ? " %" : "%");
 }
 
 function decimal(text, lang) {
