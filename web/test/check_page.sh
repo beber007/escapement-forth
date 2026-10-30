@@ -14,8 +14,9 @@
 # and where the focus is once Next has gone through the tour, and what the timeline says
 # under the mouse; whether it stays held as the page scrolls and over its card, and goes
 # on once the mouse has left the card; whether a drag, the arrow keys once it has the
-# focus and a sideways wheel scroll it back, and a click alone does not. Each Chrome has
-# WAIT s to say it: a cold one on the CI's runner took more than 19 s (2026-10-25).
+# focus and a sideways wheel scroll it back, and a click alone does not; whether its
+# scale steps by its buttons, the keys and a pinch. Each Chrome has WAIT s to say it: a
+# cold one on the CI's runner took more than 19 s (2026-10-25).
 #   check_page.sh chrome build-directory [port]
 chrome=$1
 build=$2
@@ -62,12 +63,12 @@ perl -0pi -e 's{<head>}{<head>
     plot.dispatchEvent(new PointerEvent("pointerleave", { pointerType: "mouse" }));
     shown.tip.push(tip.hidden);
     // The edge drawn, layout.right, against the one held: the page script shares them.
-    const card = plot.closest(".card"), scale = document.querySelector("[data-window]").getBoundingClientRect();
+    const card = plot.closest(".card"), scale = document.getElementById("finer").getBoundingClientRect();
     card.dispatchEvent(new PointerEvent("pointerleave", { pointerType: "mouse" }));
     const free = layout.right;
     setTimeout(() => {
       shown.moved = layout.right - free;
-      document.querySelector("[data-window]").dispatchEvent(new PointerEvent("pointermove", { pointerType: "mouse",
+      document.getElementById("finer").dispatchEvent(new PointerEvent("pointermove", { pointerType: "mouse",
         bubbles: true, clientX: scale.left + 5, clientY: scale.top + 5 }));
       const held = view.held;
       setTimeout(() => {
@@ -116,6 +117,40 @@ perl -0pi -e 's{<head>}{<head>
         pause.click();
         plot.dispatchEvent(new WheelEvent("wheel", { deltaY: -40, bubbles: true, cancelable: true }));
         shown.scrolled.push(banner.textContent);
+        // The scale: a step finer or wider by its buttons, the keys and a pinch, within its views.
+        const finer = document.getElementById("finer"), wider = document.getElementById("wider");
+        const shownSpan = () => document.getElementById("span").textContent;
+        view.window = 200000;
+        finer.click();
+        shown.scale = [shownSpan()];
+        for (let k = 0; k < 12; k += 1)
+          wider.click();
+        shown.scale.push(shownSpan(), wider.getAttribute("aria-disabled"));
+        plot.dispatchEvent(new KeyboardEvent("keydown", { key: "+", bubbles: true }));
+        shown.scale.push(shownSpan());
+        plot.dispatchEvent(new WheelEvent("wheel", { deltaY: 60, ctrlKey: true, bubbles: true, cancelable: true,
+          clientX: box.right - 50, clientY: box.top + 20 }));
+        shown.scale.push(shownSpan(), banner.textContent);
+        for (let k = 0; k < 12; k += 1)
+          plot.dispatchEvent(new KeyboardEvent("keydown", { key: "=", bubbles: true }));
+        shown.scale.push(shownSpan(), finer.getAttribute("aria-disabled"));
+        plot.dispatchEvent(new KeyboardEvent("keydown", { key: "-", ctrlKey: true, bubbles: true, cancelable: true }));
+        shown.scale.push(shownSpan());
+        // Stopped, a pinch keeps the time under the pointer where it is drawn; over the
+        // column of the rows, that of the left edge.
+        view.window = 200000;
+        view.pause();
+        const under = (x) => view.frozen - view.window + (Math.max(x, box.left + layout.label) - box.left - layout.label) * view.window / (layout.w - layout.label);
+        const pinch = (x) => plot.dispatchEvent(new WheelEvent("wheel", { deltaY: -60, ctrlKey: true, bubbles: true,
+          cancelable: true, clientX: x, clientY: box.top + 20 }));
+        shown.pinched = [under(box.left + 200)];
+        pinch(box.left + 200);
+        shown.pinched.push(view.window, under(box.left + 200), under(box.left + 10));
+        pinch(box.left + 10);
+        shown.pinched.push(view.window, under(box.left + 10));
+        view.pause();
+        for (let k = 0; k < 12; k += 1)
+          wider.click();
         // An instance of the console begun before the left edge, a run of it ended there:
         // nothing drawn over the column of the rows.
         view.pause();
@@ -133,6 +168,8 @@ perl -0pi -e 's{<head>}{<head>
         view.instances.splice(view.instances.indexOf(fake), 1);
         view.pause();
         shown.column = column;
+        shown.summed = summary.textContent.split(":")[0];
+        view.window = 200000;
         fetch("/probe?" + encodeURIComponent(JSON.stringify(Object.assign(shown, {
           errors, output: document.getElementById("output").textContent,
           pool: document.querySelector("#pool").textContent }))));
@@ -225,6 +262,12 @@ print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
     failed=1
   elif ! check 's["labels"] is True'; then
     echo "FAILED  $lang: labels of the axis over one another: $shown"
+    failed=1
+  elif ! check 's["scale"][:6] == ["100 ms", "10 s", "true", "5 s", "10 s", ""] and s["scale"][6:] == ["20 ms", "true", "20 ms"] and s["summed"].strip() in ("In the last 10 s", "Sur les 10 dernières secondes")'; then
+    echo "FAILED  $lang: the scale not stepped by its buttons, the keys or a pinch: $shown"
+    failed=1
+  elif ! check 'abs(s["pinched"][2] - s["pinched"][0]) < 1 and s["pinched"][1] == 100000 and abs(s["pinched"][5] - s["pinched"][3]) < 1 and s["pinched"][4] == 50000'; then
+    echo "FAILED  $lang: a pinch, stopped, moved the time under the pointer: $shown"
     failed=1
   elif ! check 's["column"] == []'; then
     echo "FAILED  $lang: a run before the left edge drawn over the column of the rows: $shown"

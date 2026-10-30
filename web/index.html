@@ -155,7 +155,9 @@
   .scale button { border-radius: 0; margin-left: -1px; }
   .scale button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
   .scale button:last-child { border-radius: 0 6px 6px 0; }
-  .scale button[aria-pressed="true"] { background: var(--panel); color: var(--accent); font-weight: 600; }
+  .scale button[aria-disabled="true"] { color: var(--muted); cursor: default; }
+  .scale .span { margin-left: -1px; padding: 2px 8px; min-width: 4.5em; border: 1px solid var(--line); background: var(--bg);
+                 font-size: 0.8rem; text-align: center; }
   .frozen { margin: 0 0 8px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line);
             background: var(--bg); font-size: 0.85rem; }
   .frozen:empty { margin: 0; padding: 0; border: 0; }
@@ -283,8 +285,8 @@
     <section class="card">
       <div class="head"><h2><span class="h" data-i18n="live">The kernel, live</span></h2>
         <span class="views"><span class="scale" role="group" aria-label="Scale" data-i18n-label="scale"><button
-          data-window="20000">20 ms</button><button data-window="200000">200 ms</button><button
-          data-window="1000000">1 s</button></span> <button id="pause">Pause</button></span></div>
+          id="wider" aria-label="Wider" data-i18n-label="wider">−</button><span class="span" id="span" aria-live="polite">200 ms</span><button
+          id="finer" aria-label="Finer" data-i18n-label="finer">+</button></span> <button id="pause">Pause</button></span></div>
       <p class="frozen" id="frozen" aria-live="polite"></p>
       <div class="plot"><canvas id="timeline" role="img" tabindex="0" aria-label="The tasks the kernel ran, the last 200 ms"></canvas>
         <div class="tip" id="tip" aria-hidden="true" hidden></div></div>
@@ -458,7 +460,7 @@
     honest5: "Une ligne tapée est arrêtée au bout de 10 s, comme Ctrl-C sur la carte. Le dictionnaire dure le temps de la page : <code>save</code> n'a pas de flash où écrire.",
   };
   const FR_LABEL = { scale: "Échelle", lang: "Langue", how: "Comment ça marche", input: "Entrée Forth", tour: "Visite guidée",
-                     back: "Étape précédente", next: "Étape suivante" };
+                     back: "Étape précédente", next: "Étape suivante", wider: "Plus large", finer: "Plus fin" };
   const T = {
     en: { loading: "Loading…", ready: "Ready. The Forth runs in this page. Nothing is sent.",
           coarse: (g) => "Your browser only gives the time to within " + time(g, "en") + ", probably to " +
@@ -494,7 +496,8 @@
           gauge: (l, b) => "Charge garantie : " + share(l, "fr") + " du processeur (coût des cases compris). Limite : " + share(b, "fr") + ".",
           runs: (n) => n + (n < 2 ? " exécution" : " exécutions"),
           releases: (n) => n + (n < 2 ? " lancement" : " lancements"),
-          summary: (w, rows, over) => "Sur les " + w.replace(" ", " dernières ") + " : " + rows + " ; " + over + " au-delà du budget.",
+          summary: (w, rows, over) => (w === "1 s" ? "Sur la dernière seconde" : "Sur les " + w.replace(" ", " dernières ").replace(/ s$/, " secondes")) +
+                                       " : " + rows + " ; " + over + " au-delà du budget.",
           watch: "Regarde :", slotOf: (name) => "‹case de " + name + "›", now: "maintenant", pause: "Pause", resume: "Reprendre", frozen: "Frise figée. Fais-la glisser, ou utilise les flèches, pour remonter jusqu’à 10 s. Clique sur Reprendre pour continuer.",
           stopAll: "‹arrêter toutes les cases›",
           tipTask: (row, names) => "Tâche " + row + (names ? " : " + names : ", sans mot"), tipConsole: "Une ligne de la console",
@@ -640,7 +643,7 @@
     // drawn before it: at the width of a phone, or one pushed in from an edge.
     let free = Infinity;
     for (let k = Math.ceil((now - right) / mark); now - k * mark >= left; k += 1) {
-      const text = k === 0 ? T[lang].now : "−" + time(k * mark, lang), half = context.measureText(text).width / 2;
+      const text = k === 0 ? T[lang].now : "−" + span(k * mark, lang), half = context.measureText(text).width / 2;
       const at = Math.max(label + half, Math.min(w - half, x(now - k * mark)));
       if (at + half > free - 4)
         continue;
@@ -650,29 +653,35 @@
     context.textAlign = "left";
     if (performance.now() - summed > 500) {
       summed = performance.now();
-      const text = T[lang].summary(time(WINDOW, lang), ROWS.slice(0, 4).map((r, p) => r + " " +
+      const text = T[lang].summary(span(WINDOW, lang), ROWS.slice(0, 4).map((r, p) => r + " " +
                    T[lang].releases(counts[p])).join(", "), T[lang].runs(over));
       summary.textContent = text;
       canvas.setAttribute("aria-label", text);
     }
   }
 
-  const scaleButtons = document.querySelectorAll("[data-window]"), pauseButton = document.getElementById("pause");
+  const wider = document.getElementById("wider"), finer = document.getElementById("finer");
+  const spanText = document.getElementById("span"), pauseButton = document.getElementById("pause");
   const frozenNote = document.getElementById("frozen"), tip = document.getElementById("tip");
   function showViews() {
-    scaleButtons.forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.window) === view.window)));
+    // Written only when it changes: a live region, read out each time.
+    if (spanText.textContent !== span(view.window, lang))
+      spanText.textContent = span(view.window, lang);
+    wider.setAttribute("aria-disabled", String(view.window === WINDOWS[WINDOWS.length - 1]));
+    finer.setAttribute("aria-disabled", String(view.window === WINDOWS[0]));
     pauseButton.textContent = view.frozen === null ? T[lang].pause : T[lang].resume;
     // Empty rather than hidden: a live region shown with its text is often not read out.
     frozenNote.textContent = view.frozen === null ? "" : T[lang].frozen;
     tip.hidden = true;
     summed = -Infinity;
   }
-  scaleButtons.forEach((b) => b.addEventListener("click", () => {
-    view.window = Number(b.dataset.window);
-    if (view.frozen !== null)
-      view.scroll(0);
+  // zoomBy: The scale steps finer or wider, about the clock at, stopped, if not undefined.
+  function zoomBy(steps, at) {
+    view.zoom(steps, at);
     showViews();
-  }));
+  }
+  wider.addEventListener("click", () => zoomBy(1));
+  finer.addEventListener("click", () => zoomBy(-1));
   // The mouse over the timeline's card holds it where it is, Pause and its note left as
   // they are, a scale chosen about the same edge, and over the timeline says what ran
   // under it; a touch does not: Pause does that.
@@ -759,7 +768,22 @@
   canvas.addEventListener("pointerup", dropped);
   canvas.addEventListener("pointercancel", dropped);
   // A wheel sideways, a trackpad's two fingers, or with Shift; up and down left to the page.
+  // A pinch of a trackpad, or Ctrl and the wheel, zooms about the time under the pointer,
+  // that of the left edge over the column of the rows; a step each notch of a wheel, of 48
+  // in Firefox, or so much of a pinch.
+  let pinched = 0;
   canvas.addEventListener("wheel", (event) => {
+    if (event.ctrlKey && layout !== null) {
+      event.preventDefault();
+      pinched += event.deltaY * (event.deltaMode === 1 ? 16 : 1);
+      if (Math.abs(pinched) >= 40) {
+        const box = canvas.getBoundingClientRect(), px = Math.max(layout.label, event.clientX - box.left);
+        // From the edge now, not that drawn last: stopped since, they differ by a frame.
+        zoomBy(Math.sign(pinched), view.edge() - view.window + (px - layout.label) * view.window / (layout.w - layout.label));
+        pinched = 0;
+      }
+      return;
+    }
     const d = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.shiftKey ? event.deltaY : 0;
     if (d === 0 || layout === null)
       return;
@@ -767,6 +791,14 @@
     scrollBy(d * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? layout.w : 1) * perPixel());
   }, { passive: false });
   canvas.addEventListener("keydown", (event) => {
+    // With Ctrl, Cmd or Alt, the keys are the browser's, to zoom the page.
+    if (event.ctrlKey || event.metaKey || event.altKey)
+      return;
+    if ((event.key === "+" || event.key === "=" || event.key === "-") && layout !== null) {
+      event.preventDefault();
+      zoomBy(event.key === "-" ? 1 : -1);
+      return;
+    }
     if ((event.key !== "ArrowLeft" && event.key !== "ArrowRight") || layout === null)
       return;
     event.preventDefault();
