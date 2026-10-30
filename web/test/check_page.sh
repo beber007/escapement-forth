@@ -13,8 +13,9 @@
 # first step, a line sent and answered, and says what the console and the pool show,
 # and where the focus is once Next has gone through the tour, and what the timeline says
 # under the mouse; whether it stays held as the page scrolls and over its card, and goes
-# on once the mouse has left the card. Each Chrome has WAIT s to say it: a cold one on
-# the CI's runner took more than 19 s (2026-10-25).
+# on once the mouse has left the card; whether a drag, the arrow keys once it has the
+# focus and a sideways wheel scroll it back, and a click alone does not. Each Chrome has
+# WAIT s to say it: a cold one on the CI's runner took more than 19 s (2026-10-25).
 #   check_page.sh chrome build-directory [port]
 chrome=$1
 build=$2
@@ -71,9 +72,54 @@ perl -0pi -e 's{<head>}{<head>
       const held = view.held;
       setTimeout(() => {
         shown.still = held !== null && view.held === held && layout.right === held;
+        card.dispatchEvent(new PointerEvent("pointerleave", { pointerType: "mouse" }));
+        // A click alone leaves it going; a drag of a few pixels stops it, moved back.
+        const press = (type, x) => plot.dispatchEvent(new PointerEvent(type, { pointerType: "mouse", pointerId: 1,
+          button: 0, bubbles: true, clientX: x, clientY: box.top + 20 }));
+        press("pointerdown", box.right - 100);
+        press("pointermove", box.right - 98);
+        press("pointerup", box.right - 98);
+        shown.dragged = [banner.textContent];
+        press("pointerdown", box.right - 100);
+        press("pointermove", box.right - 98);
+        press("pointermove", box.right - 50);
+        press("pointerup", box.right - 50);
+        shown.dragged.push(banner.textContent, view.stopped - view.frozen);
+        pause.click();
+        plot.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+        shown.dragged.push(banner.textContent);
+        // As wide as on a phone, scrolled back 2 s, a label at each edge: none over another.
+        plot.style.width = "294px";
+        const context = plot.getContext("2d"), fill = context.fillText, labels = [];
+        context.fillText = function (text, x, y) {
+          if (this.textAlign === "center")
+            labels.push([x - this.measureText(text).width / 2, x + this.measureText(text).width / 2]);
+          return fill.apply(this, arguments);
+        };
+        view.window = 1000000;
+        view.scroll(-2000000);
+        // The labels of one frame: those drawn after the next one begins.
+        requestAnimationFrame(() => { labels.length = 0; requestAnimationFrame(() => {
+        context.fillText = fill;
+        plot.style.width = "";
+        const drawn = labels.slice().sort((p, q) => p[0] - q[0]);
+        shown.labels = drawn.length > 0 && drawn.every((p, k) => k === 0 || p[0] >= drawn[k - 1][1]) ? true : drawn;
+        pause.click();
+        plot.focus();
+        shown.focus = [shown.focus, document.activeElement === plot];
+        plot.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+        shown.scrolled = [banner.textContent];
+        shown.back = [view.stopped - view.frozen, view.window];
+        pause.click();
+        plot.dispatchEvent(new WheelEvent("wheel", { deltaX: -40, bubbles: true, cancelable: true }));
+        shown.scrolled.push(banner.textContent);
+        pause.click();
+        plot.dispatchEvent(new WheelEvent("wheel", { deltaY: -40, bubbles: true, cancelable: true }));
+        shown.scrolled.push(banner.textContent);
         fetch("/probe?" + encodeURIComponent(JSON.stringify(Object.assign(shown, {
           errors, output: document.getElementById("output").textContent,
           pool: document.querySelector("#pool").textContent }))));
+        }); });
       }, 1000);
     }, 1000);
   }, '$SETTLE'000);
@@ -138,7 +184,7 @@ print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
   elif ! check 's["early"] and s["run"]'; then
     echo "FAILED  $lang: the tour could be run before the Forth was ready, or not after: $shown"
     failed=1
-  elif ! check 's["focus"] == "step-back" and s["note"] == "'$lang'"'; then
+  elif ! check 's["focus"][0] == "step-back" and s["note"] == "'$lang'"'; then
     echo "FAILED  $lang: the focus lost at the tour's end, or the page's notes not in $lang: $shown"
     failed=1
   elif ! check 's["banner"][0] == "" and s["banner"][1] not in ("", True) and s["banner"][2] == ""'; then
@@ -155,6 +201,18 @@ print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
     failed=1
   elif ! check 's["still"]'; then
     echo "FAILED  $lang: the timeline let go, the mouse still over its card: $shown"
+    failed=1
+  elif ! check 's["scrolled"][0] == s["banner"][1] and s["scrolled"][1] == s["banner"][1] and s["scrolled"][2] == "" and s["back"][0] == s["back"][1] / 10'; then
+    echo "FAILED  $lang: the timeline not scrolled back by the arrow keys or a sideways wheel, or by a wheel up: $shown"
+    failed=1
+  elif ! check 's["labels"] is True'; then
+    echo "FAILED  $lang: labels of the axis over one another: $shown"
+    failed=1
+  elif ! check 's["focus"][1]'; then
+    echo "FAILED  $lang: the timeline cannot have the focus: $shown"
+    failed=1
+  elif ! check 's["dragged"][0] == "" and s["dragged"][1] == s["banner"][1] and s["dragged"][2] > 0 and s["dragged"][3] == ""'; then
+    echo "FAILED  $lang: the timeline stopped by a click or a later arrow, or not by a drag: $shown"
     failed=1
   elif ! check '"slot 8  ok" in s["output"] and "blink" in s["pool"]'; then
     echo "FAILED  $lang: the tour's first step not run: $shown"
