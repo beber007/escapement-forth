@@ -657,8 +657,9 @@
     view.window = Number(b.dataset.window);
     showViews();
   }));
-  // The mouse over the timeline holds it where it is, Pause and its note left as they are,
-  // and says what ran under it; a touch does not: Pause does that.
+  // The mouse over the timeline's card holds it where it is, Pause and its note left as
+  // they are, a scale chosen about the same edge, and over the timeline says what ran
+  // under it; a touch does not: Pause does that.
   function describe(i) {
     const lines = [i.row === 4 ? T[lang].tipConsole : T[lang].tipTask(ROWS[i.row], rowNames(pool)[i.row]),
                    T[lang].tipAgo(time(layout.right - i.start, lang))];
@@ -672,13 +673,19 @@
     }
     return lines.join("\n");
   }
-  canvas.addEventListener("pointermove", (event) => {
-    if (event.pointerType === "touch" || layout === null)
-      return;
+  // hover: The timeline held under the mouse at x, y, and what ran there said if over it.
+  const card = canvas.closest(".card");
+  let mouse = null;
+  function hover(x, y) {
+    mouse = [x, y];
     // The edge drawn last, frozen or not: the clock now may have moved on since.
     if (view.held === null)
       view.held = layout.right;
-    const box = canvas.getBoundingClientRect(), px = event.clientX - box.left, py = event.clientY - box.top;
+    const box = canvas.getBoundingClientRect(), px = x - box.left, py = y - box.top;
+    if (px < 0 || px >= box.width || py < 0 || py >= box.height) {
+      tip.hidden = true;
+      return;
+    }
     const r = Math.floor(py / layout.row);
     const t = layout.left + (px - layout.label) / (layout.w - layout.label) * layout.WINDOW;
     const i = px < layout.label || r > 4 ? null : hit(view.instances, r, t, 4 * layout.WINDOW / (layout.w - layout.label), layout.left, layout.right);
@@ -688,18 +695,35 @@
     tip.textContent = describe(i);
     tip.style.left = Math.max(0, Math.min(px + 12, box.width - tip.offsetWidth)) + "px";
     tip.style.top = (py + 14 + tip.offsetHeight > box.height ? Math.max(0, py - 10 - tip.offsetHeight) : py + 14) + "px";
+  }
+  card.addEventListener("pointermove", (event) => {
+    if (event.pointerType !== "touch" && layout !== null)
+      hover(event.clientX, event.clientY);
   });
-  // letGo: The timeline let go; also when the page scrolls or hides, as some browsers then
-  // send no pointerleave.
+  // letGo: The timeline let go; also when the page hides, or scrolls the card from under
+  // the mouse, as some browsers then send no pointerleave. A scroll that leaves the mouse
+  // over it, a trackpad's going on after the fingers are lifted, keeps it held.
   function letGo() {
-    view.held = null;
+    view.held = mouse = null;
     tip.hidden = true;
   }
-  canvas.addEventListener("pointerleave", letGo);
-  addEventListener("scroll", letGo, { passive: true });
+  canvas.addEventListener("pointerleave", () => { tip.hidden = true; });
+  card.addEventListener("pointerleave", letGo);
+  addEventListener("scroll", () => {
+    if (mouse === null)
+      return;
+    const box = card.getBoundingClientRect();
+    if (mouse[0] < box.left || mouse[0] >= box.right || mouse[1] < box.top || mouse[1] >= box.bottom)
+      letGo();
+    else
+      hover(mouse[0], mouse[1]);
+  }, { passive: true });
   document.addEventListener("visibilitychange", letGo);
+  // Resume goes back to the clock, the mouse over the card or not: held again once it moves.
   pauseButton.addEventListener("click", () => {
     view.pause();
+    if (view.frozen === null)
+      view.held = null;
     showViews();
   });
 
