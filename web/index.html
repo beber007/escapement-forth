@@ -160,6 +160,11 @@
             background: var(--bg); font-size: 0.85rem; }
   .frozen:empty { margin: 0; padding: 0; border: 0; }
   #timeline { display: block; width: 100%; height: 190px; }
+  .plot { position: relative; }
+  .tip { position: absolute; z-index: 1; pointer-events: none; max-width: 260px; padding: 6px 8px;
+         border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink);
+         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); font-size: 0.8rem; line-height: 1.35; white-space: pre-line;
+         width: max-content; }
   .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none;
             font-size: 0.82rem; color: var(--muted); }
   .legend i { display: inline-block; vertical-align: middle; margin-right: 6px; }
@@ -279,7 +284,8 @@
           data-window="20000">20 ms</button><button data-window="200000">200 ms</button><button
           data-window="1000000">1 s</button></span> <button id="pause">Pause</button></span></div>
       <p class="frozen" id="frozen" aria-live="polite"></p>
-      <canvas id="timeline" role="img" aria-label="The tasks the kernel ran, the last 200 ms"></canvas>
+      <div class="plot"><canvas id="timeline" role="img" aria-label="The tasks the kernel ran, the last 200 ms"></canvas>
+        <div class="tip" id="tip" aria-hidden="true" hidden></div></div>
       <ul class="legend">
         <li><i class="run"></i><span data-i18n="running">running, one color per task</span></li>
         <li><i class="wait"></i><span data-i18n="waiting">waiting, interrupted</span></li>
@@ -467,7 +473,10 @@
           runs: (n) => n + (n === 1 ? " run" : " runs"),
           releases: (n) => n + (n === 1 ? " release" : " releases"),
           summary: (w, rows, over) => "In the last " + w + ": " + rows + "; " + over + " over budget.",
-          watch: "Watch:", slotOf: (name) => "‹slot of " + name + "›", now: "now", pause: "Pause", resume: "Resume", frozen: "Frozen. Click Resume to go on.", stopAll: "‹stop every slot›" },
+          watch: "Watch:", slotOf: (name) => "‹slot of " + name + "›", now: "now", pause: "Pause", resume: "Resume", frozen: "Frozen. Click Resume to go on.", stopAll: "‹stop every slot›",
+          tipTask: (row, names) => "Task " + row + (names ? ": " + names : ", no word"), tipConsole: "A line of the console",
+          tipAgo: (ago) => "Started " + ago + " ago", tipRunning: "Still running",
+          tipTook: (wall, own) => "Took " + wall + (own === wall ? "" : ", " + own + " of it running"), tipOver: "Over budget, cut" },
     fr: { loading: "Chargement…", ready: "Prêt. Le Forth tourne dans cette page. Rien n'est envoyé.",
           coarse: (g) => "Ton navigateur ne donne l'heure qu'à " + time(g, "fr") + " près, sans doute pour " +
                          "protéger ta vie privée. C'est trop imprécis pour le noyau, la visite est donc " +
@@ -485,7 +494,10 @@
           releases: (n) => n + (n < 2 ? " lancement" : " lancements"),
           summary: (w, rows, over) => "Sur les " + w.replace(" ", " dernières ") + " : " + rows + " ; " + over + " au-delà du budget.",
           watch: "Regarde :", slotOf: (name) => "‹case de " + name + "›", now: "maintenant", pause: "Pause", resume: "Reprendre", frozen: "Frise figée. Clique sur Reprendre pour continuer.",
-          stopAll: "‹arrêter toutes les cases›" },
+          stopAll: "‹arrêter toutes les cases›",
+          tipTask: (row, names) => "Tâche " + row + (names ? " : " + names : ", sans mot"), tipConsole: "Une ligne de la console",
+          tipAgo: (ago) => "Lancée il y a " + ago, tipRunning: "Encore en cours",
+          tipTook: (wall, own) => "A duré " + wall + (own === wall ? "" : ", dont " + own + " d'exécution"), tipOver: "Au-delà du budget, coupée" },
   };
   const EN = {}, EN_LABEL = {};
   document.querySelectorAll("[data-i18n]").forEach((e) => { EN[e.dataset.i18n] = e.innerHTML; });
@@ -547,7 +559,7 @@
   const context = canvas.getContext("2d");
   const summary = document.getElementById("timeline-summary");
   const view = timeline(() => showViews());
-  let pool = [], load = 0, loadBound = 700000, summed = -Infinity;
+  let pool = [], load = 0, loadBound = 700000, summed = -Infinity, layout = null;
 
   function draw() {
     requestAnimationFrame(draw);
@@ -562,7 +574,8 @@
     context.clearRect(0, 0, w, h);
     const label = w < 480 ? 64 : 96, axis = 18, row = (h - axis) / ROWS.length;
     const names = rowNames(pool), quiet = (r) => r < 4 && names[r] === "";
-    const WINDOW = view.window, right = view.frozen !== null ? view.frozen : view.clock, left = right - WINDOW;
+    const WINDOW = view.window, right = view.edge(), left = right - WINDOW;
+    layout = { label, row, left, right, WINDOW, w };
     const x = (t) => label + (w - label) * (t - left) / WINDOW;
     context.font = "11px ui-monospace, Menlo, monospace";
     context.textBaseline = "middle";
@@ -631,18 +644,60 @@
   }
 
   const scaleButtons = document.querySelectorAll("[data-window]"), pauseButton = document.getElementById("pause");
-  const frozenNote = document.getElementById("frozen");
+  const frozenNote = document.getElementById("frozen"), tip = document.getElementById("tip");
   function showViews() {
     scaleButtons.forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.window) === view.window)));
     pauseButton.textContent = view.frozen === null ? T[lang].pause : T[lang].resume;
     // Empty rather than hidden: a live region shown with its text is often not read out.
     frozenNote.textContent = view.frozen === null ? "" : T[lang].frozen;
+    tip.hidden = true;
     summed = -Infinity;
   }
   scaleButtons.forEach((b) => b.addEventListener("click", () => {
     view.window = Number(b.dataset.window);
     showViews();
   }));
+  // The mouse over the timeline holds it where it is, Pause and its note left as they are,
+  // and says what ran under it; a touch does not: Pause does that.
+  function describe(i) {
+    const lines = [i.row === 4 ? T[lang].tipConsole : T[lang].tipTask(ROWS[i.row], rowNames(pool)[i.row]),
+                   T[lang].tipAgo(time(layout.right - i.start, lang))];
+    if (i.end === null || i.end > layout.right)
+      lines.push(T[lang].tipRunning);
+    else {
+      lines.push(T[lang].tipTook(time(i.end - i.start, lang),
+                                 time(i.runs.reduce((sum, [a, b]) => sum + b - a, 0), lang)));
+      if (i.over)
+        lines.push(T[lang].tipOver);
+    }
+    return lines.join("\n");
+  }
+  canvas.addEventListener("pointermove", (event) => {
+    if (event.pointerType === "touch" || layout === null)
+      return;
+    // The edge drawn last, frozen or not: the clock now may have moved on since.
+    if (view.held === null)
+      view.held = layout.right;
+    const box = canvas.getBoundingClientRect(), px = event.clientX - box.left, py = event.clientY - box.top;
+    const r = Math.floor(py / layout.row);
+    const t = layout.left + (px - layout.label) / (layout.w - layout.label) * layout.WINDOW;
+    const i = px < layout.label || r > 4 ? null : hit(view.instances, r, t, 4 * layout.WINDOW / (layout.w - layout.label), layout.left, layout.right);
+    tip.hidden = i === null;
+    if (i === null)
+      return;
+    tip.textContent = describe(i);
+    tip.style.left = Math.max(0, Math.min(px + 12, box.width - tip.offsetWidth)) + "px";
+    tip.style.top = (py + 14 + tip.offsetHeight > box.height ? Math.max(0, py - 10 - tip.offsetHeight) : py + 14) + "px";
+  });
+  // letGo: The timeline let go; also when the page scrolls or hides, as some browsers then
+  // send no pointerleave.
+  function letGo() {
+    view.held = null;
+    tip.hidden = true;
+  }
+  canvas.addEventListener("pointerleave", letGo);
+  addEventListener("scroll", letGo, { passive: true });
+  document.addEventListener("visibilitychange", letGo);
   pauseButton.addEventListener("click", () => {
     view.pause();
     showViews();
