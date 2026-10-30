@@ -522,7 +522,9 @@ idle(100);
 // (a review). A word promoted gets the longest run of its trial and a quarter as budget;
 // churn's own time varies more than that under jsc as it compiles and collects, and a
 // trial of 300 ms let it pass its budget by itself, up to 7 runs in 100: its trial is
-// longer (2026-10-30).
+// longer (2026-10-30). Under node it is left out: there churn passed its budget by itself
+// on the CI's runner, 6 runs in 100, and the code that counted the pauses went over it no
+// more often than the code that leaves them out, 0 runs in 100 for both (2026-10-30).
 if (STEP < 1) {
   line("variable n  20000 n !");
   line(": churn  0 begin 1+ dup n @ = until drop ;");
@@ -531,7 +533,7 @@ if (STEP < 1) {
   line(Math.round(20000 * 400 / number(r.out)) + " n !");
   line(": work  500 spend ;");
 }
-for (const [word, ms] of STEP < 1 ? [["work", 0.15], ["work", 0.3], ["churn", 0.3]] : []) {
+for (const [word, ms] of STEP < 1 ? [["work", 0.15], ["work", 0.3]].concat(node ? [] : [["churn", 0.3]]) : []) {
   r = line("' " + word + " 10 every");
   const slot = number(r.out.replace("slot", ""));
   idle(word === "churn" ? 1500 : 300);
