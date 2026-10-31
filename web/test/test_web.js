@@ -212,7 +212,7 @@ check("each text of the script in English and in French", Object.keys(T.en).sort
 
 check("  a slot's counts short", T.en.figures({ max: 0, budget: 1000, runs: 12345, over: 999 }).endsWith("12k runs, 999 cut") &&
       T.en.figures({ max: 0, budget: 1000, runs: 1, over: 0 }).endsWith("\n1 run") &&
-      T.fr.figures({ max: 0, budget: 1000, runs: 1000, over: 1000 }).endsWith("1k fois, coupé 1k"), T.fr.figures({ max: 0, budget: 1000, runs: 1000, over: 1000 }));
+      T.fr.figures({ max: 0, budget: 1000, runs: 1000, over: 1000 }).endsWith("1k fois, 1k coupés"), T.fr.figures({ max: 0, budget: 1000, runs: 1000, over: 1000 }));
 check("  in French, 0 and 1 singular", T.fr.runs(0) === "0 lancement" && T.fr.runs(1) === "1 lancement" &&
       T.fr.runs(2) === "2 lancements" && T.en.runs(0) === "0 runs", [T.fr.runs(0), T.en.runs(0)]);
 const summed = [200000, 1000000, 10000000].map((us) => T.fr.summary(V.span(us, "fr"), "", "").split(" :")[0]);
