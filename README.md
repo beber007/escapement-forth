@@ -43,7 +43,7 @@ This is a prototype: step 3 of [Escapement's issue #40](https://github.com/beber
 
 | | |
 |---|---|
-| Pico image | 26,024 bytes of code and constants (Forth, slots, console, kernel), and 20,992 bytes of RAM reserved at build time. GCC 16.2, 2026-10-31 |
+| Pico image | 27,728 bytes of code and constants (Forth, slots, console, kernel), and 22,280 bytes of RAM reserved at build time. GCC 16.2, 2026-10-31 |
 | Slots' own cost | 8 µs charged to each release, against 6.6 to 7.3 µs measured on the Pico ([issue #40](https://github.com/beber007/escapement/issues/40), step 1) |
 | Budget check | About 13 % at most, on an empty `do loop`: 1,000 turns took 466 µs at the console and 529 µs in a slot (Pico W, 2026-10-24; the two cores' work was not quite the same) |
 | Restart of core 0 | 3 to 4 ms for core 1 to notice that core 0 is stuck and restart it, keeping the dictionary, the slots and the console; 5 ms more if interrupts are masked or the core faulted |
