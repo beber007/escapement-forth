@@ -234,12 +234,16 @@ perl -0pi -e 's{<head>}{<head>
           send(String.fromCharCode(39) + " quick 1000 every");
           setTimeout(() => {
             shown.help.push(silent());
-            send(STOP_ALL);
-            help.click();
-            shown.help.push(document.getElementById("step-code").textContent.includes("1 20 lshift"));
-            // What the code then shows is what the button types.
+            // Its lines typed, the button rests; the solution shown, it types that.
             run.click();
             setTimeout(() => {
+              shown.gate = [run.disabled];
+              help.click();
+              shown.gate.push(run.disabled);
+              shown.help.push(document.getElementById("step-code").textContent.includes("1 20 lshift"));
+              run.click();
+              setTimeout(() => {
+              shown.gate.push(run.disabled);
               shown.help.push(silent());
               shown.endfit = measure();
               // A step whose line fails: not done, and a full dictionary said once, in words.
@@ -259,7 +263,8 @@ perl -0pi -e 's{<head>}{<head>
                   errors, output: document.getElementById("output").textContent,
                   pool: document.querySelector("#pool").textContent }))));
               }, 1000);
-            }, 3500);
+              }, 3500);
+            }, 1000);
           }, 1500);
         }, 1000);
         }); });
@@ -375,6 +380,9 @@ print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
     failed=1
   elif ! check 's["help"] == [False, True, True, True, False]'; then
     echo "FAILED  $lang: the last step gives no answer, does not see the word work, or takes another pace: $shown"
+    failed=1
+  elif ! check 's["gate"] == [True, False, False]'; then
+    echo "FAILED  $lang: the button at the last step not free to type the solution: $shown"
     failed=1
   elif ! check 's["endfit"] == []'; then
     echo "FAILED  $lang: the last step, done, needs a scroll: $shown"
