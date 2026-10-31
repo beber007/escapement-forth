@@ -15,4 +15,11 @@ void ConsoleInit(void);
 ** what the slots print; never returns. */
 void Console(void);
 
+/* TraceOn, TraceNote: What core 0 tells of a task's instance for the page to draw, while
+** the page asked. On core 0 alone. A restart is told as events lost: what was running will
+** not end. */
+extern volatile uint32_t TraceOn;
+enum { TRACE_START = 0, TRACE_END, TRACE_END_OVER, TRACE_LOST = 6 };
+void TraceNote(uint32_t kind, uint32_t period);
+
 #endif /* CONSOLE_H */

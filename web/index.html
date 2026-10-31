@@ -367,7 +367,7 @@
         The browser sometimes pauses in the middle of a run, for garbage collection for example.
         A pause of more than about half a millisecond is counted neither by the clock nor in the measurements. The board has no
         such pauses.</li>
-      <li data-i18n="honest4">The times shown are your browser's, not the Pico's. They are read to a tenth of a
+      <li data-i18n="honest4">On a real Pico, the times shown are the Pico's. Here, they are your browser's. They are read to a tenth of a
         millisecond, or to a millisecond depending on the browser. Some browsers round further to
         protect your privacy. The web page then says so. A very short word can show 0, and an
         empty task has no width on the timeline. This web page says nothing about what the kernel
@@ -509,7 +509,7 @@
     honest1: "Le Forth et le noyau sont le code de la vraie carte, un Raspberry Pi Pico, compilé tel quel : la console et les cases (<code>src/</code>), le noyau temps réel d'Escapement, qui ordonnance par EDF (<code>EscapementHard.c</code>) et les quatre tâches du Pico, une par période. Seule la couche du dessous change (<code>web/platform_web.c</code>, <code>web/kernel/</code>).",
     honest2: "Ici, la console est la tâche de fond du noyau. Les cases l'interrompent, et s'interrompent entre elles, là où le Forth lit l'horloge : tous les seize mots. Sur la carte, la console a son propre cœur et ne retarde jamais une case.",
     honest3: "L'horloge du noyau suit celle du navigateur. Le navigateur ne fait tourner la page web qu'à quelques millisecondes d'intervalle, et moins souvent si l'onglet est caché. Le noyau rattrape alors son retard, un lancement après l'autre. Chacun est à l'heure pour le noyau, mais en retard sur l'heure réelle. Au-delà de 200 ms, le reste est abandonné. Le navigateur fait parfois une pause en plein lancement, par exemple pour le ramasse-miettes. Une pause de plus d'une demi-milliseconde environ ne compte ni dans l'horloge ni dans les mesures. La carte, elle, n'a pas ces pauses.",
-    honest4: "Les temps affichés sont ceux de ton navigateur, pas du Pico. Ils sont lus au dixième de milliseconde, ou à la milliseconde selon le navigateur. Certains navigateurs arrondissent davantage pour protéger ta vie privée. La page web le dit alors. Un mot très court peut donc afficher 0, et une tâche vide n'a pas de largeur sur la frise. Cette page web ne dit rien du coût du noyau sur une vraie puce, ni de sa consommation.",
+    honest4: "Sur un vrai Pico, les temps affichés sont ceux du Pico. Ici, ce sont ceux de ton navigateur. Ils sont lus au dixième de milliseconde, ou à la milliseconde selon le navigateur. Certains navigateurs arrondissent davantage pour protéger ta vie privée. La page web le dit alors. Un mot très court peut donc afficher 0, et une tâche vide n'a pas de largeur sur la frise. Cette page web ne dit rien du coût du noyau sur une vraie puce, ni de sa consommation.",
     honest5: "Une ligne tapée est arrêtée au bout de 10 s, comme Ctrl-C sur la carte. Les mots que tu crées disparaissent avec la page web : <code>save</code> n'a pas de flash où écrire.",
   };
   const FR_LABEL = { pins: "Broches", scale: "Échelle", lang: "Langue", how: "Comment ça marche", input: "Entrée Forth", tour: "Visite guidée",
@@ -525,7 +525,7 @@
           failed: "Forth could not start: ",
           board: "Connected to a Pico.",
           boardLost: "The Pico is gone. Connect it again, or click Restart Forth.",
-          boardHello: "This console is now the Pico's. The pins and the slots follow it between two lines. The tour and the timeline don't yet. Ctrl-C stops a word.\n",
+          boardHello: "This console is now the Pico's. The pins and the slots follow it between two lines. The timeline shows the tasks that have words. The tour doesn't follow it yet. Ctrl-C stops a word.\n",
           boardFailed: "Could not open the port: ",
           welcome: "Escapement Forth, in WebAssembly. Type a line and press Enter, or follow the tour.\n",
           budget: "trial budget ", free: "free", trial: "trial", promoted: "promoted", failedChip: "failed",
@@ -550,7 +550,7 @@
           failed: "Le Forth n'a pas pu démarrer : ",
           board: "Relié à un Pico.",
           boardLost: "Le Pico n'est plus là. Rebranche-le, ou clique sur Relancer le Forth.",
-          boardHello: "Cette console est maintenant celle du Pico. Les broches et les cases le suivent entre deux lignes. La visite et la frise pas encore. Ctrl-C arrête un mot.\n",
+          boardHello: "Cette console est maintenant celle du Pico. Les broches et les cases le suivent entre deux lignes. La frise montre les tâches qui ont des mots. La visite ne le suit pas encore. Ctrl-C arrête un mot.\n",
           boardFailed: "Impossible d'ouvrir le port : ",
           welcome: "Escapement Forth, en WebAssembly. Tape une ligne puis Entrée, ou suis la visite.\n",
           budget: "budget d'essai ", free: "libre", trial: "essai", promoted: "promu", failedChip: "en échec",
@@ -693,7 +693,8 @@
     context.fillStyle = color("--muted");
     for (let p = 0; p < PERIODS.length; p += 1) {
       context.globalAlpha = quiet(p) ? 0.35 : 1;
-      for (let t = Math.ceil(left / PERIODS[p]) * PERIODS[p]; t <= right; t += PERIODS[p])
+      // On a board, its clock does not start with the tasks: no ticks to draw.
+      for (let t = Math.ceil(left / PERIODS[p]) * PERIODS[p]; link === null && t <= right; t += PERIODS[p])
         context.fillRect(x(t), row * p + 3, 1, 5);
     }
     context.globalAlpha = 1;
@@ -1197,12 +1198,20 @@
     });
   });
 
+  // A closed tab stops the trace now, or the board stops it itself some seconds later.
+  window.addEventListener("pagehide", () => {
+    if (link !== null)
+      link.trace(false);
+  });
+
   function clear() {
     if (worker !== null)
       worker.terminate();
     worker = null;
-    if (link !== null)
+    if (link !== null) {
+      link.trace(false);
       link.close();
+    }
     link = null;
     clearInterval(asking);
     view.reset();
@@ -1227,12 +1236,22 @@
   function showLinked() {
     document.getElementById("connect").hidden = link !== null || !("serial" in navigator);
     document.getElementById("disconnect").hidden = link === null;
+    document.querySelector(".legend .tick").parentElement.hidden = link !== null;
   }
 
   // ask: The pins often, the slots less: what the console has not answered yet, it is
   // running a line, and more would fill its ring. Asked again after a while, in case.
-  let asking = null, asks = 0, boardAnswered = true, unanswered = 0;
+  let traceIn = null, asking = null, traceAsked = 0, asks = 0, boardAnswered = true, unanswered = 0;
   function ask() {
+    const traced = traceIn.flush();
+    if (traced !== null)
+      view.traced(traced);
+    // Each second, even while a line runs: the board stops without it.
+    const now = Date.now();
+    if (now - traceAsked >= 1000) {
+      traceAsked = now;
+      link.trace(true);
+    }
     unanswered += 1;
     if (!boardAnswered && unanswered < 100)
       return;
@@ -1274,11 +1293,13 @@
         }
         else
           showPins(frame.pins);
-      });
+      }, (event) => traceIn.add(event));
       clear();
       link = opened;
       boardAnswered = true;
       unanswered = 0;
+      traceIn = boardTrace();
+      link.trace(true);
       asking = setInterval(ask, 50);
       statusState = ["board", ""];
       showStatus();

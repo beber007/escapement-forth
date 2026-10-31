@@ -55,6 +55,20 @@
 #define ASK_SLOTS            0x06
 #define FRAME_START          0x1E
 #define FRAME_END            0x1F
+#define ASK_TRACE            0x0E
+#define ASK_NO_TRACE         0x0F
+#define EVENT                0x1C        /* and 3 bytes: 3 bits kind, 2 period, 19 time */
+#define EVENT_TICK           3
+#define EVENT_LINE           4
+#define EVENT_LINE_END       5
+#define EVENT_LOST           6
+#define EVENTS               256         /* a power of 2 */
+#define EVENTS_A_TICK        7           /* of 4 bytes, in the 32 of the empty FIFO: room
+                                         ** for the byte Send has just found room for */
+#define CLOCK_EVERY          50000       /* us between two clocks for the page */
+#define SHARE_EVERY          5000        /* us between two shares of the events */
+#define TRACE_ASKED          5000000     /* us a page's asking holds */
+#define FR_TXFE              (1u << 7)
 #define SIO_GPIO_IN          *((volatile UINT32 *)(0xD0000000 + 0x04))
 #define SIO_GPIO_OUT_SET     *((volatile UINT32 *)(0xD0000000 + 0x14))
 #define SIO_GPIO_OUT_CLR     *((volatile UINT32 *)(0xD0000000 + 0x18))
@@ -109,7 +123,42 @@ extern volatile uint32_t Overruns;
    };
 #endif
 
-static void Send(char c)
+/* The trace: core 0's tasks write each event, core 1 sends it, in its interrupt into an
+** empty FIFO, or between the console's bytes if they keep it full. One full, the event is
+** lost and the place told: core 0 never waits. A page asks again each second, or it went
+** away, and a terminal must not get this. */
+volatile uint32_t TraceOn FORTH_KEEP;
+static volatile uint32_t Events[EVENTS] FORTH_KEEP;
+static volatile uint32_t EventHead FORTH_KEEP, EventTail FORTH_KEEP, EventLost FORTH_KEEP;
+static volatile uint32_t TraceAsked FORTH_KEEP, LastClock FORTH_KEEP, LastShare FORTH_KEEP;
+static volatile int Sending FORTH_KEEP;   /* an event under way: the interrupt holds off */
+
+static uint32_t Event(uint32_t kind, uint32_t period)
+{
+  return kind << 21 | period << 19 | (TIMER_TIMERAWL & 0x7FFFF);
+} /* end of Event */
+
+/* Masked: tasks of shorter periods preempt this one, and write it too. */
+void TraceNote(uint32_t kind, uint32_t period)
+{
+  uint32_t mask = ForthMask(), head = EventHead;
+  if (EventLost && head - EventTail < EVENTS) {
+     Events[head % EVENTS] = Event(TRACE_LOST,0);
+     head += 1;
+     EventLost = 0;
+  }
+  if (head - EventTail >= EVENTS)
+     EventLost = 1;
+  else {
+     Events[head % EVENTS] = Event(kind,period);
+     head += 1;
+  }
+  ForthBarrier();
+  EventHead = head;
+  ForthUnmask(mask);
+} /* end of TraceNote */
+
+static void SendByte(char c)
 {
   #ifdef SCRIPT
      if (LogLength < sizeof Log)
@@ -117,6 +166,82 @@ static void Send(char c)
   #endif
   while (UART_FR & FR_TXFF);
   UART_DR = (UINT8)c;
+} /* end of SendByte */
+
+static void SendEvent(uint32_t event)
+{
+  SendByte(EVENT);
+  SendByte((char)(event >> 16));
+  SendByte((char)(event >> 8));
+  SendByte((char)event);
+} /* end of SendEvent */
+
+/* SendEvents: As many as fit, or the page's clock if it is time, whatever the tasks do.
+** Only where the bytes wait for no one, or Sending keeps the interrupt out. */
+static void SendEvents(void)
+{
+  UINT32 tail = EventTail, sent = 0, now = TIMER_TIMERAWL;
+  if (now - TraceAsked > TRACE_ASKED) {
+     TraceOn = 0;
+     return;
+  }
+  /* Only behind the events: times must not go back, the page reads each from the last. */
+  if (tail == EventHead && now - LastClock >= CLOCK_EVERY) {
+     LastClock = now;
+     SendEvent(Event(EVENT_TICK,0));
+     return;
+  }
+  for (; sent < EVENTS_A_TICK && tail != EventHead; sent += 1, tail += 1) {
+     ForthBarrier();
+     SendEvent(Events[tail % EVENTS]);
+     ForthBarrier();
+     EventTail = tail + 1;
+  }
+} /* end of SendEvents */
+
+/* SendTrace: In core 1's interrupt. */
+static void SendTrace(void)
+{
+  if (TraceOn && !Sending && (UART_FR & FR_TXFE) != 0)
+     SendEvents();
+} /* end of SendTrace */
+
+/* TraceHeard: In core 1's interrupt, a page's asking, which a line that runs must not
+** hold up: the ring from now on, what it held is old. */
+static void TraceHeard(char c)
+{
+  if (c == ASK_TRACE) {
+     if (!TraceOn) {
+        EventTail = EventHead;
+        EventLost = 1;   /* what ran before this may not have ended */
+     }
+     TraceAsked = TIMER_TIMERAWL;
+     TraceOn = 1;
+  }
+  else
+     TraceOn = 0;
+} /* end of TraceHeard */
+
+/* TraceLine: The start or end of a line, on core 1 outside its interrupt. */
+static void TraceLine(uint32_t kind)
+{
+  if (!TraceOn)
+     return;
+  Sending = 1;
+  SendEvent(Event(kind,0));
+  Sending = 0;
+} /* end of TraceLine */
+
+static void Send(char c)
+{
+  /* Bytes that keep the FIFO full would hold the events back: their share. */
+  if (TraceOn && TIMER_TIMERAWL - LastShare >= SHARE_EVERY) {
+     LastShare = TIMER_TIMERAWL;
+     Sending = 1;
+     SendEvents();
+     Sending = 0;
+  }
+  SendByte(c);
 } /* end of Send */
 
 /* Drain: What the slots printed, sent, and the restarts of core 0 the interrupt saw. */
@@ -180,8 +305,13 @@ static void Tick(void)
   TIMER_ALARM3 = TIMER_TIMERAWL + TICK;
   if ((restart = Watch()) != 0)
      Restarted[restart] += 1;
+  SendTrace();
   while ((UART_FR & FR_RXFE) == 0) {
      char c = (char)UART_DR;
+     if (c == ASK_TRACE || c == ASK_NO_TRACE) {
+        TraceHeard(c);
+        continue;
+     }
      /* A Ctrl-C into the ring too: the break holds for what runs until the console
      ** meets it there, which then clears it, before the lines that follow; one that
      ** comes with the end of a line before it, in the same tick, is for that line's word
@@ -466,6 +596,9 @@ static void StartTick(void)
 void ConsoleInit(void)
 {
   RingHead = RingTail = Dropped = 0;
+  TraceOn = EventHead = EventTail = EventLost = 0;
+  TraceAsked = LastClock = LastShare = 0;
+  Sending = 0;
   InputHead = InputTail = 0;
   Break = 0;
   Breaks = 0;
@@ -549,7 +682,9 @@ void Console(void)
      if (c == '\r' || c == '\n') {
         line[length] = 0;
         Send(' ');
+        TraceLine(EVENT_LINE);
         ForthInterpret(line);
+        TraceLine(EVENT_LINE_END);
         Drain();
         length = 0;
      }

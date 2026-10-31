@@ -45,14 +45,23 @@ static volatile int8_t Running[SLOT_PERIODS] FORTH_KEEP;
 static volatile uint32_t Excluded[SLOT_PERIODS] FORTH_KEEP;   /* us of the slots above */
 static volatile int RunningDepth FORTH_KEEP;
 
-static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, uint32_t wcet,
-                    Context *c);
+static int Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, uint32_t wcet,
+                   Context *c);
 
 
-void SlotsRun(int period)
+int SlotsBound(int period)
+{
+  int i;
+  for (i = period * SLOT_ENTRIES; i < (period + 1) * SLOT_ENTRIES; i += 1)
+     if (Slots[i].State != SLOT_FREE)
+        return 1;
+  return 0;
+} /* end of SlotsBound */
+
+int SlotsRun(int period)
 {
   Context c;
-  int pass, i;
+  int pass, i, over = 0;
   for (pass = 0; pass < 2; pass += 1)
      for (i = period * SLOT_ENTRIES; i < (period + 1) * SLOT_ENTRIES; i += 1) {
         Slot *s = &Slots[i];
@@ -69,8 +78,9 @@ void SlotsRun(int period)
         if (s->Sequence != sequence || state == SLOT_FREE ||
             (state == SLOT_PROMOTED) != (pass == 0))
            continue;
-        Measure(s,sequence,w,state,wcet,&c);
+        over |= Measure(s,sequence,w,state,wcet,&c);
      }
+  return over;
 } /* end of SlotsRun */
 
 /* Measure: Runs the word once within its budget, the worst case admitted or, on trial,
@@ -98,11 +108,11 @@ static void Written(Slot *s)
   s->Writing += 1;
 } /* end of Written */
 
-static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, uint32_t wcet,
-                    Context *c)
+static int Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, uint32_t wcet,
+                   Context *c)
 {
   uint32_t start, end, excluded, time, mask, budget, now;
-  int error, depth;
+  int error, depth, over;
   if (s->Generation != sequence) {
      mask = ForthMask();
      Write(s);
@@ -115,7 +125,7 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
      ForthUnmask(mask);
   }
   if (s->Error != FORTH_OK)
-     return;
+     return 0;
   c->Depth = c->ReturnDepth = c->Catches = c->Base = c->SavedDepth = c->SavedBase = 0;
   c->Steps = 0;
   c->IP = NULL;
@@ -153,7 +163,8 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
   if (Carries(s,sequence,now))
      budget = s->Wcet;
   s->Runs += 1;
-  if (error == FORTH_BUDGET || time > budget)
+  over = error == FORTH_BUDGET || time > budget;
+  if (over)
      s->Excess += 1;
   if (error == FORTH_BUDGET)
      error = FORTH_OK;
@@ -164,6 +175,7 @@ static void Measure(Slot *s, uint32_t sequence, const Word *w, uint8_t state, ui
   Running[depth] = -1;
   RunningDepth = depth;
   ForthUnmask(mask);
+  return over;
 } /* end of Measure */
 
 

@@ -33,9 +33,14 @@ static UINT32 Core1Stack[512] FORTH_KEEP __attribute__((aligned(8)));
 static void SlotTask(void *argument)
 {
   int period = (int)(intptr_t)argument;
+  int traced = TraceOn && SlotsBound(period), over;
   if (period == 0)
      Beat += 1;
-  SlotsRun(period);
+  if (traced)
+     TraceNote(TRACE_START,(uint32_t)period);
+  over = SlotsRun(period);
+  if (traced)
+     TraceNote(over ? TRACE_END_OVER : TRACE_END,(uint32_t)period);
   OSEndTask();
 } /* end of SlotTask */
 
@@ -63,8 +68,11 @@ int main(void)
      ConsoleInit();
      Overruns = 0;
   }
-  else
+  else {
      SlotsRestarted();
+     if (TraceOn)
+        TraceNote(TRACE_LOST,0);
+  }
   /* The loader may leave core 1 halted, which pauses the counter the kernel set to pause
   ** with it; core 1 runs from here on, and no core is halted. */
   TIMER_DBGPAUSE = 0;

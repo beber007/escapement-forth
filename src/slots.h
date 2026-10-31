@@ -43,8 +43,12 @@ extern const uint32_t SlotPeriod[SLOT_PERIODS];
 enum { SLOT_FREE = 0, SLOT_TRIAL, SLOT_PROMOTED };
 
 /* SlotsRun: Runs the words bound to the entries of a period, the promoted ones first.
-** Called by that period's task, at each of its instances. */
-void SlotsRun(int period);
+** Called by that period's task, at each of its instances. Whether a run went past its
+** budget. */
+int SlotsRun(int period);
+
+/* SlotsBound: Whether an entry of a period has a word. */
+int SlotsBound(int period);
 
 /* SlotsRestarted: Called by the kernel's core when it starts again, the kernel restarted
 ** with the pool kept: the word that held the core is stopped, its error FORTH_STALLED;
