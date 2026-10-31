@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.svg">
+    <img src="docs/images/logo-light.svg" alt="Escapement Forth logo: Escapement's wheel with the : and ; of a Forth word" width="160">
+  </picture>
+</p>
+
 # Escapement Forth
 
 A Forth console for the [Escapement](https://github.com/beber007/escapement) real-time OS,
