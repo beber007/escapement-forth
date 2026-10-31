@@ -40,7 +40,8 @@ perl -0pi -e 's{<head>}{<head>
     const shown = { early, run: !document.getElementById("step-run").disabled,
                     status: document.getElementById("status").className,
                     lang: document.documentElement.lang,
-                    code: document.getElementById("step-code").innerHTML };
+                    code: document.getElementById("step-code").innerHTML,
+                    demo: document.querySelector(".demo a").href };
     document.getElementById("step-run").click();
     const next = document.getElementById("step-next");
     next.focus();
@@ -329,6 +330,9 @@ print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
     failed=1
   elif ! check 're.match(r"<span lang=\"'$lang'\">[^<]+</span>\n: blink ", s["code"])'; then
     echo "FAILED  $lang: the tour's first step not written: $shown"
+    failed=1
+  elif ! check 's["demo"] == {"en": "https://youtu.be/3fMFzSJFBvo", "fr": "https://youtu.be/f03H2mjgLlU"}["'$lang'"]'; then
+    echo "FAILED  $lang: the demo not linked in the language of the web page: $shown"
     failed=1
   elif ! check 's["early"] and s["run"]'; then
     echo "FAILED  $lang: the tour could be run before the Forth was ready, or not after: $shown"
