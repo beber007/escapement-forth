@@ -51,10 +51,15 @@
 #define FUNCSEL_SIO          5
 
 #define SIO_CPUID            *((volatile UINT32 *)(0xD0000000 + 0x00))
+#define ASK_PINS             0x05
+#define ASK_SLOTS            0x06
+#define FRAME_START          0x1E
+#define FRAME_END            0x1F
 #define SIO_GPIO_IN          *((volatile UINT32 *)(0xD0000000 + 0x04))
 #define SIO_GPIO_OUT_SET     *((volatile UINT32 *)(0xD0000000 + 0x14))
 #define SIO_GPIO_OUT_CLR     *((volatile UINT32 *)(0xD0000000 + 0x18))
 #define SIO_GPIO_OUT_XOR     *((volatile UINT32 *)(0xD0000000 + 0x1C))
+#define SIO_GPIO_OE          *((volatile UINT32 *)(0xD0000000 + 0x20))
 #define SIO_GPIO_OE_SET      *((volatile UINT32 *)(0xD0000000 + 0x24))
 #define TIMER_TIMERAWL       *((volatile UINT32 *)(0x40054000 + 0x28))
 #define TIMER_ALARM3         *((volatile UINT32 *)(0x40054000 + 0x1C))
@@ -145,6 +150,26 @@ static void Drain(void)
      RingTail = tail;
   }
 } /* end of Drain */
+
+/* Frame: What a program asks of the console with a byte of its own, sent apart from the
+** text between FRAME_START and FRAME_END: the pins or the pool. In a terminal, Ctrl-E and
+** Ctrl-F print them. Never while a line runs: the console answers between lines. */
+static void Frame(char c)
+{
+  Send(FRAME_START);
+  if (c == ASK_PINS) {
+     ForthEmit('p');
+     ForthEmit(' ');
+     /* The outputs alone: an input nothing drives reads anything. */
+     ForthPrintNumber((Cell)(SIO_GPIO_IN & SIO_GPIO_OE));
+  }
+  else {
+     ForthEmit('s');
+     ForthEmit(' ');
+     SlotsReport();
+  }
+  Send(FRAME_END);
+} /* end of Frame */
 
 /* Tick: Core 1's interrupt, alarm 3: core 0 watched, what UART0 received taken. */
 static void Tick(void)
@@ -514,6 +539,10 @@ void Console(void)
            ForthPrintText(" ^C\n");
         length = 0;
         last = 0;
+        continue;
+     }
+     if (c == ASK_PINS || c == ASK_SLOTS) {
+        Frame(c);
         continue;
      }
      last = c;

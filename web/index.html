@@ -523,9 +523,9 @@
           periodFull: "The four slots of that period are taken. n stop frees slot n.\n",
           processorFull: "All the budgets must fit in 95% of the processor. n stop frees slot n.\n",
           failed: "Forth could not start: ",
-          board: "Connected to a Pico. Only the console follows it.",
+          board: "Connected to a Pico.",
           boardLost: "The Pico is gone. Connect it again, or click Restart Forth.",
-          boardHello: "This console is now the Pico's. The tour, the slots, the pins and the timeline don't follow it yet. Ctrl-C stops a word.\n",
+          boardHello: "This console is now the Pico's. The pins and the slots follow it between two lines. The tour and the timeline don't yet. Ctrl-C stops a word.\n",
           boardFailed: "Could not open the port: ",
           welcome: "Escapement Forth, in WebAssembly. Type a line and press Enter, or follow the tour.\n",
           budget: "trial budget ", free: "free", trial: "trial", promoted: "promoted", failedChip: "failed",
@@ -548,9 +548,9 @@
           periodFull: "Les quatre cases de cette période sont prises. n stop libère la case n.\n",
           processorFull: "Tous les budgets doivent tenir dans 95 % du processeur. n stop libère la case n.\n",
           failed: "Le Forth n'a pas pu démarrer : ",
-          board: "Relié à un Pico. Seule la console le suit.",
+          board: "Relié à un Pico.",
           boardLost: "Le Pico n'est plus là. Rebranche-le, ou clique sur Relancer le Forth.",
-          boardHello: "Cette console est maintenant celle du Pico. La visite, les cases, les broches et la frise ne le suivent pas encore. Ctrl-C arrête un mot.\n",
+          boardHello: "Cette console est maintenant celle du Pico. Les broches et les cases le suivent entre deux lignes. La visite et la frise pas encore. Ctrl-C arrête un mot.\n",
           boardFailed: "Impossible d'ouvrir le port : ",
           welcome: "Escapement Forth, en WebAssembly. Tape une ligne puis Entrée, ou suis la visite.\n",
           budget: "budget d'essai ", free: "libre", trial: "essai", promoted: "promu", failedChip: "en échec",
@@ -1204,6 +1204,7 @@
     if (link !== null)
       link.close();
     link = null;
+    clearInterval(asking);
     view.reset();
     showViews();
     setCost(500);
@@ -1228,6 +1229,22 @@
     document.getElementById("disconnect").hidden = link === null;
   }
 
+  // ask: The pins often, the slots less: what the console has not answered yet, it is
+  // running a line, and more would fill its ring. Asked again after a while, in case.
+  let asking = null, asks = 0, boardAnswered = true, unanswered = 0;
+  function ask() {
+    unanswered += 1;
+    if (!boardAnswered && unanswered < 100)
+      return;
+    boardAnswered = false;
+    unanswered = 0;
+    asks += 1;
+    if (asks % 10 === 0)
+      link.askSlots();
+    else
+      link.askPins();
+  }
+
   // connect: The console on a Pico the visitor chooses, the Forth of the page stopped.
   let connecting = false;
   async function connect() {
@@ -1238,13 +1255,31 @@
       const port = await navigator.serial.requestPort();
       const opened = await boardLink(port, (text) => print(text), () => {
         link = null;
+        clearInterval(asking);
+        pool = [];
+        load = 0;
+        showPool();
+        showPins(0);
         statusState = ["boardLost", ""];
         showStatus();
         print(T[lang].boardLost + "\n", "note");
         showLinked();
+      }, (frame) => {
+        boardAnswered = true;
+        if (frame.slots) {
+          pool = frame.slots;
+          load = frame.load;
+          loadBound = frame.bound;
+          showPool();
+        }
+        else
+          showPins(frame.pins);
       });
       clear();
       link = opened;
+      boardAnswered = true;
+      unanswered = 0;
+      asking = setInterval(ask, 50);
       statusState = ["board", ""];
       showStatus();
       showStep();

@@ -188,7 +188,8 @@ pauses are left out.
 The console can also talk to a real Pico. In Chrome or Edge, click **Connect a Pico** and
 choose its serial port. The Pico must run this Forth. You need a Debug Probe or a USB to
 serial adapter on GP0 and GP1.
-Only the console follows the board for now (issue #28).
+The console then follows the board. The pins and the slots follow it between two lines, so
+they stop while a line runs. The timeline and the tour don't follow it yet (issue #28).
 
 ## How it is checked
 

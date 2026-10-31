@@ -142,7 +142,7 @@ const pend = (queue, pool) => {
   const item = V.pending(queue, pool);
   return item === null ? null : item.line;
 };
-const V = Function(text(args[3]) + " return { boardLink, timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, count, rowNames, hit, span, WINDOWS, ZOOM };")();
+const V = Function(text(args[3]) + " return { boardLink, boardFrame, timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, count, rowNames, hit, span, WINDOWS, ZOOM };")();
 
 forth.web_init();
 take();
@@ -689,7 +689,7 @@ async function boardLinkChecks() {
     return port;
   };
   const settle = async () => { for (let k = 0; k < 20; k += 1) await null; };
-  const { boardLink } = V;
+  const { boardLink, boardFrame } = V;
   let got = "", ended = 0;
   // é falls across two chunks, and the board's CR LF comes as LF.
   let port = makePort([encode("1 \xc3"), encode("\xa9 ok\r\n")]);
@@ -731,6 +731,42 @@ async function boardLinkChecks() {
   link = await boardLink(port, () => {}, () => { ended += 1; });
   await settle();
   check("an error that takes the stream ends the link", ended === 1 && port.closed, ended);
+  // Frames apart from the text, across chunks; a word that prints their first byte.
+  const frames = [];
+  got = "";
+  port = makePort([encode("a\x1Ep 12"), encode("3 \x1Fb\r\n"), encode("\x1Es 9547 700000 \r\n8 1 10 40 0 0 10000 w \r\n12 1 1 0 0 0 100000 bad stack empty\x1F")]);
+  link = await boardLink(port, (t) => { got += t; }, () => {}, (f) => frames.push(f));
+  await settle();
+  check("the text without its frames", got === "ab\n", got);
+  check("the pins of a frame", frames[0].pins === 123, frames[0]);
+  check("the load of a frame", frames[1].load === 9547 && frames[1].bound === 700000, frames[1]);
+  check("the slots of a frame", frames[1].slots[8].name === "w" && frames[1].slots[8].budget === 10000 &&
+        frames[1].slots[8].error === "" && frames[1].slots[12].error === "stack empty" &&
+        frames[1].slots[0].state === 0, frames[1].slots);
+  await link.askPins();
+  await link.askSlots();
+  check("what asks for them", port.written.join("|") === "5|6", port.written);
+  await link.close();
+  await settle();
+  got = "";
+  port = makePort([encode("x\x1E" + "y".repeat(2100))]);
+  link = await boardLink(port, (t) => { got += t; }, () => {});
+  await settle();
+  check("no frame end: the text kept", got.length === 2101 && got.startsWith("xy"), got.length);
+  await link.close();
+  await settle();
+  // A 0x1E a word printed, before a real frame: its text kept, the frame read.
+  frames.length = 0;
+  got = "";
+  port = makePort([encode("\x1E ok\r\n\x1Ep 32768 \x1F"), encode("\x1Enot a frame\x1F")]);
+  link = await boardLink(port, (t) => { got += t; }, () => {}, (f) => frames.push(f));
+  await settle();
+  check("a stray 0x1E keeps its text", got === " ok\nnot a frame", got);
+  check("the frame after a stray 0x1E", frames.length === 1 && frames[0].pins === 32768, frames);
+  await link.close();
+  await settle();
+  check("a slot out of range is left out", boardFrame("s 1 2 \n99 1 0 0 0 0 0 w ").slots.length === 16);
+  check("a frame of another kind is none", boardFrame("x 1") === null);
   const failing = makePort([]);
   failing.open = async () => { throw new Error("busy"); };
   let fault = "";
