@@ -78,7 +78,7 @@ flowchart LR
 
 ```forth
 \ board words: output high low toggle pins ( masks: 1 15 lshift is GP15 )
-\ ms overruns restarts starts dropped fault ( fault: a HardFault, to test the restart )
+\ ms spend overruns restarts starts dropped fault ( fault: a HardFault, to test the restart )
 variable n
 : tick  1 n +! ;
 ' tick 10 every      \ slot 4, on trial: runs every 10 ms, its time is measured
@@ -192,8 +192,7 @@ The console then follows the board. The pins and the slots follow it between two
 they stop while a line runs. The timeline shows the tasks that have words, from events the
 board sends while the web page is connected. Its times are then the Pico's. It can have gaps:
 at 115200 baud, words on the 1 ms task nearly fill the link. Bytes 28, 30 and 31 are for the
-web page: a word that prints them disturbs it. The tour doesn't follow the board yet
-(issue #28).
+web page: a word that prints them disturbs it. The tour runs on the board too.
 
 ## How it is checked
 

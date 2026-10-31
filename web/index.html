@@ -520,12 +520,13 @@
                          "protect your privacy. That is too coarse for the kernel, so the tour is off. Most " +
                          "browsers, with default settings, give 1 ms or better.",
           full: "The dictionary, the list of words, is full. Click Restart Forth to empty it.\n",
+          boardFull: "The Pico's dictionary, the list of words, is full. Only loading its image again empties it.\n",
           periodFull: "The four slots of that period are taken. n stop frees slot n.\n",
           processorFull: "All the budgets must fit in 95% of the processor. n stop frees slot n.\n",
           failed: "Forth could not start: ",
           board: "Connected to a Pico.",
           boardLost: "The Pico is gone. Connect it again, or click Restart Forth.",
-          boardHello: "This console is now the Pico's. The pins and the slots follow it between two lines. The timeline shows the tasks that have words. The tour doesn't follow it yet. Ctrl-C stops a word.\n",
+          boardHello: "This console is now the Pico's. The pins and the slots follow it between two lines. The timeline shows the tasks that have words. The tour runs on it. GP15 and GP20 are now outputs. Ctrl-C stops a word.\n",
           boardFailed: "Could not open the port: ",
           welcome: "Escapement Forth, in WebAssembly. Type a line and press Enter, or follow the tour.\n",
           budget: "trial budget ", free: "free", trial: "trial", promoted: "promoted", failedChip: "failed",
@@ -545,12 +546,13 @@
                          "protéger ta vie privée. C'est trop imprécis pour le noyau, la visite est donc " +
                          "désactivée. Avec leurs réglages par défaut, la plupart des navigateurs donnent 1 ms ou mieux.",
           full: "Le dictionnaire, la liste des mots, est plein. Clique sur Relancer le Forth pour le vider.\n",
+          boardFull: "Le dictionnaire du Pico, la liste des mots, est plein. Seul un nouveau chargement de son image le vide.\n",
           periodFull: "Les quatre cases de cette période sont prises. n stop libère la case n.\n",
           processorFull: "Tous les budgets doivent tenir dans 95 % du processeur. n stop libère la case n.\n",
           failed: "Le Forth n'a pas pu démarrer : ",
           board: "Relié à un Pico.",
           boardLost: "Le Pico n'est plus là. Rebranche-le, ou clique sur Relancer le Forth.",
-          boardHello: "Cette console est maintenant celle du Pico. Les broches et les cases le suivent entre deux lignes. La frise montre les tâches qui ont des mots. La visite ne le suit pas encore. Ctrl-C arrête un mot.\n",
+          boardHello: "Cette console est maintenant celle du Pico. Les broches et les cases le suivent entre deux lignes. La frise montre les tâches qui ont des mots. La visite tourne dessus. GP15 et GP20 sont maintenant des sorties. Ctrl-C arrête un mot.\n",
           boardFailed: "Impossible d'ouvrir le port : ",
           welcome: "Escapement Forth, en WebAssembly. Tape une ligne puis Entrée, ou suis la visite.\n",
           budget: "budget d'essai ", free: "libre", trial: "essai", promoted: "promu", failedChip: "en échec",
@@ -614,7 +616,9 @@
   // board's console does, " ok" after it on the same line.
   function send(line, tour, quiet) {
     if (link !== null) {
-      if (!tour && !quiet)
+      if (tour || boardLines.busy())
+        boardLines.add(line, tour === true, quiet === true);
+      else if (!quiet)
         link.send(line);   // the board echoes it
       return;
     }
@@ -1082,7 +1086,7 @@
       document.getElementById(step === 0 ? "step-next" : "step-back").focus();
     // Before the Forth is ready, a click would queue the tour on a clock not yet measured.
     const run = document.getElementById("step-run");
-    run.disabled = !ready || statusState[0] === "coarse" || (ran === step && finish && !helped);
+    run.disabled = (!ready && link === null) || statusState[0] === "coarse" || (ran === step && finish && !helped);
     run.textContent = ran === step && !finish ? T[lang].onward : T[lang].run;
     showLook();
   }
@@ -1148,6 +1152,10 @@
     noteDue = setupText(TOUR[step]);
     // The solution shown is among the lines the button says it types.
     const lines = last && helped ? [...TOUR[step].lines, ...SOLUTION.split("\n")] : TOUR[step].lines;
+    if (link !== null && noteDue !== null) {
+      print(noteDue + "\n", "note");
+      noteDue = null;
+    }
     for (const [k, line] of lines.entries()) {
       const cost = /^(\d+) cost !$/.exec(line) || /^variable cost  (\d+) cost !$/.exec(line);
       if (cost)
@@ -1241,7 +1249,7 @@
 
   // ask: The pins often, the slots less: what the console has not answered yet, it is
   // running a line, and more would fill its ring. Asked again after a while, in case.
-  let traceIn = null, asking = null, traceAsked = 0, asks = 0, boardAnswered = true, unanswered = 0;
+  let boardLines = null, traceIn = null, asking = null, traceAsked = 0, asks = 0, boardAnswered = true, unanswered = 0;
   function ask() {
     const traced = traceIn.flush();
     if (traced !== null)
@@ -1252,6 +1260,9 @@
       traceAsked = now;
       link.trace(true);
     }
+    // The tour's lines ask the slots themselves: one more would come before they ended.
+    if (boardLines.busy())
+      return;
     unanswered += 1;
     if (!boardAnswered && unanswered < 100)
       return;
@@ -1272,8 +1283,12 @@
     connecting = true;
     try {
       const port = await navigator.serial.requestPort();
-      const opened = await boardLink(port, (text) => print(text), () => {
+      const opened = await boardLink(port, (text) => boardLines.text(text), () => {
         link = null;
+        if (typing) {
+          typeFailed = true;
+          tourDone();
+        }
         clearInterval(asking);
         pool = [];
         load = 0;
@@ -1283,6 +1298,7 @@
         showStatus();
         print(T[lang].boardLost + "\n", "note");
         showLinked();
+        showStep();
       }, (frame) => {
         boardAnswered = true;
         if (frame.slots) {
@@ -1290,12 +1306,27 @@
           load = frame.load;
           loadBound = frame.bound;
           showPool();
+          boardLines.slots(frame.slots);
         }
         else
           showPins(frame.pins);
       }, (event) => traceIn.add(event));
       clear();
       link = opened;
+      boardLines = boardTour({ send: (line) => link.send(line), askSlots: () => link.askSlots(),
+        print: (text) => print(text),
+        line: (said) => {
+          const filled = full(said);
+          if (filled)
+            print(filled === "period" ? T[lang].periodFull : filled === "processor" ? T[lang].processorFull : T[lang].boardFull, "note");
+        },
+        done: (failed) => {
+          typeFailed = failed;
+          if (typing)
+            tourDone();
+        } });
+      // A board's pins are inputs until told; the tour's LEDs need no line on the page's Forth.
+      boardLines.add("1 15 lshift output 1 20 lshift output", true, true);
       boardAnswered = true;
       unanswered = 0;
       traceIn = boardTrace();
