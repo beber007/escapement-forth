@@ -237,6 +237,55 @@ function boardFrame(text) {
   return { load: Number(head[1]), bound: Number(head[2]), slots };
 }
 
+// boardTour: The tour's lines to a board's console, as the worker takes them on the page's
+// Forth, each asking the slots after it: the console answers once the line has run, so that
+// says the line ended, however much the slots printed, and gives the next line's {name}.
+// A line that failed drops the tour's rest.
+function boardTour(to) {
+  const queue = [];
+  let sent = null, said = "", failed = false, pool = [];
+  function next() {
+    const item = pending(queue, pool);
+    sent = item;
+    if (item === null) {
+      to.done(failed);
+      failed = false;
+      return;
+    }
+    said = "";
+    to.send(item.line);
+    to.askSlots();
+  }
+  return {
+    busy: () => sent !== null,
+    add: (line, tour, quiet) => {
+      queue.push({ line, tour, quiet });
+      if (sent === null)
+        next();
+    },
+    text: (text) => {
+      if (sent === null || !sent.quiet)
+        to.print(text);
+      if (sent !== null)
+        said += text;
+    },
+    slots: (slots) => {
+      pool = slots;
+      // Slots from before the line come with nothing of its end yet.
+      if (sent === null || !said.includes("\n"))
+        return;
+      if (sent.tour && !answered(said)) {
+        failed = true;
+        abandon(queue);
+        if (sent.quiet)
+          to.print(said);
+      }
+      to.line(said);
+      next();
+    },
+  };
+}
+
 // boardTrace: The board's events (pico/console.c) as the worker's telemetry for timeline.
 // Their time is 19 bits of us: read against the last, either way. flush gives what came
 // since the last time, or null.

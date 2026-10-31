@@ -142,7 +142,7 @@ const pend = (queue, pool) => {
   const item = V.pending(queue, pool);
   return item === null ? null : item.line;
 };
-const V = Function(text(args[3]) + " return { boardLink, boardFrame, boardTrace, timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, count, rowNames, hit, span, WINDOWS, ZOOM };")();
+const V = Function(text(args[3]) + " return { boardLink, boardFrame, boardTour, boardTrace, timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, count, rowNames, hit, span, WINDOWS, ZOOM };")();
 
 forth.web_init();
 take();
@@ -811,6 +811,45 @@ async function boardLinkChecks() {
   const rowOf = (r) => beside.instances.find((i) => i.row === r);
   check("a line beside the tasks", rowOf(4).start === 150 && rowOf(4).end === 250 && rowOf(4).runs.length === 1, rowOf(4));
   check("the tasks as they ran", rowOf(3).end === 400 && rowOf(3).over && rowOf(0).end === 300, beside.instances);
+  // The tour on a board: a line once the one before ended and the slots came back after it.
+  const typed = [], shown = [], ends = [];
+  let asked = 0;
+  const tour = V.boardTour({ send: (l) => typed.push(l), askSlots: () => { asked += 1; },
+    print: (t) => shown.push(t), line: (said) => ends.push(said), done: (failed) => ends.push(failed) });
+  tour.add("setup", true, true);
+  tour.add("' w 10 every", true, false);
+  tour.add("200 ms {w} promote", true, false);
+  check("the tour's first line alone", typed.length === 1 && tour.busy(), typed);
+  tour.slots([]);
+  check("slots from before it move nothing", typed.length === 1, typed);
+  tour.text("setup ok");
+  tour.slots([]);
+  check("a line not ended holds the next", typed.length === 1 && asked === 1, typed);
+  tour.text("\n");
+  check("a quiet line unseen", shown.length === 0, shown);
+  tour.slots([]);
+  check("the next line after them", typed[1] === "' w 10 every", typed);
+  tour.text("' w 10 every slot 4  ok\n");
+  check("a line shown, the slots asked after each", asked === 2 && shown.join("") === "' w 10 every slot 4  ok\n", shown);
+  const held = [{ state: 0 }, { state: 0 }, { state: 0 }, { state: 0 }, { state: 1, name: "w" }];
+  tour.slots(held);
+  check("a slot read from what came back", typed[2] === "200 ms 4 promote", typed);
+  tour.add("not sent", true, false);
+  tour.text("200 ms 4 promote nope\n");
+  tour.slots(held);
+  check("a failure drops the rest", typed.length === 3 && ends[ends.length - 1] === true && !tour.busy(), ends);
+  // What a slot prints comes before the line's end, its lines too.
+  const talks = [], talkDone = [];
+  const talker = V.boardTour({ send: (l) => talks.push(l), askSlots: () => {}, print: () => {}, line: () => {}, done: (f) => talkDone.push(f) });
+  talker.add("first", true, true);
+  talker.add("second", true, false);
+  talker.text("fi\nhi\nrst ok\n");
+  talker.slots([]);
+  talker.text("second ok\n");
+  talker.slots([]);
+  check("a slot that prints fails no line", talks.length === 2 && talkDone[0] === false, talkDone);
+  const typing = V.boardTour({ send: (l) => typed.push(l), askSlots: () => {}, print: () => {}, line: () => {}, done: () => {} });
+  check("no tour, not busy", !typing.busy(), "");
   const failing = makePort([]);
   failing.open = async () => { throw new Error("busy"); };
   let fault = "";

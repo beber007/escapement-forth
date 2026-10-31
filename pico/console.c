@@ -75,6 +75,7 @@
 #define SIO_GPIO_OUT_XOR     *((volatile UINT32 *)(0xD0000000 + 0x1C))
 #define SIO_GPIO_OE          *((volatile UINT32 *)(0xD0000000 + 0x20))
 #define SIO_GPIO_OE_SET      *((volatile UINT32 *)(0xD0000000 + 0x24))
+#define SIO_GPIO_OE_CLR      *((volatile UINT32 *)(0xD0000000 + 0x28))
 #define TIMER_TIMERAWL       *((volatile UINT32 *)(0x40054000 + 0x28))
 #define TIMER_ALARM3         *((volatile UINT32 *)(0x40054000 + 0x1C))
 #define TIMER_INTR           *((volatile UINT32 *)(0x40054000 + 0x34))
@@ -94,7 +95,7 @@
 #define FREE_PINS            0x1C7FFFFCu
 
 #define RING                 256         /* a power of 2 */
-#define INPUT                64          /* a power of 2 */
+#define INPUT                256         /* a power of 2 */
 
 /* All of it outlives a restart of core 0, which clears its .bss under core 1. */
 static volatile UINT8 Ring[RING] FORTH_KEEP;
@@ -541,6 +542,34 @@ static void PFault(Context *c, const Word *w)
   __asm volatile ("udf #0");
 } /* end of PFault */
 
+/* SPEND ( us -- ): Keeps the processor busy that long, for what the tour shows: of its own
+** time in a slot, so cut at its budget and preempted, as the web page's. */
+static void PSpend(Context *c, const Word *w)
+{
+  UINT32 start = TIMER_TIMERAWL, wait, from;
+  (void)w;
+  FORTH_NEED(c,1);
+  if (FORTH_TOP(c) < 0 || FORTH_TOP(c) > 1000000) {
+     c->Error = FORTH_ARGUMENT;
+     return;
+  }
+  wait = (UINT32)FORTH_POP(c);
+  if (c->Excluded == NULL) {
+     while (TIMER_TIMERAWL - start < wait)
+        if (ForthBreak()) {
+           c->Error = FORTH_BREAK;
+           return;
+        }
+     return;
+  }
+  from = ForthOwnTime(c->Start,c->Excluded);
+  while (ForthOwnTime(c->Start,c->Excluded) - from < wait)
+     if (c->Budget != 0 && ForthOwnTime(c->Start,c->Excluded) > c->Budget) {
+        c->Error = FORTH_BUDGET;
+        return;
+     }
+} /* end of PSpend */
+
 void ForthPlatformWords(void)
 {
   ForthAddWord("fault",PFault,0);
@@ -552,6 +581,7 @@ void ForthPlatformWords(void)
   ForthAddWord("overruns",POverruns,0);
   ForthAddWord("dropped",PDropped,0);
   ForthAddWord("ms",PMs,0);
+  ForthAddWord("spend",PSpend,0);
   ForthAddWord("restarts",PRestarts,0);
   ForthAddWord("starts",PStarts,0);
   SlotsWords();
@@ -596,6 +626,9 @@ static void StartTick(void)
 void ConsoleInit(void)
 {
   RingHead = RingTail = Dropped = 0;
+  /* Loading over SWD resets nothing: a firmware in the flash may have left pins driven. */
+  SIO_GPIO_OE_CLR = 0xFFFFFFFF;
+  SIO_GPIO_OUT_CLR = 0xFFFFFFFF;
   TraceOn = EventHead = EventTail = EventLost = 0;
   TraceAsked = LastClock = LastShare = 0;
   Sending = 0;
