@@ -203,6 +203,54 @@ function coarse(grain) {
   return !(grain <= 1000);
 }
 
+// boardLink: A serial port (Web Serial) opened on the board's console: onText gets what it
+// prints, onEnd is told if the port ends by itself, the board unplugged.
+async function boardLink(port, onText, onEnd) {
+  await port.open({ baudRate: 115200 });
+  const decoder = new TextDecoder(), encoder = new TextEncoder();
+  const writer = port.writable.getWriter();
+  let reader = null, closing = false;
+  (async () => {
+    // An error the port survives, a break or a framing error, gives a new stream; one it
+    // does not, the board unplugged, leaves none.
+    while (!closing && port.readable !== null) {
+      reader = port.readable.getReader();
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) {
+            closing = closing || "ended";
+            break;
+          }
+          const text = decoder.decode(value, { stream: true }).replace(/\r/g, "");
+          if (text !== "")
+            onText(text);
+        }
+      } catch (e) {
+        // Round again, if a stream is left.
+      }
+      reader.releaseLock();
+    }
+    writer.releaseLock();
+    try {
+      await port.close();
+    } catch (e) {
+      // Already gone.
+    }
+    if (closing !== true)
+      onEnd();
+  })();
+  const write = (bytes) => writer.write(bytes).catch(() => {});
+  return {
+    send: (line) => write(encoder.encode(line + "\r")),
+    interrupt: () => write(Uint8Array.of(3)),
+    close: () => {
+      closing = true;
+      return reader === null ? undefined : reader.cancel().catch(() => {});
+    },
+  };
+}
+
 // full: What a line's output says full: "dictionary", which a Restart empties, "period",
 // whose slots stop frees, "processor", which stop makes room in, or null.
 function full(text) {

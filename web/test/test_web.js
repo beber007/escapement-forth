@@ -142,7 +142,7 @@ const pend = (queue, pool) => {
   const item = V.pending(queue, pool);
   return item === null ? null : item.line;
 };
-const V = Function(text(args[3]) + " return { timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, count, rowNames, hit, span, WINDOWS, ZOOM };")();
+const V = Function(text(args[3]) + " return { boardLink, timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, count, rowNames, hit, span, WINDOWS, ZOOM };")();
 
 forth.web_init();
 take();
@@ -653,10 +653,97 @@ for (const s of tour) {
   play(s, " alone");
 }
 
-say(failures === 0 ? "all passed" : failures + " FAILED");
-if (failures !== 0) {
-  if (node)
-    process.exit(1);
-  else
-    quit(1);
+// boardLink, on a port made up: what the Pico sends, what it is sent, how it ends.
+async function boardLinkChecks() {
+  // jsc has neither: enough of them for these checks.
+  if (typeof TextDecoder === "undefined") {
+    globalThis.TextEncoder = class { encode(t) { return Uint8Array.from(Array.from(t, (c) => c.charCodeAt(0))); } };
+    globalThis.TextDecoder = class {
+      kept = [];
+      decode(bytes) {
+        const all = this.kept.concat(Array.from(bytes));
+        const lead = all.length > 0 && all[all.length - 1] >= 0xC0;
+        this.kept = lead ? [all.pop()] : [];
+        return decodeURIComponent(all.map((b) => "%" + b.toString(16).padStart(2, "0")).join(""));
+      }
+    };
+  }
+  const encode = (t) => Uint8Array.from(Array.from(t, (c) => c.charCodeAt(0)));
+  const makePort = (chunks) => {
+    const port = { written: [], options: null, closed: false, cancelled: false, wake: null };
+    port.open = async (options) => { port.options = options; };
+    port.close = async () => { port.closed = true; };
+    port.writable = { getWriter: () => ({ write: async (b) => { port.written.push(Array.from(b)); }, releaseLock() {} }) };
+    port.readable = { getReader: () => ({
+      read: () => new Promise((resolve, reject) => {
+        if (chunks[0] instanceof Error)
+          reject(chunks.shift());
+        else if (chunks.length > 0)
+          resolve({ value: chunks.shift(), done: false });
+        else
+          port.wake = () => resolve({ value: undefined, done: true });
+      }),
+      cancel: async () => { port.cancelled = true; port.wake(); },
+      releaseLock() {},
+    }) };
+    return port;
+  };
+  const settle = async () => { for (let k = 0; k < 20; k += 1) await null; };
+  const { boardLink } = V;
+  let got = "", ended = 0;
+  // é falls across two chunks, and the board's CR LF comes as LF.
+  let port = makePort([encode("1 \xc3"), encode("\xa9 ok\r\n")]);
+  let link = await boardLink(port, (t) => { got += t; }, () => { ended += 1; });
+  await settle();
+  check("the link at the console's speed", port.options.baudRate === 115200, port.options);
+  check("the link's text whole, no CR", got === "1 é ok\n", got);
+  await link.send("1 .");
+  check("a line ends with CR", port.written[0].join() === "49,32,46,13", port.written);
+  await link.interrupt();
+  check("an interrupt is Ctrl-C", port.written[1].join() === "3", port.written);
+  check("the link stays open", !port.closed && ended === 0);
+  await link.close();
+  await settle();
+  check("closing cancels and closes the port", port.cancelled && port.closed, port);
+  check("closing is not an end", ended === 0, ended);
+  // A board unplugged: the read ends, the page is told.
+  port = makePort([]);
+  link = await boardLink(port, () => {}, () => { ended += 1; });
+  await settle();
+  port.wake();
+  await settle();
+  check("a board unplugged ends the link", ended === 1 && port.closed, ended);
+  // An error the port survives: the read goes on. One that takes the stream: the link ends.
+  got = "";
+  ended = 0;
+  port = makePort([encode("a"), new Error("break"), encode("b")]);
+  link = await boardLink(port, (t) => { got += t; }, () => { ended += 1; });
+  await settle();
+  check("a read goes on after an error the port survives", got === "ab" && ended === 0 && !port.closed, got);
+  await link.close();
+  await settle();
+  check("closing after that error closes the port", port.closed && ended === 0);
+  port = makePort([new Error("lost")]);
+  const stream = port.readable, getReader = stream.getReader;
+  let taken = false;
+  stream.getReader = () => { taken = true; return getReader(); };
+  Object.defineProperty(port, "readable", { get: () => (taken ? null : stream) });
+  link = await boardLink(port, () => {}, () => { ended += 1; });
+  await settle();
+  check("an error that takes the stream ends the link", ended === 1 && port.closed, ended);
+  const failing = makePort([]);
+  failing.open = async () => { throw new Error("busy"); };
+  let fault = "";
+  try { await boardLink(failing, () => {}, () => {}); } catch (e) { fault = e.message; }
+  check("a port that cannot open says why", fault === "busy", fault);
 }
+
+boardLinkChecks().catch((e) => check("the link's checks ran", false, String(e))).then(() => {
+  say(failures === 0 ? "all passed" : failures + " FAILED");
+  if (failures !== 0) {
+    if (node)
+      process.exit(1);
+    else
+      quit(1);
+  }
+});

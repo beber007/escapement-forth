@@ -185,6 +185,11 @@ timeline shows what the kernel ran, from a trace the port keeps, and a table sho
 slot against its budget. The times are the browser's, not the Pico's. The browser's own
 pauses are left out.
 
+The console can also talk to a real Pico. In Chrome or Edge, click **Connect a Pico** and
+choose its serial port. The Pico must run this Forth. You need a Debug Probe or a USB to
+serial adapter on GP0 and GP1.
+Only the console follows the board for now (issue #28).
+
 ## How it is checked
 
 | Level | What it establishes | When |

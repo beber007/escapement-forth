@@ -108,8 +108,8 @@
   .status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .status.coarse, .status.failed { position: static; width: auto; height: auto; clip-path: none; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--muted); }
   .status::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--muted); }
-  .status.ready::before { background: #2fbf71; box-shadow: 0 0 0 0.1875rem rgba(47, 191, 113, 0.18); }
-  .status.failed::before, .status.coarse::before { background: #e5534b; }
+  .status.ready::before, .status.board::before { background: #2fbf71; box-shadow: 0 0 0 0.1875rem rgba(47, 191, 113, 0.18); }
+  .status.failed::before, .status.coarse::before, .status.boardLost::before { background: #e5534b; }
 
   /* The tour stays in sight as the page scrolls; first on a phone, the rest under it. */
   .side { grid-area: side; display: flex; flex-direction: column; gap: 0.5rem; position: sticky; top: 0.5rem;
@@ -245,6 +245,8 @@
              transition: width 200ms; }
   .gauge b { position: absolute; top: -0.25rem; bottom: -0.25rem; width: 2px; background: var(--over); }
   .gauge-text { font-size: 0.78rem; color: var(--muted); }
+  .actions { flex: none; display: flex; gap: 0.5rem; }
+  .actions .restart { flex: 1; }
   .restart { flex: none; background: transparent; border: 1px solid var(--line); border-radius: 0.5rem; padding: 0.25rem;
              font-size: 0.8rem; color: var(--muted); }
   .restart:hover { color: var(--ink); border-color: var(--muted); }
@@ -324,7 +326,11 @@
           <button id="step-next" aria-label="Next step" data-i18n-label="next">→</button>
         </div>
       </section>
-      <button class="restart" id="restart" data-i18n="restart">Restart Forth</button>
+      <div class="actions">
+        <button class="restart" id="restart" data-i18n="restart">Restart Forth</button>
+        <button class="restart" id="connect" data-i18n="connect" hidden>Connect a Pico</button>
+        <button class="restart" id="disconnect" data-i18n="disconnect" hidden>Disconnect</button>
+      </div>
     </div>
   </div>
 
@@ -386,6 +392,7 @@
   const history = [];
   let back = 0;
   let worker = null;
+  let link = null;     // the board's console, from boardLink, in place of the worker
   let busy = false;
   let ready = false;   // the worker drops a line sent before it is
   let fresh = false;   // nothing printed yet for the line under way
@@ -495,7 +502,7 @@
     how4: "<b>L'échéance d'abord</b>Le noyau fait toujours passer la tâche dont l'échéance est la plus proche (EDF). La tâche de 1 ms interrompt celle de 1 s. La console passe après toutes.",
     demo: '<a href="https://youtu.be/f03H2mjgLlU">Voir la démo (2 min)</a>',
     rules: "Les règles", tour: "Visite guidée", cost: "Coût de <code>work</code>",
-    restart: "Relancer le Forth", live: "La frise : ce que lance le noyau", running: "en cours, une couleur par tâche",
+    restart: "Relancer le Forth", connect: "Brancher un Pico", disconnect: "Débrancher", live: "La frise : ce que lance le noyau", running: "en cours, une couleur par tâche",
     waiting: "en attente, interrompue", release: "lancement", overlegend: "au-delà du budget",
     pool: "Le tableau des cases", poolnote: "temps le plus long / budget",
     honest: "Cette page web et la carte",
@@ -516,6 +523,10 @@
           periodFull: "The four slots of that period are taken. n stop frees slot n.\n",
           processorFull: "All the budgets must fit in 95% of the processor. n stop frees slot n.\n",
           failed: "Forth could not start: ",
+          board: "Connected to a Pico. Only the console follows it.",
+          boardLost: "The Pico is gone. Connect it again, or click Restart Forth.",
+          boardHello: "This console is now the Pico's. The tour, the slots, the pins and the timeline don't follow it yet. Ctrl-C stops a word.\n",
+          boardFailed: "Could not open the port: ",
           welcome: "Escapement Forth, in WebAssembly. Type a line and press Enter, or follow the tour.\n",
           budget: "trial budget ", free: "free", trial: "trial", promoted: "promoted", failedChip: "failed",
           figures: (e) => time(e.max, "en") + " / " + time(e.budget, "en") + "\n" + count(e.runs) + (e.runs === 1 ? " run" : " runs") +
@@ -537,6 +548,10 @@
           periodFull: "Les quatre cases de cette période sont prises. n stop libère la case n.\n",
           processorFull: "Tous les budgets doivent tenir dans 95 % du processeur. n stop libère la case n.\n",
           failed: "Le Forth n'a pas pu démarrer : ",
+          board: "Relié à un Pico. Seule la console le suit.",
+          boardLost: "Le Pico n'est plus là. Rebranche-le, ou clique sur Relancer le Forth.",
+          boardHello: "Cette console est maintenant celle du Pico. La visite, les cases, les broches et la frise ne le suivent pas encore. Ctrl-C arrête un mot.\n",
+          boardFailed: "Impossible d'ouvrir le port : ",
           welcome: "Escapement Forth, en WebAssembly. Tape une ligne puis Entrée, ou suis la visite.\n",
           budget: "budget d'essai ", free: "libre", trial: "essai", promoted: "promu", failedChip: "en échec",
           figures: (e) => time(e.max, "fr") + " / " + time(e.budget, "fr") + "\n" + count(e.runs) + " fois" +
@@ -598,8 +613,16 @@
   // send: The line given to the Forth once the line before is done, and echoed as the
   // board's console does, " ok" after it on the same line.
   function send(line, tour, quiet) {
-    if (worker === null)
+    if (link !== null) {
+      if (!tour && !quiet)
+        link.send(line);   // the board echoes it
       return;
+    }
+    if (worker === null) {
+      if (statusState[0] === "boardLost")
+        print(T[lang].boardLost + "\n", "note");
+      return;
+    }
     queue.push({ line, tour: tour === true, quiet: quiet === true });
     next();
   }
@@ -1174,9 +1197,13 @@
     });
   });
 
-  function start() {
+  function clear() {
     if (worker !== null)
       worker.terminate();
+    worker = null;
+    if (link !== null)
+      link.close();
+    link = null;
     view.reset();
     showViews();
     setCost(500);
@@ -1194,9 +1221,50 @@
     showPins(0);
     helped = won = false;
     flipped = -Infinity;
+  }
+
+  function showLinked() {
+    document.getElementById("connect").hidden = link !== null || !("serial" in navigator);
+    document.getElementById("disconnect").hidden = link === null;
+  }
+
+  // connect: The console on a Pico the visitor chooses, the Forth of the page stopped.
+  let connecting = false;
+  async function connect() {
+    if (connecting)
+      return;
+    connecting = true;
+    try {
+      const port = await navigator.serial.requestPort();
+      const opened = await boardLink(port, (text) => print(text), () => {
+        link = null;
+        statusState = ["boardLost", ""];
+        showStatus();
+        print(T[lang].boardLost + "\n", "note");
+        showLinked();
+      });
+      clear();
+      link = opened;
+      statusState = ["board", ""];
+      showStatus();
+      showStep();
+      showLinked();
+      print(T[lang].boardHello, "note");
+      input.focus();
+    } catch (e) {
+      // None chosen is no failure.
+      if (e.name !== "NotFoundError")
+        print(T[lang].boardFailed + e.message + "\n", "note");
+    }
+    connecting = false;
+  }
+
+  function start() {
+    clear();
     statusState = ["loading", ""];
     showStatus();
     showStep();
+    showLinked();
     worker = new Worker("worker.js");
     worker.onmessage = (event) => {
       const m = event.data;
@@ -1293,7 +1361,13 @@
     // before the Enter that validates it, of keyCode 229 then.
     if (event.isComposing || event.keyCode === 229)
       return;
-    if (event.key === "Enter") {
+    // Ctrl-C with nothing selected, to the board: it stops the word that runs.
+    if (link !== null && event.ctrlKey && event.key.toLowerCase() === "c" &&
+        input.selectionStart === input.selectionEnd && window.getSelection().toString() === "") {
+      link.interrupt();
+      event.preventDefault();
+    }
+    else if (event.key === "Enter") {
       const line = input.value;
       input.value = kept = "";
       if (line.trim() !== "")
@@ -1326,6 +1400,11 @@
       input.focus();
   });
   document.getElementById("restart").addEventListener("click", start);
+  document.getElementById("connect").addEventListener("click", connect);
+  document.getElementById("disconnect").addEventListener("click", () => {
+    start();
+    input.focus();
+  });
 
   setLang(lang);
   start();
