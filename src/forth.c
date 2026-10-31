@@ -43,7 +43,7 @@ static const char *const Errors[] = {
    "dictionary full", "?", "compile only", "name expected", "unbalanced control",
    "bad argument", "stalled", "inside a definition", "over budget",
    "interrupted", "bad address", "not stored", "thrown", "return stack empty", "name too long",
-   "period full"
+   "period full", "processor full"
 };
 
 /* The standard's codes for the errors that CATCH takes (Forth 2012, 9.3.5), below -255
@@ -55,7 +55,7 @@ static const struct { int Error; Cell Code; } Codes[] = {
    {FORTH_COMPILE_ONLY, -14}, {FORTH_NAME, -16}, {FORTH_CONTROL, -22},
    {FORTH_ARGUMENT, -24}, {FORTH_DEFINING, -29}, {FORTH_ADDRESS, -9},
    {FORTH_RETURN_UNDERFLOW, -6}, {FORTH_NAME_LONG, -19}, {FORTH_STORE, -256},
-   {FORTH_PERIOD_FULL, -257}
+   {FORTH_PERIOD_FULL, -257}, {FORTH_PROCESSOR_FULL, -258}
 };
 
 

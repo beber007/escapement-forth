@@ -599,6 +599,11 @@ for (let k = 0; k < 5; k += 1)
   crowded = line("' w 1000 every").out;
 check("a period full, the page says so apart", V.full(crowded) === "period", crowded);
 stopAll();
+crowded = "";
+for (const ms of [1, 1, 1, 1, 10, 10, 10, 10, 100, 100])
+  crowded = line("' w " + ms + " every").out;
+check("the processor full, the page says so apart", V.full(crowded) === "processor", crowded);
+stopAll();
 
 // The tour typed again and again fills the dictionary: the page then says so, and that
 // Restart empties it.

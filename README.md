@@ -83,7 +83,7 @@ variable n
 : tick  1 n +! ;
 ' tick 10 every      \ slot 4, on trial: runs every 10 ms, its time is measured
 slots                \ for each slot: runs, longest run
-4 promote            \ guaranteed if all promoted words still fit in 70 %
+4 promote            \ guaranteed if it passes both limits below
 4 stop
 ```
 
@@ -95,6 +95,16 @@ A new word is on trial. It runs and its time is measured, but nothing is guarant
 plus 1 µs. The promotion is refused if all promoted words, plus the slots' own cost,
 would take more than 70 % of the processor. That cost is 8 µs per release (6.6 to 7.3 µs
 measured on the Pico, issue #40 step 1).
+
+Words on trial count too. Each one takes its budget, a tenth of its period. All the
+budgets, plus the slots' own cost, must fit in 95 % of the processor. Past that, `every`
+says `processor full` and `promote` says `refused, with trials`. `slots` shows this total.
+
+So nine words on trial at most, whatever their periods. A word on trial that failed keeps
+its share until you `stop` it.
+
+Without this rule, words on trial made promoted words miss their deadlines. We measured
+this on a Pico W.
 
 ### The budget
 
@@ -117,7 +127,7 @@ counted as over (shown by `slots`), and the word runs again at its next release.
 stop the word.
 
 `every` on a period whose four slots are taken says `period full`. `catch` gives -257, a
-code of our own, so it is not confused with a full dictionary (-8).
+code of our own, so it is not confused with a full dictionary (-8). `processor full` gives -258.
 
 A slot stopped by `throw` shows `failed: thrown`, without the number.
 
@@ -229,9 +239,10 @@ pauses are left out.
   one of its values. The flash cannot be read while it is written, so `@` on flash gives
   `bad address` then. A read that a slot started just before can still hit the flash
   during the write. Each save wears the flash, which is rated for about 100,000 erases.
-- **Words on trial are not counted in the 70 %.** Each can take a tenth of its period, so
-  several that overrun can overload the processor and make a promoted word miss its
-  deadline. This comes from reading the code. It was not measured.
+- **The 95 % is measured, not proven.** The check comes every 16 words, so a run can pass
+  its budget. Slow words on trial took 113 µs for a budget of 100 µs. At 99.8 %, with every
+  promoted word cut at its worst case, a Pico W showed no overrun in two runs. A slower
+  word in C could use up the margin.
 - **Slot output** goes through a 256-byte ring buffer. What does not fit is dropped
   (`dropped`).
 

@@ -150,8 +150,89 @@ static void Pool(void)
        "' w 1 every ' w 1 every ' w 1 every ' w 1 every ' w 1 every");
   CASE("a full period caught"," ok\nslot 0 slot 1 slot 2 slot 3 -257  ok\n",": w ;",
        "' w 1 every ' w 1 every ' w 1 every ' w 1 every ' w 1 ' every catch . 2drop");
+  /* Nine on trial take 90 %, and the pool 0.9 %: a tenth is refused, for all the budgets
+  ** to fit in the processor (issue #25). */
+  CASE("the trials fill the processor"," ok\n"
+       "slot 0 slot 1 slot 2 slot 3 slot 4 slot 5 slot 6 slot 7 slot 8  every processor full\n",": w ;",
+       "' w 1 every ' w 1 every ' w 1 every ' w 1 every ' w 10 every ' w 10 every ' w 10 every "
+       "' w 10 every ' w 100 every ' w 100 every");
+  CASE("the processor full caught"," ok\n"
+       "slot 0 slot 1 slot 2 slot 3 slot 4 slot 5 slot 6 slot 7 slot 8 -258  ok\n",": w ;",
+       "' w 1 every ' w 1 every ' w 1 every ' w 1 every ' w 10 every ' w 10 every ' w 10 every "
+       "' w 10 every ' w 100 every ' w 100 ' every catch . 2drop");
+  CASE("stop makes room for a trial"," ok\n"
+       "slot 0 slot 1 slot 2 slot 3 slot 4 slot 5 slot 6 slot 7 slot 8  ok\n ok\nslot 8  ok\n",": w ;",
+       "' w 1 every ' w 1 every ' w 1 every ' w 1 every ' w 10 every ' w 10 every ' w 10 every "
+       "' w 10 every ' w 100 every","8 stop","' w 100 every");
   CASE("stop frees the entry"," ok\nslot 0  ok\n ok\nslot 0  ok\n",": w ;","' w 1 every",
        "0 stop","' w 1 every");
+
+  /* A promotion that takes more than the tenth it had on trial, past SLOT_ALL with the
+  ** words on trial, is refused; one that takes less makes room (issue #25). */
+  CASE("trials and promotions"," ok\n",": big 999 spend ; : small ;");
+  Expect("trials and promotions"," ok\n");
+  Type("' small 1 every ' small 1 every ' small 1 every ' small 1 every");
+  Type("' big 10 every ' big 10 every ' big 10 every ' big 10 every ' big 100 every");
+  Expect("nine on trial","slot 0 slot 1 slot 2 slot 3  ok\nslot 4 slot 5 slot 6 slot 7 slot 8  ok\n");
+  Run(1,10);
+  Run(0,10);
+  Type("4 promote");
+  Expect("promoted, the trials within the bound","promoted, wcet 1249 us, load 13.4%  ok\n");
+  Type("5 promote");
+  Expect("past the bound with the trials","refused, with trials 95.9%  ok\n");
+  Type("' small 100 every");
+  Expect("no room yet"," every processor full\n");
+  Type("0 promote");
+  Expect("less than its tenth","promoted, wcet 1 us, load 13.5%  ok\n");
+  Type("' small 100 every");
+  Expect("the room it made","slot 9  ok\n");
+  Type("slots");
+  Expect("both shown","\n0 1000us small promoted runs 10 max 0 wcet 1 over 0 "
+         "\n1 1000us small trial runs 10 max 0 "
+         "\n2 1000us small trial runs 10 max 0 "
+         "\n3 1000us small trial runs 10 max 0 "
+         "\n4 10000us big promoted runs 10 max 999 wcet 1249 over 0 "
+         "\n5 10000us big trial runs 10 max 999 "
+         "\n6 10000us big trial runs 10 max 999 "
+         "\n7 10000us big trial runs 10 max 999 "
+         "\n8 100000us big trial runs 0 max 0 "
+         "\n9 100000us small trial runs 0 max 0 "
+         "\nload 13.5% with trials 93.5%  ok\n");
+
+  /* Exactly the bound passes, for a promotion and for a trial: 90 % on trial, 0.8888 % the
+  ** pool, and two words of 1 s that take 24.999 % and 16.113 % more than their tenths. */
+  CASE("the bound exactly"," ok\n",": w ; : a 99999 spend ; : b 92890 spend ;");
+  Expect("the bound exactly"," ok\n");
+  Type("' w 1 every ' w 1 every ' w 1 every ' w 1 every ' w 10 every ' w 10 every ' w 10 every");
+  Type("' a 1000 every ' b 1000 every");
+  Expect("nine on trial","slot 0 slot 1 slot 2 slot 3 slot 4 slot 5 slot 6  ok\nslot 12 slot 13  ok\n");
+  Run(3,10);
+  Type("12 promote");
+  Expect("a promoted","promoted, wcet 124999 us, load 13.4%  ok\n");
+  Type("13 promote");
+  Expect("b promoted at the bound","promoted, wcet 116113 us, load 25.0%  ok\n");
+  Type("0 stop");
+  Expect("a trial stopped"," ok\n");
+  Type("' w 1 every");
+  Expect("a trial at the bound","slot 0  ok\n");
+
+  /* One part per million past the bound: b here takes 1 us more. */
+  CASE("past the bound by one"," ok\n",": w ; : a 99999 spend ; : b 92891 spend ;");
+  Expect("past the bound by one"," ok\n");
+  Type("' w 1 every ' w 1 every ' w 1 every ' w 1 every ' w 10 every ' w 10 every ' w 10 every");
+  Type("' a 1000 every ' b 1000 every");
+  Expect("nine on trial, again","slot 0 slot 1 slot 2 slot 3 slot 4 slot 5 slot 6  ok\nslot 12 slot 13  ok\n");
+  Run(3,10);
+  Type("12 promote");
+  Expect("a promoted, again","promoted, wcet 124999 us, load 13.4%  ok\n");
+  Type("13 promote");
+  Expect("b refused, one past","refused, with trials 95.1%  ok\n");
+  Type("0 stop");
+  Expect("a trial stopped, again"," ok\n");
+  Type("13 promote");
+  Expect("b promoted, room made","promoted, wcet 116114 us, load 25.1%  ok\n");
+  Type("' w 1 every");
+  Expect("a trial refused, one past"," every processor full\n");
 
   /* A word on trial runs, its longest time kept; promoted with a quarter more and 1 us,
   ** its runs over that counted. */
@@ -164,7 +245,7 @@ static void Pool(void)
   Expect("too few runs","too few runs  ok\n");
   Run(2,5);
   Type("slots");
-  Expect("on trial","\n8 100000us w trial runs 10 max 40 \nload 0.9%  ok\n");
+  Expect("on trial","\n8 100000us w trial runs 10 max 40 \nload 0.9% with trials 10.9%  ok\n");
   Type("8 promote");
   Expect("promoted","promoted, wcet 51 us, load 1.0%  ok\n");
   Run(2,3);
@@ -196,7 +277,7 @@ static void Pool(void)
   Type("slots");
   Expect("failed"," ok\nslot 0  ok\n\n0 1000us bad trial runs 1 max 0 failed: stack empty"
          "\n8 100000us w promoted runs 15 max 60 wcet 51 over 2 "
-         "\n9 100000us t trial runs 0 max 0 \nload 1.0%  ok\n");
+         "\n9 100000us t trial runs 0 max 0 \nload 1.0% with trials 21.0%  ok\n");
 
   /* A word that held the core when it restarted is stopped; the others run on. */
   Type("variable k : stuck k @ if stall then ; : fine ;");
@@ -210,7 +291,7 @@ static void Pool(void)
          "\n4 10000us stuck trial runs 2 max 0 failed: stalled"
          "\n5 10000us fine trial runs 4 max 0 "
          "\n8 100000us w promoted runs 15 max 60 wcet 51 over 2 "
-         "\n9 100000us t trial runs 0 max 0 \nload 1.0%  ok\n");
+         "\n9 100000us t trial runs 0 max 0 \nload 1.0% with trials 41.0%  ok\n");
 
   /* Bound anew, an entry shows nothing of the word before until it runs. */
   Type("0 stop ' t 1 every");
@@ -220,7 +301,7 @@ static void Pool(void)
          "\n4 10000us stuck trial runs 2 max 0 failed: stalled"
          "\n5 10000us fine trial runs 4 max 0 "
          "\n8 100000us w promoted runs 15 max 60 wcet 51 over 2 "
-         "\n9 100000us t trial runs 0 max 0 \nload 1.0%  ok\n");
+         "\n9 100000us t trial runs 0 max 0 \nload 1.0% with trials 41.0%  ok\n");
   Type("0 stop");
   Expect("stopped"," ok\n");
 
@@ -232,7 +313,7 @@ static void Pool(void)
   Type("slots");
   Expect("preemptions left out"," ok\nslot 0  ok\nslot 8  ok\n"
          "\n0 1000us inner trial runs 1 max 50 "
-         "\n8 100000us outer trial runs 1 max 10 \nload 0.9%  ok\n");
+         "\n8 100000us outer trial runs 1 max 10 \nload 0.9% with trials 20.9%  ok\n");
   Type("0 stop 8 stop");
 
   /* A preemption between the check's reading of the clock and its reading of the time
@@ -243,7 +324,7 @@ static void Pool(void)
   Type("slots");
   Expect("preempted at the check"," ok\nslot 8  ok\nslot 0  ok\n"
          "\n0 1000us inner trial runs 1 max 50 "
-         "\n8 100000us early trial runs 1 max 0 \nload 0.9%  ok\n");
+         "\n8 100000us early trial runs 1 max 0 \nload 0.9% with trials 20.9%  ok\n");
   Type("0 stop 8 stop");
 
   /* Nor when it comes between the readings of the time left out and of the clock, at the
@@ -263,7 +344,7 @@ static void Pool(void)
          "\n8 100000us late trial runs 3 max 0 "
          "\n9 100000us last trial runs 2 max 0 "
          "\n10 100000us a trial runs 1 max 0 "
-         "\n11 100000us b trial runs 1 max 0 \nload 0.9%  ok\n");
+         "\n11 100000us b trial runs 1 max 0 \nload 0.9% with trials 50.9%  ok\n");
   Type("0 stop 8 stop 9 stop 10 stop 11 stop");
 
   /* Nor against the word it preempts when it preempts a slot that preempted that word,
@@ -277,7 +358,7 @@ static void Pool(void)
   Expect("preempted as a slot starts"," ok\nslot 0  ok\nslot 8  ok\nslot 9  ok\n"
          "\n0 1000us mid trial runs 6 max 20000 over 6 "
          "\n8 100000us outer trial runs 2 max 0 "
-         "\n9 100000us outer2 trial runs 1 max 0 \nload 0.9%  ok\n");
+         "\n9 100000us outer2 trial runs 1 max 0 \nload 0.9% with trials 30.9%  ok\n");
   Type("0 stop 8 stop 9 stop");
 
   /* An error at the step of a check, the word over its budget: the error kept. */
@@ -287,7 +368,7 @@ static void Pool(void)
   Type("slots");
   Expect("error at a check"," ok\n ok\nslot 8  ok\n"
          "\n8 100000us bad trial runs 1 max 20000 over 1 failed: division by zero"
-         "\nload 0.9%  ok\n");
+         "\nload 0.9% with trials 10.9%  ok\n");
   Type("8 stop");
 
   /* A word on trial gets a tenth of its period: one that loops is cut short there, every
@@ -297,7 +378,7 @@ static void Pool(void)
   Type("slots");
   Type("4 promote");
   Expect("over budget"," ok\nslot 4  ok\n"
-         "\n4 10000us hog trial runs 3 max 1003 over 3 \nload 0.9%  ok\n"
+         "\n4 10000us hog trial runs 3 max 1003 over 3 \nload 0.9% with trials 10.9%  ok\n"
          "over budget  ok\n");
   Type("4 stop");
   Expect("stopped hog"," ok\n");
@@ -346,7 +427,7 @@ static void Pool(void)
          " ok\n ok\nslot 12  ok\naaaaaaaaaapromoted, wcet 1 us, load 0.9% "
          "\n12 1000000us a promoted runs 10 max 0 wcet 1 over 0 \nload 0.9%  ok\n"
          "slot 12  ok\n"
-         "\n12 1000000us c trial runs 1 max 0 \nload 0.9%  ok\n");
+         "\n12 1000000us c trial runs 1 max 0 \nload 0.9% with trials 10.9%  ok\n");
 
   /* A run going on as its word is promoted is judged against the worst case admitted. */
   Type("12 stop");
@@ -484,7 +565,7 @@ static void Stores(void)
   Run(0,1);
   Type("slots");
   Expect("not from a slot","slot 0  ok\n\n0 1000us save trial runs 1 max 0 failed: bad argument\n"
-         "load 0.9%  ok\n");
+         "load 0.9% with trials 10.9%  ok\n");
   Type("0 stop");
   Expect("stopped"," ok\n");
   /* A variable a slot writes as the store is written: the dictionary is loaded, the
@@ -567,7 +648,7 @@ static void Standard(void)
   Expect("bound","slot 0  ok\n");
   Run(0,1);
   Type("z @ . slots 0 stop");
-  Expect("budget not caught","0 \n0 1000us f trial runs 1 max 160 over 1 \nload 0.9%  ok\n");
+  Expect("budget not caught","0 \n0 1000us f trial runs 1 max 160 over 1 \nload 0.9% with trials 10.9%  ok\n");
   /* A word of the compiler caught as it finds the code full: the structure it closes is
   ** left open, not a branch to 0 that ended the run unseen (a review, 2026-10-24). */
   ForthInit();
@@ -605,7 +686,7 @@ static void Standard(void)
   Run(0,1);
   Type("slots 0 stop");
   Expect("budget under catches nested","slot 0  ok\n\n0 1000us top trial runs 1 max 105 over 1 "
-         "\nload 0.9%  ok\n");
+         "\nload 0.9% with trials 10.9%  ok\n");
   Break = 1;
   Type(": g begin again ; : h ['] g catch 99 ; h");
   Expect("break not caught"," h interrupted\n");

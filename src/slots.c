@@ -222,6 +222,17 @@ uint32_t SlotsLoad(void)
   return load;
 } /* end of SlotsLoad */
 
+/* Budgets: What all the budgets and the pool take, the words on trial's tenths included. */
+static uint32_t Budgets(void)
+{
+  uint32_t load = SlotsLoad();
+  int i;
+  for (i = 0; i < SLOTS; i += 1)
+     if (Slots[i].State == SLOT_TRIAL)
+        load += Share(SlotPeriod[i / SLOT_ENTRIES] / 10,SlotPeriod[i / SLOT_ENTRIES]);
+  return load;
+} /* end of Budgets */
+
 /* PrintShare: In percent, to a tenth, rounded up. */
 static void PrintShare(uint32_t share)
 {
@@ -283,6 +294,10 @@ static void PEvery(Context *c, const Word *w)
      c->Error = FORTH_PERIOD_FULL;
      return;
   }
+  if (Budgets() + Share(SlotPeriod[p] / 10,SlotPeriod[p]) > SLOT_ALL) {
+     c->Error = FORTH_PROCESSOR_FULL;
+     return;
+  }
   Bind(&Slots[i],x,SLOT_TRIAL,0);
   ForthPrintText("slot ");
   ForthPrintNumber(i);
@@ -311,7 +326,7 @@ static void PPromote(Context *c, const Word *w)
 {
   Slot *s;
   Figures f;
-  uint32_t wcet, load;
+  uint32_t wcet, load, period, all;
   (void)w;
   if ((s = Entry(c)) == NULL)
      return;
@@ -329,10 +344,18 @@ static void PPromote(Context *c, const Word *w)
      return;
   }
   wcet = Admitted(f.MaxTime);
-  load = SlotsLoad() + Share(wcet,SlotPeriod[(s - Slots) / SLOT_ENTRIES]);
+  period = SlotPeriod[(s - Slots) / SLOT_ENTRIES];
+  load = SlotsLoad() + Share(wcet,period);
   if (load > SLOT_BOUND) {
      ForthPrintText("refused, load ");
      PrintShare(load);
+     return;
+  }
+  /* Its tenth given back, its worst case taken: up to a quarter more. */
+  all = Budgets() - Share(period / 10,period) + Share(wcet,period);
+  if (all > SLOT_ALL) {
+     ForthPrintText("refused, with trials ");
+     PrintShare(all);
      return;
   }
   /* The figures of the trial go on: a run that ended as it was promoted, or that was
@@ -428,6 +451,10 @@ static void PSlots(Context *c, const Word *w)
   }
   ForthPrintText("\nload ");
   PrintShare(SlotsLoad());
+  if (Budgets() != SlotsLoad()) {
+     ForthPrintText("with trials ");
+     PrintShare(Budgets());
+  }
 } /* end of PSlots */
 
 void SlotsWords(void)
