@@ -234,6 +234,21 @@ static void Pool(void)
   Type("' w 1 every");
   Expect("a trial refused, one past"," every processor full\n");
 
+  /* The pool for a program: a word on trial, a promoted one, a failed one. */
+  CASE("the report's words"," ok\n",": w 40 spend ; : p 50 spend ; : bad drop ;");
+  Expect("the report's words"," ok\n");
+  Type("' w 100 every ' p 100 every ' bad 1000 every");
+  Expect("three bound","slot 8 slot 9 slot 12  ok\n");
+  Run(2,10);
+  Run(3,1);
+  Type("9 promote");
+  Expect("one promoted","promoted, wcet 63 us, load 1.0%  ok\n");
+  SlotsReport();
+  Expect("the report","9518 700000 "
+         "\n8 1 10 40 0 0 10000 w "
+         "\n9 2 10 50 0 63 63 p "
+         "\n12 1 1 0 0 0 100000 bad stack empty");
+
   /* A word on trial runs, its longest time kept; promoted with a quarter more and 1 us,
   ** its runs over that counted. */
   CASE("pool"," ok\n ok\n","variable cost 40 cost !",": w cost @ spend ;");

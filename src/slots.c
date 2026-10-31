@@ -457,6 +457,32 @@ static void PSlots(Context *c, const Word *w)
   }
 } /* end of PSlots */
 
+void SlotsReport(void)
+{
+  int i, j;
+  ForthPrintNumber(SlotsLoad());
+  ForthPrintNumber(SLOT_BOUND);
+  for (i = 0; i < SLOTS; i += 1) {
+     SlotView v;
+     SlotsView(i,&v);
+     if (v.State == SLOT_FREE || v.Bound == NULL)
+        continue;
+     ForthEmit('\n');
+     ForthPrintNumber(i);
+     ForthPrintNumber(v.State);
+     ForthPrintNumber(v.Runs);
+     ForthPrintNumber(v.MaxTime);
+     ForthPrintNumber(v.Excess);
+     ForthPrintNumber(v.Wcet);
+     ForthPrintNumber(v.Budget);
+     for (j = 0; j < v.Bound->Length; j += 1)
+        ForthEmit(v.Bound->Name[j]);
+     ForthEmit(' ');
+     if (v.Error != FORTH_OK)
+        ForthPrintText(ForthErrorText(v.Error));
+  }
+} /* end of SlotsReport */
+
 void SlotsWords(void)
 {
   int i;

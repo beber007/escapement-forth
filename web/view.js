@@ -203,13 +203,73 @@ function coarse(grain) {
   return !(grain <= 1000);
 }
 
+// boardFrame: A frame of the board's console, as the page's own worker says it.
+function boardFrame(text) {
+  const lines = text.replace(/\r/g, "").split("\n");
+  const head = lines[0].split(" ");
+  if (head[0] === "p")
+    return { pins: Number(head[1]) >>> 0 };
+  if (head[0] !== "s")
+    return null;
+  const slots = new Array(16).fill(null).map(() => ({ state: 0, error: "", name: "", runs: 0, max: 0, over: 0, wcet: 0, budget: 0 }));
+  for (const line of lines.slice(1)) {
+    const f = line.split(" ");
+    const n = (k) => Number(f[k]) >>> 0;
+    if (n(0) < 16)
+      slots[n(0)] = { state: n(1), runs: n(2), max: n(3), over: n(4), wcet: n(5), budget: n(6),
+                      name: f[7], error: f.slice(8).join(" ") };
+  }
+  return { load: Number(head[1]), bound: Number(head[2]), slots };
+}
+
 // boardLink: A serial port (Web Serial) opened on the board's console: onText gets what it
 // prints, onEnd is told if the port ends by itself, the board unplugged.
-async function boardLink(port, onText, onEnd) {
+async function boardLink(port, onText, onEnd, onFrame = () => {}) {
   await port.open({ baudRate: 115200 });
-  const decoder = new TextDecoder(), encoder = new TextEncoder();
+  const decoder = new TextDecoder(), framed = new TextDecoder(), encoder = new TextEncoder();
   const writer = port.writable.getWriter();
   let reader = null, closing = false;
+  // The console's text, with its frames (pico/console.c) taken out. What a word printed
+  // that looks like one, cut short or of no kind, stays text.
+  let frame = null;
+  const say = (bytes) => {
+    const text = decoder.decode(bytes, { stream: true }).replace(/\r/g, "");
+    if (text !== "")
+      onText(text);
+  };
+  const onBytes = (bytes) => {
+    let from = 0;
+    bytes.forEach((b, i) => {
+      if (frame !== null) {
+        if (b === 0x1F) {
+          const parsed = boardFrame(framed.decode(Uint8Array.from(frame)));
+          if (parsed === null)
+            say(Uint8Array.from(frame));
+          else
+            onFrame(parsed);
+          frame = null;
+          from = i + 1;
+        }
+        else if (b === 0x1E) {   // the console sends a frame whole: the first was a word's
+          say(Uint8Array.from(frame));
+          frame = [];
+        }
+        else if (frame.length >= 2048) {
+          say(Uint8Array.from(frame));
+          frame = null;
+          from = i;
+        }
+        else
+          frame.push(b);
+      }
+      else if (b === 0x1E) {
+        say(bytes.subarray(from, i));
+        frame = [];
+      }
+    });
+    if (frame === null && from < bytes.length)
+      say(bytes.subarray(from));
+  };
   (async () => {
     // An error the port survives, a break or a framing error, gives a new stream; one it
     // does not, the board unplugged, leaves none.
@@ -222,9 +282,7 @@ async function boardLink(port, onText, onEnd) {
             closing = closing || "ended";
             break;
           }
-          const text = decoder.decode(value, { stream: true }).replace(/\r/g, "");
-          if (text !== "")
-            onText(text);
+          onBytes(value);
         }
       } catch (e) {
         // Round again, if a stream is left.
@@ -244,6 +302,8 @@ async function boardLink(port, onText, onEnd) {
   return {
     send: (line) => write(encoder.encode(line + "\r")),
     interrupt: () => write(Uint8Array.of(3)),
+    askPins: () => write(Uint8Array.of(5)),
+    askSlots: () => write(Uint8Array.of(6)),
     close: () => {
       closing = true;
       return reader === null ? undefined : reader.cancel().catch(() => {});

@@ -71,4 +71,9 @@ typedef struct {
 ** draws the pool (web/). */
 void SlotsView(int n, SlotView *v);
 
+/* SlotsReport: The pool, for a program to read: the load and its bound, then a line for
+** each entry bound: its number, state, runs, longest time, runs over budget, worst case
+** and budget, its word's name, and the text of its error if it failed. */
+void SlotsReport(void);
+
 #endif /* SLOTS_H */
