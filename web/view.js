@@ -204,9 +204,10 @@ function coarse(grain) {
 }
 
 // full: What a line's output says full: "dictionary", which a Restart empties, "period",
-// whose slots stop frees, or null.
+// whose slots stop frees, "processor", which stop makes room in, or null.
 function full(text) {
-  return /dictionary full/.test(text) ? "dictionary" : /period full/.test(text) ? "period" : null;
+  return /dictionary full/.test(text) ? "dictionary" : /period full/.test(text) ? "period" :
+         /processor full/.test(text) ? "processor" : null;
 }
 
 // answered: Whether a line's output says ok, as the console ends a line it took; what the

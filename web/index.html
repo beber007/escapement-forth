@@ -340,7 +340,7 @@
       <li data-i18n="how1"><b>Four tasks, sixteen slots</b>The kernel has four tasks, with periods of 1, 10, 100 and 1000 ms.
         Each has four slots. You attach words to them from the console: <code>' blink 100 every</code>.</li>
       <li data-i18n="how2"><b>On trial first</b>A new word is on trial. It runs every period, and each run is timed. Its budget is a tenth of its period. If it goes over, it gets cut off.</li>
-      <li data-i18n="how3"><b>Promoted or refused</b>After ten runs, none over budget, <code>promote</code> reserves it a share of the processor. That time is guaranteed. All promoted words must fit in 70% of the processor. If they don't, the word is refused.</li>
+      <li data-i18n="how3"><b>Promoted or refused</b>After ten runs, none over budget, <code>promote</code> reserves it a share of the processor. That time is guaranteed. All promoted words must fit in 70% of the processor. If they don't, the word is refused. Words on trial count too: all the budgets must fit in 95%. So nine words on trial at most.</li>
       <li data-i18n="how4"><b>Earliest deadline first</b>The kernel always runs the task with the earliest deadline (EDF).
         The 1 ms task interrupts the 1 s task. The console comes after all of them.</li>
     </ol>
@@ -491,7 +491,7 @@
     badge3: "<b>le Forth et le noyau du Pico</b> · un Raspberry Pi Pico", badge4: "<b>dans ton navigateur</b> · rien n'est envoyé",
     how1: "<b>Quatre tâches, seize cases</b>Le noyau a quatre tâches. Leurs périodes sont de 1, 10, 100 et 1000 ms. Chacune a quatre cases. Tu y attaches des mots depuis la console : <code>' blink 100 every</code>.",
     how2: "<b>D'abord à l'essai</b>Un nouveau mot est à l'essai. Il tourne à chaque période, et chaque lancement est chronométré. Son budget est un dixième de sa période. S'il le dépasse, il est coupé.",
-    how3: "<b>Promu ou refusé</b>Après dix lancements sans dépasser son budget, <code>promote</code> lui réserve une part du processeur. Ce temps lui est garanti. Tous les mots promus doivent tenir dans 70 % du processeur. Sinon, le mot est refusé.",
+    how3: "<b>Promu ou refusé</b>Après dix lancements sans dépasser son budget, <code>promote</code> lui réserve une part du processeur. Ce temps lui est garanti. Tous les mots promus doivent tenir dans 70 % du processeur. Sinon, le mot est refusé. Les mots à l'essai comptent aussi : tous les budgets doivent tenir dans 95 %. Donc neuf mots à l'essai au plus.",
     how4: "<b>L'échéance d'abord</b>Le noyau fait toujours passer la tâche dont l'échéance est la plus proche (EDF). La tâche de 1 ms interrompt celle de 1 s. La console passe après toutes.",
     demo: '<a href="https://youtu.be/f03H2mjgLlU">Voir la démo (2 min)</a>',
     rules: "Les règles", tour: "Visite guidée", cost: "Coût de <code>work</code>",
@@ -514,6 +514,7 @@
                          "browsers, with default settings, give 1 ms or better.",
           full: "The dictionary, the list of words, is full. Click Restart Forth to empty it.\n",
           periodFull: "The four slots of that period are taken. n stop frees slot n.\n",
+          processorFull: "All the budgets must fit in 95% of the processor. n stop frees slot n.\n",
           failed: "Forth could not start: ",
           welcome: "Escapement Forth, in WebAssembly. Type a line and press Enter, or follow the tour.\n",
           budget: "trial budget ", free: "free", trial: "trial", promoted: "promoted", failedChip: "failed",
@@ -534,6 +535,7 @@
                          "désactivée. Avec leurs réglages par défaut, la plupart des navigateurs donnent 1 ms ou mieux.",
           full: "Le dictionnaire, la liste des mots, est plein. Clique sur Relancer le Forth pour le vider.\n",
           periodFull: "Les quatre cases de cette période sont prises. n stop libère la case n.\n",
+          processorFull: "Tous les budgets doivent tenir dans 95 % du processeur. n stop libère la case n.\n",
           failed: "Le Forth n'a pas pu démarrer : ",
           welcome: "Escapement Forth, en WebAssembly. Tape une ligne puis Entrée, ou suis la visite.\n",
           budget: "budget d'essai ", free: "libre", trial: "essai", promoted: "promu", failedChip: "en échec",
@@ -1229,7 +1231,7 @@
       }
       else if (m.done) {
         if (filled)
-          print(filled === "period" ? T[lang].periodFull : T[lang].full, "note");
+          print(filled === "period" ? T[lang].periodFull : filled === "processor" ? T[lang].processorFull : T[lang].full, "note");
         // A line of the tour that failed: the rest of its step would bind the words as they
         // were before, or the slider set a variable no word reads.
         if (sentTour && !answered(said)) {

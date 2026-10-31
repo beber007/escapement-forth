@@ -12,7 +12,9 @@
 ** promoted words and the pool itself then fit under SLOT_BOUND of the processor. Each
 ** run has a budget, its worst case or, on trial, a tenth of its period, which the Forth
 ** checks at NEXT: past it the run is cut and counted, and the word runs again at its
-** next release. The kernel enforces none: what the check does not reach, a word of C,
+** next release. EVERY and PROMOTE refuse what would take the budgets of all the words and
+** the pool past SLOT_ALL, for a word on trial not to delay a promoted one past its
+** deadline. The kernel enforces none: what the check does not reach, a word of C,
 ** delays the tasks of later deadlines all the same.
 **
 ** The console's core alone binds, promotes and stops, through a sequence counter; the
@@ -29,6 +31,9 @@
 #define SLOT_ENTRIES     4                         /* entries of each period */
 #define SLOTS            (SLOT_PERIODS * SLOT_ENTRIES)
 #define SLOT_BOUND       700000                    /* parts per million of the processor */
+/* All the budgets and the pool. Not all of the processor: a run passes its budget by up to
+** 13 % (slow words on a Pico W, 2026-10-31), 5 % with four trials of 1 ms. */
+#define SLOT_ALL         950000
 #define SLOT_COST        8                         /* us a release of an empty slot takes */
 #define SLOT_MIN_RUNS    10                        /* runs measured before a promotion */
 
