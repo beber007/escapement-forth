@@ -14,6 +14,10 @@ then guaranteed. This is a prototype: step 3 of Escapement's issue #40.
 
 [Try it in your browser.](https://beber007.github.io/escapement-forth/)
 
+[![The demo video](https://img.youtube.com/vi/3fMFzSJFBvo/hqdefault.jpg)](https://youtu.be/3fMFzSJFBvo)
+
+[Watch the demo](https://youtu.be/3fMFzSJFBvo) (2 min), or [in French](https://youtu.be/f03H2mjgLlU).
+
 ## How it works
 
 The Pico has two cores:
