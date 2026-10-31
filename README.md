@@ -1,26 +1,73 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.svg">
-    <img src="docs/images/logo-light.svg" alt="Escapement Forth logo: Escapement's wheel with the : and ; of a Forth word" width="160">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/banner-dark.svg">
+    <img src="docs/images/banner-light.svg" alt="Escapement Forth: type a word into a running real-time kernel" width="100%">
   </picture>
 </p>
 
-# Escapement Forth
+<p align="center">
+  <a href="https://github.com/beber007/escapement-forth/actions/workflows/build.yml"><img src="https://github.com/beber007/escapement-forth/actions/workflows/build.yml/badge.svg" alt="build"></a>
+  <a href="https://github.com/beber007/escapement-forth/actions/workflows/pages.yml"><img src="https://github.com/beber007/escapement-forth/actions/workflows/pages.yml/badge.svg" alt="web page"></a>
+  <img src="https://img.shields.io/badge/language-C-555555" alt="C">
+  <img src="https://img.shields.io/badge/language-Forth-555555" alt="Forth">
+  <img src="https://img.shields.io/badge/RP2040-Cortex--M0%2B-c51a4a?logo=raspberrypi&logoColor=white" alt="RP2040">
+  <img src="https://img.shields.io/badge/browser-WebAssembly-654ff0?logo=webassembly&logoColor=white" alt="WebAssembly">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-permissive-3fb950" alt="licence"></a>
+</p>
 
-A Forth console for the [Escapement](https://github.com/beber007/escapement) real-time OS,
-on a Raspberry Pi Pico. You type a word at the console and attach it, while the kernel
-runs, to one of the periodic tasks created before it started. The word is first tried,
-then guaranteed. This is a prototype: step 3 of Escapement's issue #40.
+<p align="center">
+  <a href="https://beber007.github.io/escapement-forth/"><b>Try it in your browser</b></a> ·
+  <a href="https://youtu.be/3fMFzSJFBvo">Demo video</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#limits">Limits</a> ·
+  <a href="#building">Building</a> ·
+  <a href="https://github.com/beber007/escapement">Escapement</a>
+</p>
 
-[Try it in your browser.](https://beber007.github.io/escapement-forth/)
+**A Forth console for the [Escapement](https://github.com/beber007/escapement) real-time
+kernel, on a Raspberry Pi Pico. You type a word and attach it to one of the periodic
+tasks created before the kernel started, while the kernel keeps running.**
+
+- **Live.** No rebuild and no restart: a word attached with `every` runs on the next release of its task.
+- **Tried, then guaranteed.** A new word is timed on trial. `promote` then reserves it a share of the processor, or refuses.
+- **Contained.** A word that runs too long is cut off. A word that loops forever does not stop the others.
+
+This is a prototype: step 3 of [Escapement's issue #40](https://github.com/beber007/escapement/issues/40).
 
 [![The demo video](https://img.youtube.com/vi/3fMFzSJFBvo/hqdefault.jpg)](https://youtu.be/3fMFzSJFBvo)
 
-[Watch the demo](https://youtu.be/3fMFzSJFBvo) (2 min), or [in French](https://youtu.be/f03H2mjgLlU).
+<sub>[Watch the demo](https://youtu.be/3fMFzSJFBvo) (2 min), or [in French](https://youtu.be/f03H2mjgLlU). It runs on the web page, which uses the same Forth, slots and kernel as the board.</sub>
+
+## In four figures
+
+| | |
+|---|---|
+| **26,024 bytes** | for the whole Pico image (Forth, slots, console, kernel), code and constants, with 20,992 bytes of RAM for its data and stack. GCC 16.2, 2026-10-31 |
+| **8 µs** | charged to each release for the slots' own cost, against 6.6 to 7.3 µs measured on the Pico ([issue #40](https://github.com/beber007/escapement/issues/40), step 1) |
+| **13 %** | is about the most the budget check costs, on an empty `do loop`: 1,000 turns took 466 µs at the console and 529 µs in a slot (Pico W, 2026-10-24; the two cores' work was not quite the same) |
+| **3 to 4 ms** | for core 1 to notice that core 0 is stuck and restart it, keeping the dictionary, the slots and the console; 5 ms more if interrupts are masked or the core faulted |
+
+## Watch the kernel at work
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/timeline-dark.png">
+  <img src="docs/images/timeline-light.png" alt="The timeline of the web page: the 80 ms word long, on the 1 s row, runs in pieces, and the 0.5 ms word busy runs in the gaps every 10 ms" width="100%">
+</picture>
+
+<sub>A capture of the [web page](https://beber007.github.io/escapement-forth/), not a drawing. `long` takes 80 ms once a second. `busy` takes 0.5 ms every 10 ms. Under EDF the kernel runs the earliest deadline first, so `long` runs in pieces and `busy` keeps its rhythm.</sub>
 
 ## How it works
 
 The Pico has two cores:
+
+```mermaid
+flowchart LR
+  you["you, on UART0"] --> c1["core 1<br>Forth console"]
+  c1 -- "every, promote, stop" --> slots["slots<br>4 per period"]
+  c0["core 0<br>hard kernel, EDF"] --> tasks["tasks of 1, 10, 100, 1000 ms"]
+  tasks --> slots
+  c1 -. "watches, restarts if stuck" .-> c0
+```
 
 - **Core 0** runs Escapement's hard kernel (EDF) and the slots (`src/slots.c`). There is
   one task per period, 1, 10, 100 and 1000 ms, and each task has four slots.
@@ -61,7 +108,8 @@ counted as over (shown by `slots`), and the word runs again at its next release.
   kernel's entries, the interrupts and the slots' own cost stay in it: the load already
   counts them.
 
-### Errors, `catch` and `throw`
+<details>
+<summary>Errors, <code>catch</code> and <code>throw</code></summary>
 
 `catch` and `throw` use the standard codes (Forth 2012, 9.3.5). For example,
 `division by zero` is caught as -10. A budget, a break and a stall are not caught: they
@@ -72,7 +120,10 @@ code of our own, so it is not confused with a full dictionary (-8).
 
 A slot stopped by `throw` shows `failed: thrown`, without the number.
 
-### Other words
+</details>
+
+<details>
+<summary>Other words</summary>
 
 `abort`, `s"`, `type`, `char`, `[char]`, `>r`, `r>`, `r@`, `?dup`, `2dup`, `2drop`, `0<>`,
 `/mod`.
@@ -85,7 +136,10 @@ A slot stopped by `throw` shows `failed: thrown`, without the number.
 - Inside a `catch`, `r>` and `r@` only see what was pushed inside it. When `i` or `j`
   is the word that `catch` runs, it reads the loop around the `catch`.
 
-### Saving
+</details>
+
+<details>
+<summary>Saving to flash</summary>
 
 `save` stores the dictionary (words and variable values) in the last 16 KB of flash
 (`pico/store.c`). The next cold start loads it. `unsave` erases it.
@@ -103,9 +157,11 @@ A store only works with the firmware that wrote it. If the firmware is rebuilt w
 different code, different constants or its words laid out differently, it starts with its
 built-in words only.
 
+</details>
+
 ## In the browser
 
-[The page](https://beber007.github.io/escapement-forth/) runs the same Forth, the same
+[The web page](https://beber007.github.io/escapement-forth/) runs the same Forth, the same
 slots and the same hard kernel under EDF, compiled to WebAssembly (`web/`). Only the layer
 below changes:
 
@@ -115,9 +171,19 @@ below changes:
   it has its own core.
 
 A guided tour attaches words, measures them, cuts them, promotes them and refuses them. A
-timeline shows what the kernel ran, from a trace the port keeps, and the pool shows each
+timeline shows what the kernel ran, from a trace the port keeps, and a table shows each
 slot against its budget. The times are the browser's, not the Pico's. The browser's own
 pauses are left out.
+
+## How it is checked
+
+| Level | What it establishes | When |
+|---|---|---|
+| Host tests | the Forth and the slots on the host, with the sanitizers, under gcc and clang | each push to main and each pull request (gcc) |
+| Pico image | the firmware builds, with Escapement's CI image | each push to main and each pull request |
+| WebAssembly | the web page's Forth and kernel run under Node, in three clock modes, and every step of the tour is played | each push to main and each pull request |
+| Browser | the web page in a headless Chrome, in English and in French: its first step runs and each step fits a 1280 by 680 window without a scroll | each push to main and each pull request |
+| On a Pico | `tools/smoke.fs` and `tools/restart.fs` on Escapement's test bench, read over SWD | by hand, not at each commit |
 
 ## Limits
 
@@ -163,6 +229,9 @@ pauses are left out.
   one of its values. The flash cannot be read while it is written, so `@` on flash gives
   `bad address` then. A read that a slot started just before can still hit the flash
   during the write. Each save wears the flash, which is rated for about 100,000 erases.
+- **Words on trial are not counted in the 70 %.** Each can take a tenth of its period, so
+  several that overrun can overload the processor and make a promoted word miss its
+  deadline. This comes from reading the code. It was not measured.
 - **Slot output** goes through a 256-byte ring buffer. What does not fit is dropped
   (`dropped`).
 
@@ -172,9 +241,9 @@ pauses are left out.
 git clone --recurse-submodules https://github.com/beber007/escapement-forth
 make -C test/host run      # the Forth and the slots on the host, with the sanitizers
 make -C pico               # pico/build/EscapementForth.elf, loaded into SRAM over SWD
-make -C web serve          # the page on http://localhost:8000, needs clang and wasm-ld
-make -C web test           # the page's WebAssembly under Node (JS=.../jsc JS_ARGS=--)
-make -C web page           # the page in a headless Chrome, in English and in French
+make -C web serve          # the web page on http://localhost:8000, needs clang and wasm-ld
+make -C web test           # its WebAssembly under Node (JS=.../jsc JS_ARGS=--)
+make -C web page           # it in a headless Chrome, in English and in French
 ```
 
 Without a UART, `make -C pico SCRIPT=tools/smoke.fs` (or `tools/restart.fs`) builds an
@@ -184,6 +253,10 @@ image that types that file at start and keeps the output in RAM.
 The image loads like Escapement's examples (see its `docs/rp2040.md`), with OpenOCD's
 `set USE_CORE 0`, so that core 1 runs. Escapement is a submodule, pinned to the commit
 this prototype was built on.
+
+## How this project is built
+
+This project is developed with the help of an AI, as Escapement is. The rule is the same: the AI proposes, and the tests and the board decide.
 
 ## Licence
 
