@@ -722,7 +722,8 @@
         if ((b !== null && b < left) || a > right)
           continue;
         const from = x(Math.max(a, left)), to = x(Math.min(b === null ? right : b, right));
-        context.fillRect(from, top + row * 0.22, to - from, row * 0.56);
+        // A run shorter than a pixel, as a word of a few us, is still seen.
+        context.fillRect(from, top + row * 0.22, Math.max(to - from, 1.5), row * 0.56);
       }
       context.globalAlpha = 1;
     }
