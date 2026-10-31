@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/banner-dark.svg">
-    <img src="docs/images/banner-light.svg" alt="Escapement Forth: type a word into a running real-time kernel" width="100%">
+    <img src="docs/images/banner-light.svg" alt="Escapement Forth: a Forth console for the Escapement real-time kernel" width="100%">
   </picture>
 </p>
 
@@ -24,13 +24,14 @@
   <a href="https://github.com/beber007/escapement">Escapement</a>
 </p>
 
-**A Forth console for the [Escapement](https://github.com/beber007/escapement) real-time
+A Forth console for the [Escapement](https://github.com/beber007/escapement) real-time
 kernel, on a Raspberry Pi Pico. You type a word and attach it to one of the periodic
-tasks created before the kernel started, while the kernel keeps running.**
+tasks created before the kernel started, while the kernel keeps running.
 
-- **Live.** No rebuild and no restart: a word attached with `every` runs on the next release of its task.
-- **Tried, then guaranteed.** A new word is timed on trial. `promote` then reserves it a share of the processor, or refuses.
-- **Contained.** A word that runs too long is cut off. A word that loops forever does not stop the others.
+A word attached with `every` runs on the next release of its task, with no rebuild and no
+restart. A new word is timed on trial. `promote` then reserves it a share of the
+processor, or refuses. A word that runs too long is cut off. A word that loops forever
+does not stop the others.
 
 This is a prototype: step 3 of [Escapement's issue #40](https://github.com/beber007/escapement/issues/40).
 
@@ -38,23 +39,23 @@ This is a prototype: step 3 of [Escapement's issue #40](https://github.com/beber
 
 <sub>[Watch the demo](https://youtu.be/3fMFzSJFBvo) (2 min), or [in French](https://youtu.be/f03H2mjgLlU). It runs on the web page, which uses the same Forth, slots and kernel as the board.</sub>
 
-## In four figures
+## Figures
 
 | | |
 |---|---|
-| **26,024 bytes** | for the whole Pico image (Forth, slots, console, kernel), code and constants, with 20,992 bytes of RAM for its data and stack. GCC 16.2, 2026-10-31 |
-| **8 µs** | charged to each release for the slots' own cost, against 6.6 to 7.3 µs measured on the Pico ([issue #40](https://github.com/beber007/escapement/issues/40), step 1) |
-| **13 %** | is about the most the budget check costs, on an empty `do loop`: 1,000 turns took 466 µs at the console and 529 µs in a slot (Pico W, 2026-10-24; the two cores' work was not quite the same) |
-| **3 to 4 ms** | for core 1 to notice that core 0 is stuck and restart it, keeping the dictionary, the slots and the console; 5 ms more if interrupts are masked or the core faulted |
+| Pico image | 26,024 bytes of code and constants (Forth, slots, console, kernel), and 20,992 bytes of RAM reserved at build time. GCC 16.2, 2026-10-31 |
+| Slots' own cost | 8 µs charged to each release, against 6.6 to 7.3 µs measured on the Pico ([issue #40](https://github.com/beber007/escapement/issues/40), step 1) |
+| Budget check | About 13 % at most, on an empty `do loop`: 1,000 turns took 466 µs at the console and 529 µs in a slot (Pico W, 2026-10-24; the two cores' work was not quite the same) |
+| Restart of core 0 | 3 to 4 ms for core 1 to notice that core 0 is stuck and restart it, keeping the dictionary, the slots and the console; 5 ms more if interrupts are masked or the core faulted |
 
-## Watch the kernel at work
+## The timeline
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/timeline-dark.png">
   <img src="docs/images/timeline-light.png" alt="The timeline of the web page: the 80 ms word long, on the 1 s row, runs in pieces, and the 0.5 ms word busy runs in the gaps every 10 ms" width="100%">
 </picture>
 
-<sub>A capture of the [web page](https://beber007.github.io/escapement-forth/), not a drawing. `long` takes 80 ms once a second. `busy` takes 0.5 ms every 10 ms. Under EDF the kernel runs the earliest deadline first, so `long` runs in pieces and `busy` keeps its rhythm.</sub>
+<sub>A capture of the [web page](https://beber007.github.io/escapement-forth/). `long` takes 80 ms once a second. `busy` takes 0.5 ms every 10 ms. Under EDF the kernel runs the earliest deadline first, so `long` runs in pieces and `busy` keeps its rhythm.</sub>
 
 ## How it works
 
@@ -90,7 +91,7 @@ slots                \ for each slot: runs, longest run
 
 A new word is on trial. It runs and its time is measured, but nothing is guaranteed.
 
-`promote` guarantees it. Its worst case becomes the longest run measured, plus a quarter,
+`promote` guarantees it, once the word has run ten times and never over budget. Its worst case becomes the longest run measured, plus a quarter,
 plus 1 µs. The promotion is refused if all promoted words, plus the slots' own cost,
 would take more than 70 % of the processor. That cost is 8 µs per release (6.6 to 7.3 µs
 measured on the Pico, issue #40 step 1).
@@ -161,8 +162,7 @@ built-in words only.
 
 ## In the browser
 
-[The web page](https://beber007.github.io/escapement-forth/) runs the same Forth, the same
-slots and the same hard kernel under EDF, compiled to WebAssembly (`web/`). Only the layer
+[The web page](https://beber007.github.io/escapement-forth/) runs the board's Forth, slots and hard kernel (EDF), compiled to WebAssembly (`web/`). Only the layer
 below changes:
 
 - the kernel's clock follows the browser's;
@@ -187,7 +187,7 @@ pauses are left out.
 
 ## Limits
 
-- **The budget belongs to the Forth, not to the kernel** (Escapement's issue #17). A word
+- **The Forth enforces the budget.** The kernel does not (Escapement's issue #17). A word
   written in C is not stopped midway, and a run that is cut keeps what it already did.
   Between two checks, a word can run past its worst case and delay the tasks with later
   deadlines. If it is still running at its next release, the kernel counts an overrun
@@ -256,7 +256,7 @@ this prototype was built on.
 
 ## How this project is built
 
-This project is developed with the help of an AI, as Escapement is. The rule is the same: the AI proposes, and the tests and the board decide.
+This project is developed with the help of an AI, as Escapement is. The AI's proposals are checked by the tests and on the board.
 
 ## Licence
 

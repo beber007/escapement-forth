@@ -266,8 +266,7 @@
     <div class="top"><div class="brand"><svg class="logo" viewBox="44 26 262 250" aria-hidden="true"><path d="M170.00 64.00 L174.94 32.10 L181.55 35.53 L202.65 69.51 L204.98 71.44 L222.47 44.31 L227.11 50.12 L232.57 89.75 L233.91 92.45 L260.92 74.78 L262.79 81.99 L251.66 120.41 L251.79 123.42 L283.65 118.27 L282.43 125.61 L256.64 156.18 L255.53 158.99 L286.73 167.24 L282.64 173.45 L246.64 190.89 L244.48 193.00 L269.63 213.23 L263.36 217.23 L223.38 218.52 L220.55 219.58 L235.30 248.28 L227.94 249.39 L190.90 234.31 L187.88 234.12 L189.68 266.35 L182.51 264.37 L154.80 235.52 L152.12 234.12 L140.65 264.29 L134.91 259.57 L121.33 221.94 L119.45 219.58 L96.70 242.48 L93.38 235.82 L96.27 195.93 L95.52 193.00 L65.43 204.67 L65.09 197.23 L83.97 161.97 L84.47 158.99 L52.23 157.41 L54.95 150.48 L86.54 125.94 L88.21 123.42 L59.40 108.87 L64.70 103.65 L103.54 94.07 L106.09 92.45 L85.69 67.44 L92.66 64.82 L132.03 71.88 L135.02 71.44 L126.56 40.29 L133.99 40.73 L167.09 63.19 Z" fill="#d4a656"/><circle cx="170" cy="150" r="68.8" fill="var(--bg)"/><line x1="170" y1="150" x2="170" y2="79.48" stroke="#d4a656" stroke-width="9.46" stroke-linecap="round"/><line x1="170" y1="150" x2="237.07" y2="128.21" stroke="#d4a656" stroke-width="9.46" stroke-linecap="round"/><line x1="170" y1="150" x2="211.45" y2="207.05" stroke="#d4a656" stroke-width="9.46" stroke-linecap="round"/><line x1="170" y1="150" x2="128.55" y2="207.05" stroke="#d4a656" stroke-width="9.46" stroke-linecap="round"/><line x1="170" y1="150" x2="102.93" y2="128.21" stroke="#d4a656" stroke-width="9.46" stroke-linecap="round"/><circle cx="170" cy="150" r="18.92" fill="#d4a656"/><circle cx="170" cy="150" r="6.88" fill="var(--bg)"/><rect x="166" y="166" width="136" height="108" rx="20" fill="var(--accent)" stroke="var(--bg)" stroke-width="6"/><g fill="var(--accent-ink)"><rect x="192" y="186" width="24" height="24" rx="4"/><rect x="192" y="232" width="24" height="24" rx="4"/><rect x="252" y="186" width="24" height="24" rx="4"/><path d="M252 232h24v22q0 12-15 17l-5-7q7-3 7-8h-11z"/></g></svg><h1>Escapement Forth</h1></div>
       <span class="demo" data-i18n="demo"><a href="https://youtu.be/3fMFzSJFBvo">Watch the demo (2 min)</a></span>
       <div class="lang" role="group" aria-label="Language" data-i18n-label="lang"><button data-lang="en">EN</button><button data-lang="fr">FR</button></div></div>
-    <p class="lede" data-i18n="lede"><a href="https://github.com/beber007/escapement">Escapement</a> runs tasks on a fixed schedule and keeps them on
-      time, even when one of them overruns. This real-time kernel runs on a Raspberry Pi Pico, with a Forth console. Here, the same code runs in your browser.</p>
+    <p class="lede" data-i18n="lede"><a href="https://github.com/beber007/escapement">Escapement</a> runs tasks on a fixed schedule. A Forth word that goes over budget gets cut off. This real-time kernel runs on a Raspberry Pi Pico, with a Forth console. Here, the same Forth and kernel run in your browser.</p>
   </header>
     <div class="main">
       <div class="pair">
@@ -330,11 +329,11 @@
   </div>
 
   <section class="rules">
-    <h2 data-i18n="rules">The rules at a glance</h2>
+    <h2 data-i18n="rules">The rules</h2>
     <ul class="badges">
       <li data-i18n="badge1"><b>hard real time</b> · EDF</li>
       <li data-i18n="badge2"><b>4 tasks</b> · 1, 10, 100, 1000 ms</li>
-      <li data-i18n="badge3"><b>the real board's code</b> · a Raspberry Pi Pico</li>
+      <li data-i18n="badge3"><b>the Pico's Forth and kernel</b> · a Raspberry Pi Pico</li>
       <li data-i18n="badge4"><b>in your browser</b> · nothing is sent</li>
     </ul>
     <ol class="how" aria-label="How it works" data-i18n-label="how">
@@ -348,7 +347,7 @@
   </section>
 
   <section class="honest">
-    <h2 data-i18n="honest">What this web page is, and what it is not</h2>
+    <h2 data-i18n="honest">This web page and the board</h2>
     <ul>
       <li data-i18n="honest1">Forth and the kernel are the code of the real board, a Raspberry Pi Pico, compiled as is: the console and
         the slots (<code>src/</code>), Escapement's real-time kernel, which schedules by EDF (<code>EscapementHard.c</code>) and
@@ -487,19 +486,19 @@
   // ---- The languages: the page's texts in English, as written above, or in French; the
   // Forth answers in English, as on the board.
   const FR = {
-    lede: '<a href="https://github.com/beber007/escapement">Escapement</a> lance des tâches à intervalles fixes et garde leur rythme, même si l\'une d\'elles déborde. Ce noyau temps réel tourne sur un Raspberry Pi Pico, avec une console Forth. Ici, le même code tourne dans ton navigateur.',
+    lede: '<a href="https://github.com/beber007/escapement">Escapement</a> lance des tâches à intervalles fixes. Un mot Forth qui dépasse son budget est coupé. Ce noyau temps réel tourne sur un Raspberry Pi Pico, avec une console Forth. Ici, le même Forth et le même noyau tournent dans ton navigateur.',
     badge1: "<b>temps réel dur</b> · EDF", badge2: "<b>4 tâches</b> · 1, 10, 100, 1000 ms",
-    badge3: "<b>le code de la vraie carte</b> · un Raspberry Pi Pico", badge4: "<b>dans ton navigateur</b> · rien n'est envoyé",
+    badge3: "<b>le Forth et le noyau du Pico</b> · un Raspberry Pi Pico", badge4: "<b>dans ton navigateur</b> · rien n'est envoyé",
     how1: "<b>Quatre tâches, seize cases</b>Le noyau a quatre tâches. Leurs périodes sont de 1, 10, 100 et 1000 ms. Chacune a quatre cases. Tu y attaches des mots depuis la console : <code>' blink 100 every</code>.",
     how2: "<b>D'abord à l'essai</b>Un nouveau mot est à l'essai. Il tourne à chaque période, et chaque lancement est chronométré. Son budget est un dixième de sa période. S'il le dépasse, il est coupé.",
     how3: "<b>Promu ou refusé</b>Après dix lancements sans dépasser son budget, <code>promote</code> lui réserve une part du processeur. Ce temps lui est garanti. Tous les mots promus doivent tenir dans 70 % du processeur. Sinon, le mot est refusé.",
     how4: "<b>L'échéance d'abord</b>Le noyau fait toujours passer la tâche dont l'échéance est la plus proche (EDF). La tâche de 1 ms interrompt celle de 1 s. La console passe après toutes.",
     demo: '<a href="https://youtu.be/f03H2mjgLlU">Voir la démo (2 min)</a>',
-    rules: "Les règles, en bref", tour: "Visite guidée", cost: "Coût de <code>work</code>",
+    rules: "Les règles", tour: "Visite guidée", cost: "Coût de <code>work</code>",
     restart: "Relancer le Forth", live: "La frise : ce que lance le noyau", running: "en cours, une couleur par tâche",
     waiting: "en attente, interrompue", release: "lancement", overlegend: "au-delà du budget",
     pool: "Le tableau des cases", poolnote: "temps le plus long / budget",
-    honest: "Ce que cette page web est, et ce qu'elle n'est pas",
+    honest: "Cette page web et la carte",
     honest1: "Le Forth et le noyau sont le code de la vraie carte, un Raspberry Pi Pico, compilé tel quel : la console et les cases (<code>src/</code>), le noyau temps réel d'Escapement, qui ordonnance par EDF (<code>EscapementHard.c</code>) et les quatre tâches du Pico, une par période. Seule la couche du dessous change (<code>web/platform_web.c</code>, <code>web/kernel/</code>).",
     honest2: "Ici, la console est la tâche de fond du noyau. Les cases l'interrompent, et s'interrompent entre elles, là où le Forth lit l'horloge : tous les seize mots. Sur la carte, la console a son propre cœur et ne retarde jamais une case.",
     honest3: "L'horloge du noyau suit celle du navigateur. Le navigateur ne fait tourner la page web qu'à quelques millisecondes d'intervalle, et moins souvent si l'onglet est caché. Le noyau rattrape alors son retard, un lancement après l'autre. Chacun est à l'heure pour le noyau, mais en retard sur l'heure réelle. Au-delà de 200 ms, le reste est abandonné. Le navigateur fait parfois une pause en plein lancement, par exemple pour le ramasse-miettes. Une pause de plus d'une demi-milliseconde environ ne compte ni dans l'horloge ni dans les mesures. La carte, elle, n'a pas ces pauses.",
@@ -524,7 +523,7 @@
           runs: (n) => n + (n === 1 ? " run" : " runs"),
           releases: (n) => n + (n === 1 ? " run" : " runs"),
           summary: (w, rows, over) => "In the last " + w + ": " + rows + "; " + over + " over budget.",
-          help: "Show a solution", bravo: "Well done:", won: "GP20 switches state once a second. Your own word is running on the kernel.",
+          help: "Show a solution", bravo: "Well done:", won: "GP20 switches state once a second. Your word runs on the kernel.",
           run: "Type these lines", onward: "Next step →", watch: "Watch:", slotOf: (name) => "‹slot of " + name + "›", now: "now", pause: "Pause", resume: "Resume", frozen: "The timeline is frozen. Drag it to look back as far as 10 s. Click Resume to continue.", stopAll: "‹stop every slot›", setup: "‹setup: stop every slot, restart blink›",
           tipTask: (row, names) => "Task " + row + (names ? ": " + names : ", no word"), tipConsole: "A line of the console",
           tipAgo: (ago) => "Started " + ago + " ago", tipRunning: "Still running",
@@ -545,7 +544,7 @@
           releases: (n) => n + (n < 2 ? " lancement" : " lancements"),
           summary: (w, rows, over) => (w === "1 s" ? "Sur la dernière seconde" : "Sur les " + w.replace(" ", " dernières ").replace(/ s$/, " secondes")) +
                                        " : " + rows + " ; " + over + " au-delà du budget.",
-          help: "Voir une solution", bravo: "Bravo :", won: "GP20 change d'état une fois par seconde. Ton propre mot tourne sur le noyau.",
+          help: "Voir une solution", bravo: "Bravo :", won: "GP20 change d'état une fois par seconde. Ton mot tourne sur le noyau.",
           run: "Taper ces lignes", onward: "Étape suivante →", watch: "Regarde :", slotOf: (name) => "‹case de " + name + "›", now: "maintenant", pause: "Pause", resume: "Reprendre", frozen: "La frise est figée. Fais-la glisser pour remonter jusqu'à 10 s en arrière. Clique sur Reprendre pour continuer.",
           stopAll: "‹arrêter toutes les cases›", setup: "‹remise en place : tout arrêter, relancer blink›",
           tipTask: (row, names) => "Tâche " + row + (names ? " : " + names : ", sans mot"), tipConsole: "Une ligne de la console",
