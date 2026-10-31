@@ -17,7 +17,7 @@ const KEPT = 10 * LONG;                 // us of instances kept behind the clock
 // stays at while the pointer is over it, the page's Pause and its note left as they are.
 function timeline(onFreeze) {
   const view = { window: SHORT, instances: [], clock: 0, frozen: null, stopped: null, freezeRow: null, held: null };
-  let nested = [], base = 0, lastRaw = -1;
+  let nested = [], base = 0, lastRaw = -1, line = null;
 
   // unwrap: The kernel's clock counts modulo 2^30.
   function unwrap(raw) {
@@ -70,10 +70,24 @@ function timeline(onFreeze) {
         begin(period, t);
       else if (kind === 2)
         end(period, t, over);
+      else if (kind === 3 && m.board) {   // on its own core: nothing interrupts a line
+        line = { row: 4, start: t, end: null, over: false, runs: [[t, null]] };
+        view.instances.push(line);
+      }
+      else if (kind === 4 && m.board) {
+        if (line !== null) {
+          line.runs[0][1] = line.end = t;
+          line = null;
+        }
+      }
       else if (kind === 3)
         begin(4, t);
       else if (kind === 4)
         end(4, t, false);
+      else if (kind === 5) {   // events lost: what was open will not end
+        while (nested.length > 0)
+          end(nested[0].row, t, false);
+      }
     }
     view.clock = Math.max(view.clock, unwrap(m.clock));
     const near = (i, at, behind) => at !== null && i.start <= at && i.end >= at - behind;
@@ -122,6 +136,7 @@ function timeline(onFreeze) {
     view.frozen = view.stopped = view.freezeRow = view.held = null;
     view.window = SHORT;
     nested = [];
+    line = null;
     base = 0;
     lastRaw = -1;
   };
@@ -222,9 +237,32 @@ function boardFrame(text) {
   return { load: Number(head[1]), bound: Number(head[2]), slots };
 }
 
+// boardTrace: The board's events (pico/console.c) as the worker's telemetry for timeline.
+// Their time is 19 bits of us: read against the last, either way. flush gives what came
+// since the last time, or null.
+function boardTrace() {
+  const KINDS = { 0: 1, 1: 2, 2: 2, 4: 3, 5: 4, 6: 5 };
+  let last = null, trace = [];
+  return {
+    add(event) {
+      const raw = event & 0x7FFFF, kind = (event >>> 21) & 7, period = (event >>> 19) & 3;
+      last = last === null ? raw : (last + ((raw - last + 0x40000) & 0x7FFFF) - 0x40000) & 0x3FFFFFFF;
+      if (KINDS[kind] !== undefined)
+        trace.push(last, KINDS[kind] | (kind === 4 || kind === 5 || kind === 6 ? 0 : period) << 8 | (kind === 2 ? 1 : 0) << 16);
+    },
+    flush() {
+      if (last === null)
+        return null;
+      const m = { trace, clock: last, board: true };
+      trace = [];
+      return m;
+    },
+  };
+}
+
 // boardLink: A serial port (Web Serial) opened on the board's console: onText gets what it
 // prints, onEnd is told if the port ends by itself, the board unplugged.
-async function boardLink(port, onText, onEnd, onFrame = () => {}) {
+async function boardLink(port, onText, onEnd, onFrame = () => {}, onEvent = () => {}) {
   await port.open({ baudRate: 115200 });
   const decoder = new TextDecoder(), framed = new TextDecoder(), encoder = new TextEncoder();
   const writer = port.writable.getWriter();
@@ -237,10 +275,25 @@ async function boardLink(port, onText, onEnd, onFrame = () => {}) {
     if (text !== "")
       onText(text);
   };
+  let event = null;
   const onBytes = (bytes) => {
-    let from = 0;
-    bytes.forEach((b, i) => {
-      if (frame !== null) {
+    let text = [];
+    const flush = () => {
+      if (text.length > 0)
+        say(Uint8Array.from(text));
+      text = [];
+    };
+    for (const b of bytes) {
+      if (event !== null) {   // anywhere, a frame or a character cut in two
+        event.push(b);
+        if (event.length === 3) {
+          onEvent(event[0] << 16 | event[1] << 8 | event[2]);
+          event = null;
+        }
+      }
+      else if (b === 0x1C)
+        event = [];
+      else if (frame !== null) {
         if (b === 0x1F) {
           const parsed = boardFrame(framed.decode(Uint8Array.from(frame)));
           if (parsed === null)
@@ -248,7 +301,6 @@ async function boardLink(port, onText, onEnd, onFrame = () => {}) {
           else
             onFrame(parsed);
           frame = null;
-          from = i + 1;
         }
         else if (b === 0x1E) {   // the console sends a frame whole: the first was a word's
           say(Uint8Array.from(frame));
@@ -257,18 +309,19 @@ async function boardLink(port, onText, onEnd, onFrame = () => {}) {
         else if (frame.length >= 2048) {
           say(Uint8Array.from(frame));
           frame = null;
-          from = i;
+          text.push(b);
         }
         else
           frame.push(b);
       }
       else if (b === 0x1E) {
-        say(bytes.subarray(from, i));
+        flush();
         frame = [];
       }
-    });
-    if (frame === null && from < bytes.length)
-      say(bytes.subarray(from));
+      else
+        text.push(b);
+    }
+    flush();
   };
   (async () => {
     // An error the port survives, a break or a framing error, gives a new stream; one it
@@ -304,6 +357,7 @@ async function boardLink(port, onText, onEnd, onFrame = () => {}) {
     interrupt: () => write(Uint8Array.of(3)),
     askPins: () => write(Uint8Array.of(5)),
     askSlots: () => write(Uint8Array.of(6)),
+    trace: (on) => write(Uint8Array.of(on ? 14 : 15)),
     close: () => {
       closing = true;
       return reader === null ? undefined : reader.cancel().catch(() => {});

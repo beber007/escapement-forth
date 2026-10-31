@@ -189,7 +189,11 @@ The console can also talk to a real Pico. In Chrome or Edge, click **Connect a P
 choose its serial port. The Pico must run this Forth. You need a Debug Probe or a USB to
 serial adapter on GP0 and GP1.
 The console then follows the board. The pins and the slots follow it between two lines, so
-they stop while a line runs. The timeline and the tour don't follow it yet (issue #28).
+they stop while a line runs. The timeline shows the tasks that have words, from events the
+board sends while the web page is connected. Its times are then the Pico's. It can have gaps:
+at 115200 baud, words on the 1 ms task nearly fill the link. Bytes 28, 30 and 31 are for the
+web page: a word that prints them disturbs it. The tour doesn't follow the board yet
+(issue #28).
 
 ## How it is checked
 

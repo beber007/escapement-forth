@@ -142,7 +142,7 @@ const pend = (queue, pool) => {
   const item = V.pending(queue, pool);
   return item === null ? null : item.line;
 };
-const V = Function(text(args[3]) + " return { boardLink, boardFrame, timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, count, rowNames, hit, span, WINDOWS, ZOOM };")();
+const V = Function(text(args[3]) + " return { boardLink, boardFrame, boardTrace, timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, count, rowNames, hit, span, WINDOWS, ZOOM };")();
 
 forth.web_init();
 take();
@@ -689,7 +689,7 @@ async function boardLinkChecks() {
     return port;
   };
   const settle = async () => { for (let k = 0; k < 20; k += 1) await null; };
-  const { boardLink, boardFrame } = V;
+  const { boardLink, boardFrame, boardTrace } = V;
   let got = "", ended = 0;
   // é falls across two chunks, and the board's CR LF comes as LF.
   let port = makePort([encode("1 \xc3"), encode("\xa9 ok\r\n")]);
@@ -767,6 +767,50 @@ async function boardLinkChecks() {
   await settle();
   check("a slot out of range is left out", boardFrame("s 1 2 \n99 1 0 0 0 0 0 w ").slots.length === 16);
   check("a frame of another kind is none", boardFrame("x 1") === null);
+  // Events anywhere: in the text, in a character, in a frame. A byte of 0x1C in one is its own.
+  const events = [];
+  frames.length = 0;
+  got = "";
+  const ev = (w) => String.fromCharCode(0x1C, w >> 16 & 255, w >> 8 & 255, w & 255);
+  const W = 1 << 21 | 2 << 19 | 0x1C1C;
+  port = makePort([encode("a" + ev(W) + "\xc3" + ev(5)), encode("\xa9\x1Ep " + ev(6 << 21) + "7 \x1F" + ev(0x1E1F1E).slice(0, 2)), encode(ev(0x1E1F1E).slice(2) + "b")]);
+  link = await boardLink(port, (t) => { got += t; }, () => {}, (f) => frames.push(f), (e) => events.push(e));
+  await settle();
+  check("the text without its events", got === "aéb", got);
+  check("the events, whole", events.join() === [W, 5, 6 << 21, 0x1E1F1E].join(), events);
+  check("a frame with an event in it", frames.length === 1 && frames[0].pins === 7, frames);
+  await link.trace(true);
+  await link.trace(false);
+  check("what asks for the trace", port.written.slice(-2).join("|") === "14|15", port.written);
+  await link.close();
+  await settle();
+  // The time of events, across its 19 bits, either way.
+  const tr = boardTrace();
+  check("no event, no telemetry", tr.flush() === null);
+  tr.add(0 << 21 | 1 << 19 | 0x7FFF0);
+  tr.add(1 << 21 | 1 << 19 | 0x00010);
+  tr.add(2 << 21 | 3 << 19 | 0x7FFFE);
+  tr.add(3 << 21 | 0x00020);
+  tr.add(4 << 21 | 0x00030);
+  tr.add(5 << 21 | 0x00040);
+  tr.add(6 << 21 | 0x00050);
+  let m = tr.flush();
+  const base = 0x7FFF0;
+  check("the times unwrapped", m.trace[0] === base && m.trace[2] === base + 0x20 && m.trace[4] === base + 0xE, m.trace);
+  check("the kinds as the timeline's", m.trace[1] === (1 | 1 << 8) && m.trace[3] === (2 | 1 << 8) && m.trace[5] === (2 | 3 << 8 | 1 << 16) &&
+        m.trace[7] === 3 && m.trace[9] === 4 && m.trace[11] === 5, m.trace);
+  check("a tick moves the clock alone", m.clock === base + 0x60, m.clock);
+  m = tr.flush();
+  check("nothing new, the clock kept", m.trace.length === 0 && m.clock === base + 0x60, m);
+  const line = V.timeline(() => {});
+  line.traced({ trace: [100, 1 | 1 << 8, 200, 5], clock: 200 });
+  check("events lost end what was open", line.instances.length === 1 && line.instances[0].end === 200, line.instances);
+  // On a board, a line runs beside the tasks, which neither end nor interrupt it.
+  const beside = V.timeline(() => {});
+  beside.traced({ board: true, clock: 500, trace: [100, 1 | 3 << 8, 150, 3, 200, 1, 250, 4, 300, 2, 400, 2 | 3 << 8 | 1 << 16] });
+  const rowOf = (r) => beside.instances.find((i) => i.row === r);
+  check("a line beside the tasks", rowOf(4).start === 150 && rowOf(4).end === 250 && rowOf(4).runs.length === 1, rowOf(4));
+  check("the tasks as they ran", rowOf(3).end === 400 && rowOf(3).over && rowOf(0).end === 300, beside.instances);
   const failing = makePort([]);
   failing.open = async () => { throw new Error("busy"); };
   let fault = "";
