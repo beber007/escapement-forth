@@ -332,7 +332,7 @@
         <button class="restart" id="connect" data-i18n="connect" hidden>Connect a Pico</button>
         <button class="restart" id="disconnect" data-i18n="disconnect" hidden>Disconnect</button>
       </div>
-      <p class="firmware" id="firmware" data-i18n="firmware" hidden><a href="EscapementForth.uf2" download>The Pico's firmware</a>: hold BOOTSEL while plugging it in, then copy this file to the RPI-RP2 disk. It replaces its firmware. The console needs a Debug Probe or a USB to serial adapter on GP0 and GP1.</p>
+      <p class="firmware" id="firmware" data-i18n="firmware" hidden><a href="EscapementForth.uf2" download>The Pico's firmware</a>: hold BOOTSEL while plugging it in, then copy this file to the RPI-RP2 disk. It replaces its firmware. The Pico then has a serial port on its USB.</p>
     </div>
   </div>
 
@@ -423,18 +423,19 @@
   // be run alone, and blink goes on through all but the last.
   const STOP_ALL = "0 stop 1 stop 2 stop 3 stop 4 stop 5 stop 6 stop 7 stop 8 stop 9 stop " +
                    "10 stop 11 stop 12 stop 13 stop 14 stop 15 stop";
+  const PINS_OFF = "-1 low";   // stopped, a pin keeps its state
   const BLINK = [": blink  1 15 lshift toggle ;", "' blink 100 every"];
-  const SETUP = [STOP_ALL, ...BLINK];
+  const SETUP = [STOP_ALL, PINS_OFF, ...BLINK];
   const SOLUTION = ": led  1 20 lshift toggle ;\n' led 1000 every";
   const TOUR = [
-    { id: "period", look: ["@15", "=blink"], quiet: 1, lines: [STOP_ALL, ...BLINK],
+    { id: "period", look: ["@15", "=blink"], quiet: 2, lines: [STOP_ALL, PINS_OFF, ...BLINK],
       en: { title: "Blink an LED",
             text: "Forth programs are built from words. `: blink … ;` defines a word called `blink`. `1 15 lshift` selects pin 15, and `toggle` flips it. `every` runs `blink` every 100 ms. `'` gives `every` the word itself instead of running it.",
             watch: "LED GP15 blinks, switching state every 100 ms, and the run count in `blink`'s slot climbs. If the slot shows 0 µs, `blink` is too short for your browser to measure." },
       fr: { title: "Une LED qui clignote",
             text: "En Forth, un programme est fait de mots. `: blink … ;` crée le mot `blink`. `1 15 lshift` désigne la broche 15, et `toggle` change son état. `every` lance `blink` toutes les 100 ms. `'` passe le mot à `every` au lieu de l'exécuter.",
             watch: "la LED GP15 clignote : elle change d'état toutes les 100 ms. Dans la case de `blink`, le compteur de lancements monte. Si elle affiche 0 µs, c'est que `blink` est trop court pour que ton navigateur le mesure." } },
-    { id: "cost", look: ["#cost", "#timeline"], quiet: 3, cost: true, window: ZOOM,
+    { id: "cost", look: ["#cost", "#timeline"], quiet: 4, cost: true, window: ZOOM,
       lines: [...SETUP, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every"],
       en: { title: "Every word gets a budget",
             text: "`spend` keeps the processor busy for a given number of microseconds. `work` calls it every 10 ms. A new word can use a tenth of its period, so 1 ms here.",
@@ -442,21 +443,21 @@
       fr: { title: "Chaque mot a un budget",
             text: "`spend` occupe le processeur pendant le nombre de microsecondes qu'on lui donne. `work` s'en sert toutes les 10 ms. Un nouveau mot a droit à un dixième de sa période : ici 1 ms.",
             watch: "pousse le curseur au-delà de 1 ms. Sur la ligne 10 ms de la frise, les barres grandissent, puis passent au rouge. `work` est coupé, et il repart au lancement suivant." } },
-    { id: "forever", look: ["@15", "=forever"], quiet: 3, lines: [...SETUP, ": forever  begin again ;", "' forever 10 every"],
+    { id: "forever", look: ["@15", "=forever"], quiet: 4, lines: [...SETUP, ": forever  begin again ;", "' forever 10 every"],
       en: { title: "A word that never ends",
             text: "`forever` loops endlessly. With no limit, it would hog the processor and `blink` would never get a turn. Before you click, take a guess: will the LED stop?",
             watch: "`forever` gets cut off on every run. The LED keeps blinking." },
       fr: { title: "Un mot qui ne s'arrête jamais",
             text: "`forever` tourne sans fin. Sans limite, il garderait le processeur et `blink` ne passerait plus. Avant de cliquer, devine : la LED va-t-elle s'arrêter ?",
             watch: "`forever` est coupé à chaque lancement. La LED continue de clignoter." } },
-    { id: "fails", look: ["=bad", "@15"], quiet: 3, lines: [...SETUP, ": bad  drop ;", "' bad 1 every"],
+    { id: "fails", look: ["=bad", "@15"], quiet: 4, lines: [...SETUP, ": bad  drop ;", "' bad 1 every"],
       en: { title: "A word that crashes",
             text: "Forth keeps its values on a stack. `bad` takes a value from an empty stack, which is an error. A word that runs too long gets cut off and runs again next time. A word with an error stops for good.",
             watch: "`bad`'s slot shows failed and `stack empty`. The LED keeps blinking." },
       fr: { title: "Un mot qui plante",
             text: "Forth range ses valeurs sur une pile. `bad` retire une valeur alors que la pile est vide. C'est une erreur. Un mot trop long est coupé, puis relancé. Un mot en erreur est arrêté pour de bon.",
             watch: "la case de `bad` passe en échec et affiche `stack empty`. La LED continue de clignoter." } },
-    { id: "admitted", look: ["=work", ".gauge"], quiet: 3, window: ZOOM,
+    { id: "admitted", look: ["=work", ".gauge"], quiet: 4, window: ZOOM,
       lines: [...SETUP, "variable cost  500 cost !", ": work  cost @ spend ;", "' work 10 every", "200 ms {work} promote"],
       en: { title: "Promoted",
             text: "Until now, words were on trial: each run was timed. After ten runs, none over budget, `promote` reserves a share of the processor for a word. `every` gave it a slot number, here `4`, which replaces ‹slot of work› in the line. `200 ms` allows time for the ten runs.",
@@ -464,7 +465,7 @@
       fr: { title: "Promu",
             text: "Jusqu'ici, les mots étaient à l'essai : chaque lancement était chronométré. Après dix lancements sans dépasser le budget, `promote` réserve au mot une part du processeur. `every` lui a donné un numéro de case, ici `4`. Ce numéro remplace ‹case de work› dans la ligne. `200 ms` laisse le temps de faire les dix lancements.",
             watch: "la case indique « promu », et la jauge de charge monte." } },
-    { id: "refused", look: [".window", ".gauge"], quiet: 3,
+    { id: "refused", look: [".window", ".gauge"], quiet: 4,
       lines: [...SETUP, ": big  700 spend ;  : huge  9500 spend ;",
               "' big 10 every ' big 10 every ' big 10 every ' big 10 every",
               "' huge 100 every ' huge 100 every ' huge 100 every",
@@ -475,7 +476,7 @@
       fr: { title: "Refusé",
             text: "Chaque promotion réserve une part du processeur. Le total ne peut pas dépasser 70 %. Ici, `big` occupe quatre cases et `huge` trois. Les deux dernières lignes les promeuvent une à une.",
             watch: "la console donne la charge après chaque promotion. Au-delà de la limite, la console répond `refused` et le mot reste à l'essai." } },
-    { id: "preempted", look: ["#timeline"], quiet: 3, freeze: 3,
+    { id: "preempted", look: ["#timeline"], quiet: 4, freeze: 3,
       lines: [...SETUP, ": long  80000 spend ;  : busy  500 spend ;", "' long 1000 every", "' busy 10 every"],
       en: { title: "Who goes first?",
             text: "`long` takes 80 ms, once a second. `busy` takes 0.5 ms, every 10 ms. If `busy` had to wait for `long` to finish, it would miss eight runs. So the kernel always runs the word with the earliest deadline. A word's deadline is when its next run is due.",
@@ -483,7 +484,7 @@
       fr: { title: "Qui passe en premier ?",
             text: "`long` dure 80 ms, toutes les secondes. `busy` dure 0,5 ms, toutes les 10 ms. S'il attendait la fin de `long`, `busy` raterait huit lancements. Le noyau fait donc passer le mot dont l'échéance est la plus proche. L'échéance d'un mot, c'est son prochain lancement.",
             watch: "la frise se fige quand `long` a fini. La ligne 1 s est coupée en morceaux, et la ligne 10 ms passe dans les trous. Clique sur Reprendre pour continuer." } },
-    { id: "yours", look: [".window"], quiet: 1, lines: [STOP_ALL],
+    { id: "yours", look: [".window"], quiet: 2, lines: [STOP_ALL, PINS_OFF],
       en: { title: "Your turn",
             text: "This button stops everything. Then, in the console, make LED GP20 blink, switching state once a second. Hint: go back to step 1 for a model. `words` lists every word you can use.",
             watch: "" },
@@ -504,7 +505,7 @@
     how4: "<b>L'échéance d'abord</b>Le noyau fait toujours passer la tâche dont l'échéance est la plus proche (EDF). La tâche de 1 ms interrompt celle de 1 s. La console passe après toutes.",
     demo: '<a href="https://youtu.be/f03H2mjgLlU">Voir la démo (2 min)</a>',
     rules: "Les règles", tour: "Visite guidée", cost: "Coût de <code>work</code>",
-    restart: "Relancer le Forth", connect: "Brancher un Pico", firmware: '<a href="EscapementForth.uf2" download>Le firmware du Pico</a> : maintiens BOOTSEL en le branchant, puis copie ce fichier sur le disque RPI-RP2. Il remplace son firmware. La console demande une Debug Probe ou un adaptateur USB-série sur GP0 et GP1.', disconnect: "Débrancher", live: "La frise : ce que lance le noyau", running: "en cours, une couleur par tâche",
+    restart: "Relancer le Forth", connect: "Brancher un Pico", firmware: '<a href="EscapementForth.uf2" download>Le firmware du Pico</a> : maintiens BOOTSEL en le branchant, puis copie ce fichier sur le disque RPI-RP2. Il remplace son firmware. Le Pico a alors un port série sur son USB.', disconnect: "Débrancher", live: "La frise : ce que lance le noyau", running: "en cours, une couleur par tâche",
     waiting: "en attente, interrompue", release: "lancement", overlegend: "au-delà du budget",
     pool: "Le tableau des cases", poolnote: "temps le plus long / budget",
     honest: "Cette page web et la carte",
@@ -1042,7 +1043,7 @@
       e.append(code);
     });
   }
-  const setupText = (s) => s.quiet === 1 ? T[lang].stopAll : T[lang].setup;
+  const setupText = (s) => s.quiet === 2 ? T[lang].stopAll : T[lang].setup;
   function showStep() {
     const s = TOUR[step], said = s[lang], finish = step === TOUR.length - 1;
     document.getElementById("step-count").textContent = (step + 1) + " / " + TOUR.length;
@@ -1149,6 +1150,9 @@
     typing = true;
     typeFailed = false;
     typedStep = step;
+    // Each step from a clean state: no word, no pin, no run of the step before.
+    view.fresh();
+    setCost(500);
     view.watch(TOUR[step].freeze);
     view.window = TOUR[step].window || SHORT;
     showViews();

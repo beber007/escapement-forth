@@ -4,7 +4,9 @@
 # Distributed under the terms of LICENSE at the root of this repository.
 """A flat binary as a UF2 for the flash of an RP2040, whose bootrom takes 256 bytes a block
 (RP2040 datasheet, 2.8.4). The file ends with a sector of the flash, the rest of it padded:
-no sector is left half written.
+no sector is left half written. The file also blanks the start of the saved dictionary
+(store.c): copying it is the way out of a saved boot word that stops the console, on a Pico
+with no wire on UART0.
 
     tools/uf2.py IN_BIN OUT_UF2
 """
@@ -15,16 +17,18 @@ import sys
 FLASH = 0x10000000
 PAGE = 256
 SECTOR = 4096
+STORE = 0x1FC000   # store.c, STORE_OFFSET
 FAMILY_FLAG = 0x00002000
 RP2040 = 0xE48BFF56
 
 
 def uf2(data):
     data = data.ljust((len(data) + SECTOR - 1) // SECTOR * SECTOR, b"\xff")
-    pages = [data[i:i + PAGE].ljust(PAGE, b"\0") for i in range(0, len(data), PAGE)]
+    pages = [(FLASH + i, data[i:i + PAGE].ljust(PAGE, b"\0")) for i in range(0, len(data), PAGE)]
+    pages += [(FLASH + STORE + i, b"\xff" * PAGE) for i in range(0, SECTOR, PAGE)]
     out = b""
-    for n, page in enumerate(pages):
-        head = struct.pack("<8I", 0x0A324655, 0x9E5D5157, FAMILY_FLAG, FLASH + n * PAGE, PAGE,
+    for n, (address, page) in enumerate(pages):
+        head = struct.pack("<8I", 0x0A324655, 0x9E5D5157, FAMILY_FLAG, address, PAGE,
                            n, len(pages), RP2040)
         out += (head + page).ljust(508, b"\0") + struct.pack("<I", 0x0AB16F30)
     return out

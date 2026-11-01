@@ -74,6 +74,8 @@ perl -0pi -e 's{<head>}{<head>
     shown.banner.push(banner.hidden || banner.textContent);
     const plot = document.getElementById("timeline"), box = plot.getBoundingClientRect();
     const tip = document.getElementById("tip");
+    // The click just emptied the timeline: a run of the 1 ms task under the mouse.
+    view.instances.push({ row: 0, start: view.clock - 500000, end: view.clock, over: false, runs: [[view.clock - 500000, view.clock]] });
     plot.dispatchEvent(new PointerEvent("pointermove", { pointerType: "mouse", bubbles: true,
       clientX: box.right - 30, clientY: box.top + (box.height - 18) / 10 }));
     shown.tip = [tip.hidden ? null : tip.textContent, banner.textContent];

@@ -6,7 +6,7 @@
 ** core 1, the output of both cores, the clock and the pins.
 **
 ** Core 1 runs no kernel. It takes one interrupt, the timer's alarm 3 every millisecond,
-** which watches core 0 (restart.c) and moves what UART0 received into a ring, a Ctrl-C a
+** which watches core 0 (restart.c), polls the USB (usb.c) and moves what UART0 or the USB received into a ring, a Ctrl-C a
 ** break of the word the console runs (ForthBreak): a word typed at the console that loops
 ** holds neither the watch nor the console. A fault on core 1 holds both: its HardFault loops,
 ** above the interrupt. UART0 is on GP0 (TX) and GP1 (RX), 115200 baud,
@@ -25,6 +25,7 @@
 #include "slots.h"
 #include "console.h"
 #include "restart.h"
+#include "usb.h"
 
 #define UART0_BASE           0x40034000
 #define UART_REG(offset)     *((volatile UINT32 *)(UART0_BASE + (offset)))
@@ -68,6 +69,7 @@
 #define CLOCK_EVERY          50000       /* us between two clocks for the page */
 #define SHARE_EVERY          5000        /* us between two shares of the events */
 #define TRACE_ASKED          5000000     /* us a page's asking holds */
+#define EVENTS_A_MS_USB      16
 #define FR_TXFE              (1u << 7)
 #define SIO_GPIO_IN          *((volatile UINT32 *)(0xD0000000 + 0x04))
 #define SIO_GPIO_OUT_SET     *((volatile UINT32 *)(0xD0000000 + 0x14))
@@ -132,6 +134,7 @@ volatile uint32_t TraceOn FORTH_KEEP;
 static volatile uint32_t Events[EVENTS] FORTH_KEEP;
 static volatile uint32_t EventHead FORTH_KEEP, EventTail FORTH_KEEP, EventLost FORTH_KEEP;
 static volatile uint32_t TraceAsked FORTH_KEEP, LastClock FORTH_KEEP, LastShare FORTH_KEEP;
+static volatile int WasActive FORTH_KEEP;
 static volatile int Sending FORTH_KEEP;   /* an event under way: the interrupt holds off */
 
 static uint32_t Event(uint32_t kind, uint32_t period)
@@ -165,6 +168,10 @@ static void SendByte(char c)
      if (LogLength < sizeof Log)
         Log[LogLength++] = c;
   #endif
+  if (UsbActive()) {   /* a program has it open */
+     UsbSend(c);
+     return;
+  }
   while (UART_FR & FR_TXFF);
   UART_DR = (UINT8)c;
 } /* end of SendByte */
@@ -177,22 +184,35 @@ static void SendEvent(uint32_t event)
   SendByte((char)event);
 } /* end of SendEvent */
 
+/* TraceRoom: The events that fit now, none of them waiting: in the empty FIFO, or the
+** USB's ring, of which each ms sends 64 bytes. */
+static UINT32 TraceRoom(void)
+{
+  if (UsbActive()) {
+     UINT32 room = UsbRoom() / 4;
+     return room < EVENTS_A_MS_USB ? room : EVENTS_A_MS_USB;
+  }
+  return (UART_FR & FR_TXFE) != 0 ? EVENTS_A_TICK : 0;
+} /* end of TraceRoom */
+
 /* SendEvents: As many as fit, or the page's clock if it is time, whatever the tasks do.
 ** Only where the bytes wait for no one, or Sending keeps the interrupt out. */
-static void SendEvents(void)
+static void SendEvents(UINT32 room)
 {
   UINT32 tail = EventTail, sent = 0, now = TIMER_TIMERAWL;
   if (now - TraceAsked > TRACE_ASKED) {
      TraceOn = 0;
      return;
   }
+  if (room == 0)
+     return;
   /* Only behind the events: times must not go back, the page reads each from the last. */
   if (tail == EventHead && now - LastClock >= CLOCK_EVERY) {
      LastClock = now;
      SendEvent(Event(EVENT_TICK,0));
      return;
   }
-  for (; sent < EVENTS_A_TICK && tail != EventHead; sent += 1, tail += 1) {
+  for (; sent < room && tail != EventHead; sent += 1, tail += 1) {
      ForthBarrier();
      SendEvent(Events[tail % EVENTS]);
      ForthBarrier();
@@ -203,8 +223,8 @@ static void SendEvents(void)
 /* SendTrace: In core 1's interrupt. */
 static void SendTrace(void)
 {
-  if (TraceOn && !Sending && (UART_FR & FR_TXFE) != 0)
-     SendEvents();
+  if (TraceOn && !Sending)
+     SendEvents(TraceRoom());
 } /* end of SendTrace */
 
 /* TraceHeard: In core 1's interrupt, a page's asking, which a line that runs must not
@@ -226,7 +246,7 @@ static void TraceHeard(char c)
 /* TraceLine: The start or end of a line, on core 1 outside its interrupt. */
 static void TraceLine(uint32_t kind)
 {
-  if (!TraceOn)
+  if (!TraceOn || (UsbActive() && UsbRoom() < 4))
      return;
   Sending = 1;
   SendEvent(Event(kind,0));
@@ -239,7 +259,7 @@ static void Send(char c)
   if (TraceOn && TIMER_TIMERAWL - LastShare >= SHARE_EVERY) {
      LastShare = TIMER_TIMERAWL;
      Sending = 1;
-     SendEvents();
+     SendEvents(UsbActive() ? TraceRoom() : EVENTS_A_TICK);   /* UART0's may wait, here */
      Sending = 0;
   }
   SendByte(c);
@@ -297,45 +317,55 @@ static void Frame(char c)
   Send(FRAME_END);
 } /* end of Frame */
 
-/* Tick: Core 1's interrupt, alarm 3: core 0 watched, what UART0 received taken. */
-static void Tick(void)
+/* Received: In core 1's interrupt, a byte from UART0 or the USB. */
+static void Received(char c)
 {
   UINT32 head;
+  if (c == ASK_TRACE || c == ASK_NO_TRACE) {
+     TraceHeard(c);
+     return;
+  }
+  /* A Ctrl-C into the ring too: the break holds for what runs until the console
+  ** meets it there, which then clears it, before the lines that follow; one that
+  ** comes with the end of a line before it, in the same tick, is for that line's word
+  ** (a review, 2026-10-24). The ring full, it takes the place of the last byte, and
+  ** the line that byte ended, if it did, is lost with it: a break the console never
+  ** met would stop a line typed long after. */
+  head = InputHead;
+  if (c == BREAK_CHAR) {
+     if (head - InputTail >= INPUT && Input[(head - 1) % INPUT] == BREAK_CHAR) {
+        if (Break == 0)   /* in its place, untaken */
+           Break = 1;
+        return;
+     }
+     if (head - InputTail >= INPUT)
+        head -= 1, InputHead = head;
+     Break += 1;
+     Breaks += 1;
+  }
+  if (head - InputTail < INPUT) {   /* full, the byte is lost: a line typed too fast */
+     Input[head % INPUT] = (UINT8)c;
+     InputHead = head + 1;
+  }
+} /* end of Received */
+
+/* Tick: Core 1's interrupt, alarm 3: core 0 watched, what UART0 and the USB received taken. */
+static void Tick(void)
+{
   int restart;
   TIMER_INTR = ALARM3_BIT;
   TIMER_ALARM3 = TIMER_TIMERAWL + TICK;
   if ((restart = Watch()) != 0)
      Restarted[restart] += 1;
   SendTrace();
-  while ((UART_FR & FR_RXFE) == 0) {
-     char c = (char)UART_DR;
-     if (c == ASK_TRACE || c == ASK_NO_TRACE) {
-        TraceHeard(c);
-        continue;
-     }
-     /* A Ctrl-C into the ring too: the break holds for what runs until the console
-     ** meets it there, which then clears it, before the lines that follow; one that
-     ** comes with the end of a line before it, in the same tick, is for that line's word
-     ** (a review, 2026-10-24). The ring full, it takes the place of the last byte, and
-     ** the line that byte ended, if it did, is lost with it: a break the console never
-     ** met would stop a line typed long after. */
-     head = InputHead;
-     if (c == BREAK_CHAR) {
-        if (head - InputTail >= INPUT && Input[(head - 1) % INPUT] == BREAK_CHAR) {
-           if (Break == 0)   /* in its place, untaken */
-              Break = 1;
-           continue;
-        }
-        if (head - InputTail >= INPUT)
-           head -= 1, InputHead = head;
-        Break += 1;
-        Breaks += 1;
-     }
-     if (head - InputTail < INPUT) {   /* full, the byte is lost: a line typed too fast */
-        Input[head % INPUT] = (UINT8)c;
-        InputHead = head + 1;
-     }
+  UsbPoll(Received);
+  /* A port opened or closed, its program may be gone: the trace is for one that asks. */
+  if (UsbActive() != WasActive) {
+     WasActive = UsbActive();
+     TraceOn = 0;
   }
+  while ((UART_FR & FR_RXFE) == 0)
+     Received((char)UART_DR);
 } /* end of Tick */
 
 /* ForthMemory: The RP2040's map (datasheet 2.2): the ROM and the flash through the XIP
@@ -554,7 +584,8 @@ static void PSpend(Context *c, const Word *w)
      return;
   }
   wait = (UINT32)FORTH_POP(c);
-  if (c->Excluded == NULL) {
+  /* Excluded means nothing at the console: on the Pico it is whatever the SRAM held. */
+  if (ForthOnConsole(c)) {
      while (TIMER_TIMERAWL - start < wait)
         if (ForthBreak()) {
            c->Error = FORTH_BREAK;
@@ -626,12 +657,13 @@ static void StartTick(void)
 void ConsoleInit(void)
 {
   RingHead = RingTail = Dropped = 0;
+  UsbInit();
   /* Loading over SWD resets nothing: a firmware in the flash may have left pins driven. */
   SIO_GPIO_OE_CLR = 0xFFFFFFFF;
   SIO_GPIO_OUT_CLR = 0xFFFFFFFF;
   TraceOn = EventHead = EventTail = EventLost = 0;
   TraceAsked = LastClock = LastShare = 0;
-  Sending = 0;
+  Sending = WasActive = 0;
   InputHead = InputTail = 0;
   Break = 0;
   Breaks = 0;

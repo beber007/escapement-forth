@@ -11,6 +11,7 @@ words
 0 promote 8 promote 12 promote
 2000 ms slots
 n @ . overruns . dropped .
+100 spend   \ at the console: its slot's Excluded is not set there
 : bad drop ;
 ' bad 10 every
 100 ms slots

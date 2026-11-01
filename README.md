@@ -43,7 +43,7 @@ This is a prototype: step 3 of [Escapement's issue #40](https://github.com/beber
 
 | | |
 |---|---|
-| Pico image | 27,728 bytes of code and constants (Forth, slots, console, kernel), and 22,280 bytes of RAM reserved at build time. GCC 16.2, 2026-10-31 |
+| Pico image | 30,724 bytes of code and constants (Forth, slots, console, kernel), and 23,304 bytes of RAM reserved at build time. GCC 16.2, 2026-10-31 |
 | Slots' own cost | 8 µs charged to each release, against 6.6 to 7.3 µs measured on the Pico ([issue #40](https://github.com/beber007/escapement/issues/40), step 1) |
 | Budget check | About 13 % at most, on an empty `do loop`: 1,000 turns took 466 µs at the console and 529 µs in a slot (Pico W, 2026-10-24; the two cores' work was not quite the same) |
 | Restart of core 0 | 3 to 4 ms for core 1 to notice that core 0 is stuck and restart it, keeping the dictionary, the slots and the console; 5 ms more if interrupts are masked or the core faulted |
@@ -63,7 +63,7 @@ The Pico has two cores:
 
 ```mermaid
 flowchart LR
-  you["you, on UART0"] --> c1["core 1<br>Forth console"]
+  you["you, on USB or UART0"] --> c1["core 1<br>Forth console"]
   c1 -- "every, promote, stop" --> slots["slots<br>4 per period"]
   c0["core 0<br>hard kernel, EDF"] --> tasks["tasks of 1, 10, 100, 1000 ms"]
   tasks --> slots
@@ -72,9 +72,9 @@ flowchart LR
 
 - **Core 0** runs Escapement's hard kernel (EDF) and the slots (`src/slots.c`). There is
   one task per period, 1, 10, 100 and 1000 ms, and each task has four slots.
-- **Core 1** runs the console: a small indirect-threaded Forth (`src/forth.c`) on UART0
-  (GP0 TX, GP1 RX, 115200 8N1). It has no kernel. An interrupt every millisecond watches
-  core 0 and reads the UART. Ctrl-C stops the running word, or clears the line.
+- **Core 1** runs the console: a small indirect-threaded Forth (`src/forth.c`) on the Pico's
+  USB while a program has that port open, and otherwise on UART0 (GP0 TX, GP1 RX, 115200
+  8N1). It has no kernel. An interrupt every millisecond watches core 0 and reads both. Ctrl-C stops the running word, or clears the line.
 
 ```forth
 \ board words: output high low toggle pins ( masks: 1 15 lshift is GP15 )
@@ -156,7 +156,8 @@ A slot stopped by `throw` shows `failed: thrown`, without the number.
 (`pico/store.c`). The next cold start loads it. `unsave` erases it.
 
 If a saved word is named `boot`, it runs at cold start, unless you press Ctrl-C within
-2 s. Slot bindings are not saved, but `boot` can make them again:
+2 s on UART0. Copying the UF2 again also empties the saved words, which is the way out of a
+`boot` that stops the console. Slot bindings are not saved, but `boot` can make them again:
 
 ```forth
 : blink  1 15 lshift toggle ;
@@ -186,7 +187,8 @@ slot against its budget. The times are the browser's, not the Pico's. The browse
 pauses are left out.
 
 The console can also talk to a real Pico. In Chrome or Edge, click **Connect a Pico** and
-choose its serial port. You need a Debug Probe or a USB to serial adapter on GP0 and GP1.
+choose its serial port. A USB cable is enough: the Pico has a serial port on its own USB.
+UART0, on GP0 and GP1, stays the console's while no program has the USB port open.
 The Pico must run this Forth. The web page offers it as a UF2: hold BOOTSEL while plugging
 in the Pico, then copy the file to the RPI-RP2 disk. This replaces its firmware.
 The image is then copied from the flash to SRAM at each start, and runs from there.
@@ -194,7 +196,7 @@ Its start is written for the W25Q16JV flash of the Pico. A board with another fl
 start.
 The console then follows the board. The pins and the slots follow it between two lines, so
 they stop while a line runs. The timeline shows the tasks that have words, from events the
-board sends while the web page is connected. Its times are then the Pico's. It can have gaps:
+board sends while the web page is connected. Its times are then the Pico's. It can have gaps on UART0:
 at 115200 baud, words on the 1 ms task nearly fill the link. Bytes 28, 30 and 31 are for the
 web page: a word that prints them disturbs it. The tour runs on the board too.
 

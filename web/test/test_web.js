@@ -188,8 +188,8 @@ const tour = Function("ZOOM", block + " return TOUR;")(V.ZOOM);
 check("the page has a tour", tour.length >= 6, tour.length);
 check("  its code marked in pairs", tour.every((s) => ["en", "fr"].every((l) =>
       (s[l].text + s[l].watch).split("`").length % 2 === 1)), "");
-check("  each step can run alone, blink set up but in the first and the last", tour.every((s, k) =>
-      s.lines[0].startsWith("0 stop") && s.quiet === (k === 0 || k === tour.length - 1 ? 1 : 3)), "");
+check("  each step can run alone, its pins off, blink set up but in the first and the last", tour.every((s, k) =>
+      s.lines[0].startsWith("0 stop") && s.lines[1] === "-1 low" && s.quiet === (k === 0 || k === tour.length - 1 ? 2 : 4)), "");
 check("each step said in English and in French", tour.every((s) => ["en", "fr"].every((l) =>
       s[l] && s[l].title && s[l].text && typeof s[l].watch === "string")), "");
 
@@ -850,6 +850,11 @@ async function boardLinkChecks() {
   check("a slot that prints fails no line", talks.length === 2 && talkDone[0] === false, talkDone);
   const typing = V.boardTour({ send: (l) => typed.push(l), askSlots: () => {}, print: () => {}, line: () => {}, done: () => {} });
   check("no tour, not busy", !typing.busy(), "");
+  const clean = V.timeline(() => {});
+  clean.traced({ board: true, clock: 500, trace: [100, 1 | 3 << 8, 150, 3] });
+  clean.fresh();
+  clean.traced({ board: true, clock: 900, trace: [800, 2 | 3 << 8, 850, 1] });
+  check("a fresh view holds nothing of what ran", clean.instances.length === 1 && clean.instances[0].start === 850, clean.instances);
   const failing = makePort([]);
   failing.open = async () => { throw new Error("busy"); };
   let fault = "";
