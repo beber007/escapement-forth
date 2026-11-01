@@ -332,7 +332,7 @@
         <button class="restart" id="connect" data-i18n="connect" hidden>Connect a Pico</button>
         <button class="restart" id="disconnect" data-i18n="disconnect" hidden>Disconnect</button>
       </div>
-      <p class="firmware" id="firmware" data-i18n="firmware" hidden><a href="EscapementForth.uf2" download>The Pico's firmware</a>: hold BOOTSEL while plugging it in, then copy this file to the RPI-RP2 disk. It replaces what its flash holds.</p>
+      <p class="firmware" id="firmware" data-i18n="firmware" hidden><a href="EscapementForth.uf2" download>The Pico's firmware</a>: hold BOOTSEL while plugging it in, then copy this file to the RPI-RP2 disk. It replaces its firmware. The console needs a Debug Probe or a USB to serial adapter on GP0 and GP1.</p>
     </div>
   </div>
 
@@ -504,7 +504,7 @@
     how4: "<b>L'échéance d'abord</b>Le noyau fait toujours passer la tâche dont l'échéance est la plus proche (EDF). La tâche de 1 ms interrompt celle de 1 s. La console passe après toutes.",
     demo: '<a href="https://youtu.be/f03H2mjgLlU">Voir la démo (2 min)</a>',
     rules: "Les règles", tour: "Visite guidée", cost: "Coût de <code>work</code>",
-    restart: "Relancer le Forth", connect: "Brancher un Pico", firmware: '<a href="EscapementForth.uf2" download>Le firmware du Pico</a> : maintiens BOOTSEL en le branchant, puis copie ce fichier sur le disque RPI-RP2. Il remplace ce qu\'il a en flash.', disconnect: "Débrancher", live: "La frise : ce que lance le noyau", running: "en cours, une couleur par tâche",
+    restart: "Relancer le Forth", connect: "Brancher un Pico", firmware: '<a href="EscapementForth.uf2" download>Le firmware du Pico</a> : maintiens BOOTSEL en le branchant, puis copie ce fichier sur le disque RPI-RP2. Il remplace son firmware. La console demande une Debug Probe ou un adaptateur USB-série sur GP0 et GP1.', disconnect: "Débrancher", live: "La frise : ce que lance le noyau", running: "en cours, une couleur par tâche",
     waiting: "en attente, interrompue", release: "lancement", overlegend: "au-delà du budget",
     pool: "Le tableau des cases", poolnote: "temps le plus long / budget",
     honest: "Cette page web et la carte",
