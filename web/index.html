@@ -164,6 +164,7 @@
                     font-size: 0.8rem; font-weight: 700; margin-bottom: 0.375rem; }
   .how b { display: block; color: var(--ink); font-size: 0.98rem; margin-bottom: 2px; }
 
+  .firmware { margin: 0.5rem 0 0; font-size: 0.8rem; line-height: 1.4; color: var(--muted); }
   /* The guided tour. */
   .tour h3 { font-size: 1rem; margin: 0 0 0.25rem; }
   .tour p { margin: 0 0 0.5rem; font-size: 0.9rem; line-height: 1.4; color: var(--muted); }
@@ -331,6 +332,7 @@
         <button class="restart" id="connect" data-i18n="connect" hidden>Connect a Pico</button>
         <button class="restart" id="disconnect" data-i18n="disconnect" hidden>Disconnect</button>
       </div>
+      <p class="firmware" id="firmware" data-i18n="firmware" hidden><a href="EscapementForth.uf2" download>The Pico's firmware</a>: hold BOOTSEL while plugging it in, then copy this file to the RPI-RP2 disk. It replaces what its flash holds.</p>
     </div>
   </div>
 
@@ -502,7 +504,7 @@
     how4: "<b>L'échéance d'abord</b>Le noyau fait toujours passer la tâche dont l'échéance est la plus proche (EDF). La tâche de 1 ms interrompt celle de 1 s. La console passe après toutes.",
     demo: '<a href="https://youtu.be/f03H2mjgLlU">Voir la démo (2 min)</a>',
     rules: "Les règles", tour: "Visite guidée", cost: "Coût de <code>work</code>",
-    restart: "Relancer le Forth", connect: "Brancher un Pico", disconnect: "Débrancher", live: "La frise : ce que lance le noyau", running: "en cours, une couleur par tâche",
+    restart: "Relancer le Forth", connect: "Brancher un Pico", firmware: '<a href="EscapementForth.uf2" download>Le firmware du Pico</a> : maintiens BOOTSEL en le branchant, puis copie ce fichier sur le disque RPI-RP2. Il remplace ce qu\'il a en flash.', disconnect: "Débrancher", live: "La frise : ce que lance le noyau", running: "en cours, une couleur par tâche",
     waiting: "en attente, interrompue", release: "lancement", overlegend: "au-delà du budget",
     pool: "Le tableau des cases", poolnote: "temps le plus long / budget",
     honest: "Cette page web et la carte",
@@ -1244,6 +1246,7 @@
 
   function showLinked() {
     document.getElementById("connect").hidden = link !== null || !("serial" in navigator);
+    document.getElementById("firmware").hidden = link !== null || !("serial" in navigator);
     document.getElementById("disconnect").hidden = link === null;
     document.querySelector(".legend .tick").parentElement.hidden = link !== null;
   }
