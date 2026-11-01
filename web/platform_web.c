@@ -170,13 +170,15 @@ int ForthMemory(uintptr_t address, size_t size, int write)
 } /* end of ForthMemory */
 
 /* ForthBreak: No key reaches the worker while a word runs: the console's line is stopped
-** once it has run WEB_LINE_US, as Ctrl-C would; what it printed goes out meanwhile. */
+** once it has run WEB_LINE_US, as Ctrl-C would; what it printed goes out meanwhile. On the
+** browser's clock, pauses included: the person waits through them, and left out on a busy
+** machine they made the 10 s last 34 (2026-11-01). */
 int ForthBreak(void)
 {
   uint32_t now = ForthNow();
   if (now - LastFlush > WEB_FLUSH_US)
      Flush();
-  return now - LineStart > WEB_LINE_US;
+  return LastWall - LineStart > WEB_LINE_US;
 } /* end of ForthBreak */
 
 /* The store: none; SAVE answers that it could not. */
@@ -412,7 +414,8 @@ __attribute__((export_name("web_line"))) char *WebLine(void)
 __attribute__((export_name("web_interpret"))) void WebInterpret(void)
 {
   Line[FORTH_LINE] = 0;
-  LineStart = ForthNow();
+  (void)ForthNow();
+  LineStart = LastWall;
   Note(TRACE_LINE,0,0);
   ForthInterpret(Line);
   (void)ForthNow();
