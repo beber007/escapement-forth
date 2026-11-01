@@ -47,6 +47,13 @@ jobs:
           google-chrome --version
           timeout 180 make -C web page CHROME=google-chrome
 
+      # The firmware the web page offers, after the tests: they need no board.
+      - name: Pico firmware
+        run: |
+          sudo apt-get install -y gcc-arm-none-eabi
+          make -C pico
+          cp pico/build/EscapementForth.uf2 web/build/
+
       - uses: actions/upload-pages-artifact@v4
         with:
           path: web/build

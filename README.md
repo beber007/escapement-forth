@@ -186,8 +186,12 @@ slot against its budget. The times are the browser's, not the Pico's. The browse
 pauses are left out.
 
 The console can also talk to a real Pico. In Chrome or Edge, click **Connect a Pico** and
-choose its serial port. The Pico must run this Forth. You need a Debug Probe or a USB to
-serial adapter on GP0 and GP1.
+choose its serial port. You need a Debug Probe or a USB to serial adapter on GP0 and GP1.
+The Pico must run this Forth. The web page offers it as a UF2: hold BOOTSEL while plugging
+in the Pico, then copy the file to the RPI-RP2 disk. This replaces what the flash holds.
+The image is then copied from the flash to SRAM at each start, and runs from there.
+Its start is written for the W25Q16JV flash of the Pico. A board with another flash may not
+start.
 The console then follows the board. The pins and the slots follow it between two lines, so
 they stop while a line runs. The timeline shows the tasks that have words, from events the
 board sends while the web page is connected. Its times are then the Pico's. It can have gaps:
@@ -260,7 +264,8 @@ web page: a word that prints them disturbs it. The tour runs on the board too.
 ```sh
 git clone --recurse-submodules https://github.com/beber007/escapement-forth
 make -C test/host run      # the Forth and the slots on the host, with the sanitizers
-make -C pico               # pico/build/EscapementForth.elf, loaded into SRAM over SWD
+make -C pico               # pico/build/EscapementForth.elf, loaded into SRAM over SWD,
+                           # and EscapementForth.uf2, the same image for the flash
 make -C web serve          # the web page on http://localhost:8000, needs clang and wasm-ld
 make -C web test           # its WebAssembly under Node (JS=.../jsc JS_ARGS=--)
 make -C web page           # it in a headless Chrome, in English and in French
