@@ -188,7 +188,7 @@ pauses are left out.
 The console can also talk to a real Pico. In Chrome or Edge, click **Connect a Pico** and
 choose its serial port. You need a Debug Probe or a USB to serial adapter on GP0 and GP1.
 The Pico must run this Forth. The web page offers it as a UF2: hold BOOTSEL while plugging
-in the Pico, then copy the file to the RPI-RP2 disk. This replaces what the flash holds.
+in the Pico, then copy the file to the RPI-RP2 disk. This replaces its firmware.
 The image is then copied from the flash to SRAM at each start, and runs from there.
 Its start is written for the W25Q16JV flash of the Pico. A board with another flash may not
 start.

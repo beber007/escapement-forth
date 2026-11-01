@@ -3,7 +3,8 @@
 # Escapement Forth - a Forth console beside the Escapement real-time OS.
 # Distributed under the terms of LICENSE at the root of this repository.
 """A flat binary as a UF2 for the flash of an RP2040, whose bootrom takes 256 bytes a block
-(RP2040 datasheet, 2.8.4).
+(RP2040 datasheet, 2.8.4). The file ends with a sector of the flash, the rest of it padded:
+no sector is left half written.
 
     tools/uf2.py IN_BIN OUT_UF2
 """
@@ -13,11 +14,13 @@ import sys
 
 FLASH = 0x10000000
 PAGE = 256
+SECTOR = 4096
 FAMILY_FLAG = 0x00002000
 RP2040 = 0xE48BFF56
 
 
 def uf2(data):
+    data = data.ljust((len(data) + SECTOR - 1) // SECTOR * SECTOR, b"\xff")
     pages = [data[i:i + PAGE].ljust(PAGE, b"\0") for i in range(0, len(data), PAGE)]
     out = b""
     for n, page in enumerate(pages):
