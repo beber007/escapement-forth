@@ -640,6 +640,8 @@ check("a line that goes on a definition, answered", V.answered(" compiled\n"), "
         p.lines[0] === " one  two" && p.lines[1] === "  three four" && p.lines[2] === "last", p.lines);
   const long = V.pasteLines("ok\n" + "é".repeat(64) + "\nok", 127);
   check("a line past the limit in bytes is named", long.tooLong === 2, long.tooLong);
+  const gap = V.pasteLines("a\n\n" + "x".repeat(200), 127);
+  check("a line past the limit is named as pasted, the empty ones counted", gap.tooLong === 3, gap.tooLong);
   check("a line just at the limit passes", V.pasteLines("x".repeat(127) + "\ny", 127).tooLong === 0, "");
   const q = [{ line: "1", tour: false, paste: true }, { line: "2", tour: false }, { line: "3", tour: true }];
   V.abandon(q, "paste");

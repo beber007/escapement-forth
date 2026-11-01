@@ -201,8 +201,8 @@ at 115200 baud, words on the 1 ms task nearly fill the link. Bytes 28, 30 and 31
 web page: a word that prints them disturbs it. The tour runs on the board too.
 
 A paste of several lines goes one line at a time, each once the one before is answered. The
-first line that fails stops the rest, and so does Ctrl-C. If a line is over 127 bytes, nothing
-is sent.
+first line that fails stops the rest. On the board, Ctrl-C stops it too. If a line is over 127
+bytes, nothing is sent.
 
 ## How it is checked
 
