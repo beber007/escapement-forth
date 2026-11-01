@@ -50,7 +50,7 @@ page: $(B)/forth.wasm
 
 # The firmware the web page offers, if make -C pico built it.
 serve: $(B)/forth.wasm
-	-cp ../pico/build/EscapementForth.uf2 $(B)/ 2>/dev/null
+	-cp ../pico/build/EscapementForth.uf2 ../pico/build-pico2/EscapementForth-pico2.uf2 $(B)/ 2>/dev/null
 	cd $(B) && python3 -m http.server 8000
 
 clean:

@@ -15,3 +15,6 @@ n @ . overruns . dropped .
 : bad drop ;
 ' bad 10 every
 100 ms slots
+\ A pin driven high reads back: -1, then 0 once low.
+1 16 lshift output  1 16 lshift high  pins 1 16 lshift and 0<> .
+1 16 lshift low  pins 1 16 lshift and 0<> .

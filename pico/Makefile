@@ -6,28 +6,41 @@
 # submodule escapement/:  make  gives build/EscapementForth.elf, loaded over SWD as
 # Escapement's examples are (its docs/rp2040.md), with set USE_CORE 0: core 1 runs; and
 # build/EscapementForth.uf2, the same image for a Pico with no probe (flash_boot.S).
+# make BOARD=pico2 does the same for a Pico 2, in build-pico2/.
 CROSS_COMPILE ?= arm-none-eabi-
 CC = $(CROSS_COMPILE)gcc
 OBJCOPY = $(CROSS_COMPILE)objcopy
 
 E = ../escapement/Escapement
-PORT = $(E)/CORTEX-Mx/RP2040
-B = build
+ifeq ($(BOARD),pico2)
+   PORT = $(E)/CORTEX-Mx/RP2350
+   B = build-pico2
+   SRAM_LD = RP2350_SRAM.ld
+   # Without its floating-point unit, as Escapement builds it: the kernel saves no such state.
+   CPU = -mcpu=cortex-m33+nofp -mthumb -mfloat-abi=soft -DPICO2
+   UF2 = EscapementForth-pico2.uf2
+else
+   PORT = $(E)/CORTEX-Mx/RP2040
+   B = build
+   SRAM_LD = RP2040_SRAM.ld
+   CPU = -mcpu=cortex-m0plus -mthumb
+   UF2 = EscapementForth.uf2
+endif
 
 INCLUDE = -I. -I../src -I$(PORT) -I$(E)/CORTEX-Mx -I$(E)
 # -fno-strict-aliasing as Escapement's examples: its kernel needs it.
-CFLAGS = -mcpu=cortex-m0plus -mthumb -Wall -c -g -fdata-sections -ffunction-sections \
+CFLAGS = $(CPU) -Wall -c -g -fdata-sections -ffunction-sections \
          -ffreestanding -O2 -fno-strict-aliasing -MMD -MP
 # What must outlive a restart of core 0 (restart.c), out of the .bss its start clears.
 CFLAGS += -DFORTH_KEEP='__attribute__((section(".noinit")))'
-AFLAGS = -mcpu=cortex-m0plus -mthumb -Wall -c -g -MMD -MP
+AFLAGS = $(CPU) -Wall -c -g -MMD -MP
 
 $(shell mkdir -p $(B))
 
 # make SCRIPT=file.fs: the console types the file at start and logs what it prints
 # (console.c), in build-script/.
 ifdef SCRIPT
-   B = build-script
+   B := $(B)-script
    CFLAGS += -DSCRIPT -I$(B)
    $(shell mkdir -p $(B))
    $(shell od -An -v -tx1 $(SCRIPT) | sed 's/\([0-9a-f][0-9a-f]\)/0x\1,/g' > $(B)/script.inc.new; \
@@ -39,14 +52,20 @@ KERNEL = $(B)/Escapement_RamEntry.o $(B)/Escapement_CortexMx.o $(B)/Escapement_C
          $(B)/Escapement_Processor.o $(B)/Escapement_Core1.o $(B)/EscapementHard.o
 FORTH = $(B)/forth.o $(B)/slots.o $(B)/console.o $(B)/store.o $(B)/restart.o $(B)/usb.o $(B)/main.o
 
-all: $(B)/EscapementForth.elf $(B)/EscapementForth.uf2
+all: $(B)/EscapementForth.elf $(B)/$(UF2)
 
 $(B)/EscapementForth.elf: $(KERNEL) $(FORTH)
-	$(CC) -mcpu=cortex-m0plus -mthumb -Wl,--gc-sections -nostdlib -o $@ $^ \
-	   -T$(PORT)/RP2040_SRAM.ld -lgcc
+	$(CC) $(CPU) -Wl,--gc-sections -nostdlib -o $@ $^ -T$(PORT)/$(SRAM_LD) -lgcc \
+	   -Wl,--defsym=_ForthKeptEnd=ADDR\(.noinit\)+SIZEOF\(.noinit\)
 
 $(B)/image.bin: $(B)/EscapementForth.elf
 	$(OBJCOPY) -O binary $< $@
+$(B)/flash_boot.o: flash_boot.S $(B)/image.bin
+	$(CC) $(AFLAGS) -DIMAGE_BIN='"$(B)/image.bin"' -o $@ $<
+ifeq ($(BOARD),pico2)
+$(B)/flash.elf: $(B)/flash_boot.o flash_boot_pico2.ld
+	$(CC) $(CPU) -nostdlib -o $@ $(B)/flash_boot.o -Tflash_boot_pico2.ld
+else
 $(B)/Boot2Code.o: $(PORT)/Escapement_Boot2.S
 	$(CC) $(AFLAGS) $(INCLUDE) -o $@ $<
 $(B)/Boot2.S: $(B)/Boot2Code.o ../escapement/tools/rp2040_boot2.py
@@ -54,13 +73,12 @@ $(B)/Boot2.S: $(B)/Boot2Code.o ../escapement/tools/rp2040_boot2.py
 	python3 ../escapement/tools/rp2040_boot2.py $(B)/Boot2.bin $@
 $(B)/Boot2.o: $(B)/Boot2.S
 	$(CC) $(AFLAGS) -o $@ $<
-$(B)/flash_boot.o: flash_boot.S $(B)/image.bin
-	$(CC) $(AFLAGS) -DIMAGE_BIN='"$(B)/image.bin"' -o $@ $<
 $(B)/flash.elf: $(B)/Boot2.o $(B)/flash_boot.o flash_boot.ld
-	$(CC) -mcpu=cortex-m0plus -mthumb -nostdlib -o $@ $(B)/Boot2.o $(B)/flash_boot.o -Tflash_boot.ld
-$(B)/EscapementForth.uf2: $(B)/flash.elf ../tools/uf2.py
+	$(CC) $(CPU) -nostdlib -o $@ $(B)/Boot2.o $(B)/flash_boot.o -Tflash_boot.ld
+endif
+$(B)/$(UF2): $(B)/flash.elf ../tools/uf2.py
 	$(OBJCOPY) -O binary $< $(B)/flash.bin
-	python3 ../tools/uf2.py $(B)/flash.bin $@
+	python3 ../tools/uf2.py $(B)/flash.bin $@ $(BOARD)
 
 $(B)/%.o: $(PORT)/%.S
 	$(CC) $(AFLAGS) $(INCLUDE) -o $@ $<
@@ -80,7 +98,7 @@ $(B)/%.o: %.c
 	$(CC) $(CFLAGS) -Wextra -Werror -fwrapv $(INCLUDE) -o $@ $<
 
 clean:
-	rm -rf $(B)
+	rm -rf build build-script build-pico2 build-pico2-script
 
 .PHONY: all clean
 

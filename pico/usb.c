@@ -3,7 +3,7 @@
 ** Distributed under the terms of LICENSE at the root of this repository.
 */
 /* File usb.c: A serial port on the Pico's own USB, as a USB CDC ACM device, so that a Pico
-** needs no probe nor adapter (RP2040 datasheet, 4.1).
+** needs no probe nor adapter (RP2040 datasheet, 4.1; the RP2350 has the same controller).
 **
 ** Polled in core 1's interrupt of 1 ms: no interrupt of its own, and nothing on core 0. The
 ** controller answers NAK by itself until a buffer is ready, so a host only waits. That gives
@@ -14,22 +14,23 @@
 #include "forth.h"
 #include "forth_platform.h"
 #include "usb.h"
+#include "chip.h"
 
-#define RESETS_SET        *((volatile UINT32 *)(0x4000C000 + 0x2000))
-#define RESETS_CLR        *((volatile UINT32 *)(0x4000C000 + 0x3000))
-#define RESETS_DONE       *((volatile UINT32 *)(0x4000C000 + 0x08))
-#define RESETS_PLL_USB    (1u << 13)
-#define RESETS_USBCTRL    (1u << 24)
+#define RESETS_SET        *((volatile UINT32 *)(CHIP_RESETS + 0x2000))
+#define RESETS_CLR        *((volatile UINT32 *)(CHIP_RESETS + 0x3000))
+#define RESETS_DONE       *((volatile UINT32 *)(CHIP_RESETS + 0x08))
+#define RESETS_PLL_USB    CHIP_RESET_PLL_USB
+#define RESETS_USBCTRL    CHIP_RESET_USBCTRL
 
-#define PLL_USB_CS        *((volatile UINT32 *)(0x4002C000 + 0x00))
-#define PLL_USB_PWR       *((volatile UINT32 *)(0x4002C000 + 0x04))
-#define PLL_USB_FBDIV     *((volatile UINT32 *)(0x4002C000 + 0x08))
-#define PLL_USB_PRIM      *((volatile UINT32 *)(0x4002C000 + 0x0C))
+#define PLL_USB_CS        *((volatile UINT32 *)(CHIP_PLL_USB + 0x00))
+#define PLL_USB_PWR       *((volatile UINT32 *)(CHIP_PLL_USB + 0x04))
+#define PLL_USB_FBDIV     *((volatile UINT32 *)(CHIP_PLL_USB + 0x08))
+#define PLL_USB_PRIM      *((volatile UINT32 *)(CHIP_PLL_USB + 0x0C))
 #define PLL_LOCK          (1u << 31)
-#define CLK_USB_CTRL      *((volatile UINT32 *)(0x40008000 + 0x54))
-#define CLK_USB_DIV       *((volatile UINT32 *)(0x40008000 + 0x58))
+#define CLK_USB_CTRL      *((volatile UINT32 *)CHIP_CLK_USB_CTRL)
+#define CLK_USB_DIV       *((volatile UINT32 *)CHIP_CLK_USB_DIV)
 #define CLK_ENABLE        (1u << 11)
-#define TIMER_TIMERAWL    *((volatile UINT32 *)(0x40054000 + 0x28))
+#define TIMER_TIMERAWL    *((volatile UINT32 *)(CHIP_TIMER + 0x28))
 
 #define REGS              0x50110000
 #define ADDR_ENDP         *((volatile UINT32 *)(REGS + 0x00))
@@ -367,9 +368,9 @@ void UsbInit(void)
   while ((PLL_USB_CS & PLL_LOCK) == 0);
   PLL_USB_PRIM = (5u << 16) | (5u << 12);
   PLL_USB_PWR &= ~(1u << 3);
-  CLK_USB_DIV = 1u << 8;
+  CLK_USB_DIV = CHIP_CLK_USB_DIV_1;
   CLK_USB_CTRL = CLK_ENABLE;
-  /* About 20 ms, for a host that saw a firmware before to see it go. Counted: the timer may
+  /* Some 10 to 20 ms, for a host that saw a firmware before to see it go. Counted: the timer may
   ** not be running yet, after a power on. */
   for (i = 0; i < 400000; i += 1)
      __asm volatile ("nop");
@@ -384,6 +385,6 @@ void UsbInit(void)
   TxBusy = LastFull = Stopped = 0;
   USB_MUXING = (1u << 0) | (1u << 3);   /* TO_PHY, SOFTCON */
   USB_PWR = (1u << 2) | (1u << 3);      /* VBUS seen, whatever the pin */
-  MAIN_CTRL = 1;
+  MAIN_CTRL = 1;   /* the controller on; on the RP2350, PHY_ISO cleared with it */
   SIE_CTRL = SIE_EP0_INT_1BUF | SIE_PULLUP_EN;
 } /* end of UsbInit */

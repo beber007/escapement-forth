@@ -50,8 +50,8 @@ jobs:
       # The firmware the web page offers, with the toolchain of the build workflow's image.
       - name: Pico firmware
         run: |
-          docker run --rm -v "$PWD:/work" -w /work ghcr.io/beber007/escapement-ci:3 make -C pico
-          cp pico/build/EscapementForth.uf2 web/build/
+          docker run --rm -v "$PWD:/work" -w /work ghcr.io/beber007/escapement-ci:3 sh -c 'make -C pico && make -C pico BOARD=pico2'
+          cp pico/build/EscapementForth.uf2 pico/build-pico2/EscapementForth-pico2.uf2 web/build/
 
       - uses: actions/upload-pages-artifact@v4
         with:

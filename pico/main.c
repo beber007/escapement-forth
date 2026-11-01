@@ -10,7 +10,7 @@
 ** One that loops for ever is core 1's to stop: it restarts core 0 (restart.c), which
 ** comes through main again, the dictionary and the pool kept, the word stopped.
 **
-** Platform version: RP2040 (Raspberry Pi Pico).
+** Platform version: RP2040 (Raspberry Pi Pico), RP2350 (Raspberry Pi Pico 2).
 */
 
 #include "Escapement.h"
@@ -19,11 +19,14 @@
 #include "slots.h"
 #include "console.h"
 #include "restart.h"
+#include "chip.h"
 
 #define VTOR              *((volatile UINT32 *)0xE000ED08)
-#define WATCHDOG_CTRL_CLR *((volatile UINT32 *)(0x40058000 + 0x3000))
+#define WATCHDOG_CTRL_CLR *((volatile UINT32 *)(CHIP_WATCHDOG + 0x3000))
 #define WATCHDOG_ENABLE   (1u << 30)
-#define TIMER_DBGPAUSE    *((volatile UINT32 *)(0x40054000 + 0x2C))
+#define RESETS_CLR        *((volatile UINT32 *)(CHIP_RESETS + 0x3000))
+#define RESETS_DONE       *((volatile UINT32 *)(CHIP_RESETS + 0x08))
+#define TIMER_DBGPAUSE    *((volatile UINT32 *)(CHIP_TIMER + 0x2C))
 
 volatile uint32_t Overruns FORTH_KEEP;
 
@@ -57,6 +60,13 @@ int main(void)
   extern void (* const CortexMxVectorTable[])(void);
   int i, restarted;
   VTOR = (UINT32)CortexMxVectorTable;
+  #ifdef RP2350
+     /* The kernel's limit stops at its .bss: what the Forth keeps sits above it. */
+     {
+        extern UINT8 _ForthKeptEnd;
+        __asm volatile ("msr msplim, %0" :: "r" (((UINT32)&_ForthKeptEnd + 7) & ~7u) : "memory");
+     }
+  #endif
   /* First, while .data is as the image had it: the restarts put it back. */
   restarted = RestartInit();
   if (!restarted) {
@@ -81,6 +91,10 @@ int main(void)
                        (void *)(intptr_t)i))
         while (TRUE);
   OSSetOverrunHook(Overrun);
+  /* Out of reset before core 1 sets its alarm: the kernel releases the timer only later, in
+  ** OSStartMultitasking, and a write to a block in reset may be lost (a review, 2026-11-01). */
+  RESETS_CLR = CHIP_RESET_TIMER;
+  while ((RESETS_DONE & CHIP_RESET_TIMER) == 0);
   if (!restarted)
      OSLaunchCore1(Console,&Core1Stack[sizeof Core1Stack / sizeof Core1Stack[0]]);
   return OSStartMultitasking(NULL,NULL);

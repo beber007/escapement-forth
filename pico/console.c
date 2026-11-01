@@ -16,7 +16,7 @@
 ** different periods preempt one another on core 0: each byte goes in with interrupts
 ** masked, a few instructions long.
 **
-** Platform version: RP2040 (Raspberry Pi Pico).
+** Platform version: RP2040 (Raspberry Pi Pico), RP2350 (Raspberry Pi Pico 2).
 */
 
 #include "Escapement.h"
@@ -26,8 +26,9 @@
 #include "console.h"
 #include "restart.h"
 #include "usb.h"
+#include "chip.h"
 
-#define UART0_BASE           0x40034000
+#define UART0_BASE           CHIP_UART0
 #define UART_REG(offset)     *((volatile UINT32 *)(UART0_BASE + (offset)))
 #define UART_DR              UART_REG(0x00)
 #define UART_FR              UART_REG(0x18)
@@ -43,11 +44,16 @@
 #define CR_TXE               (1u << 8)
 #define CR_RXE               (1u << 9)
 
-#define RESETS_CLR           *((volatile UINT32 *)(0x4000C000 + 0x3000))
-#define RESETS_RESET_DONE    *((volatile UINT32 *)0x4000C008)
-#define RESETS_UART0_BIT     (1u << 22)
-#define RESETS_IO_BANK0_BIT  (1u << 5)
-#define IO_BANK0_CTRL(p)     *((volatile UINT32 *)(0x40014000 + 0x04 + 8 * (p)))
+#define RESETS_CLR           *((volatile UINT32 *)(CHIP_RESETS + 0x3000))
+#define RESETS_RESET_DONE    *((volatile UINT32 *)(CHIP_RESETS + 0x08))
+#define RESETS_UART0_BIT     CHIP_RESET_UART0
+#define RESETS_IO_BANK0_BIT  CHIP_RESET_IO_BANK0
+#define IO_BANK0_CTRL(p)     *((volatile UINT32 *)(CHIP_IO_BANK0 + 0x04 + 8 * (p)))
+#ifdef RP2350
+   #define RESETS_NEEDED     (RESETS_UART0_BIT | RESETS_IO_BANK0_BIT | CHIP_RESET_PADS)
+#else
+   #define RESETS_NEEDED     (RESETS_UART0_BIT | RESETS_IO_BANK0_BIT)
+#endif
 #define FUNCSEL_UART         2
 #define FUNCSEL_SIO          5
 
@@ -72,16 +78,16 @@
 #define EVENTS_A_MS_USB      16
 #define FR_TXFE              (1u << 7)
 #define SIO_GPIO_IN          *((volatile UINT32 *)(0xD0000000 + 0x04))
-#define SIO_GPIO_OUT_SET     *((volatile UINT32 *)(0xD0000000 + 0x14))
-#define SIO_GPIO_OUT_CLR     *((volatile UINT32 *)(0xD0000000 + 0x18))
-#define SIO_GPIO_OUT_XOR     *((volatile UINT32 *)(0xD0000000 + 0x1C))
-#define SIO_GPIO_OE          *((volatile UINT32 *)(0xD0000000 + 0x20))
-#define SIO_GPIO_OE_SET      *((volatile UINT32 *)(0xD0000000 + 0x24))
-#define SIO_GPIO_OE_CLR      *((volatile UINT32 *)(0xD0000000 + 0x28))
-#define TIMER_TIMERAWL       *((volatile UINT32 *)(0x40054000 + 0x28))
-#define TIMER_ALARM3         *((volatile UINT32 *)(0x40054000 + 0x1C))
-#define TIMER_INTR           *((volatile UINT32 *)(0x40054000 + 0x34))
-#define TIMER_INTE_SET       *((volatile UINT32 *)(0x40054000 + 0x2000 + 0x38))
+#define SIO_GPIO_OUT_SET     *((volatile UINT32 *)(0xD0000000 + CHIP_GPIO_OUT_SET))
+#define SIO_GPIO_OUT_CLR     *((volatile UINT32 *)(0xD0000000 + CHIP_GPIO_OUT_CLR))
+#define SIO_GPIO_OUT_XOR     *((volatile UINT32 *)(0xD0000000 + CHIP_GPIO_OUT_XOR))
+#define SIO_GPIO_OE          *((volatile UINT32 *)(0xD0000000 + CHIP_GPIO_OE))
+#define SIO_GPIO_OE_SET      *((volatile UINT32 *)(0xD0000000 + CHIP_GPIO_OE_SET))
+#define SIO_GPIO_OE_CLR      *((volatile UINT32 *)(0xD0000000 + CHIP_GPIO_OE_CLR))
+#define TIMER_TIMERAWL       *((volatile UINT32 *)(CHIP_TIMER + 0x28))
+#define TIMER_ALARM3         *((volatile UINT32 *)(CHIP_TIMER + 0x1C))
+#define TIMER_INTR           *((volatile UINT32 *)CHIP_TIMER_INTR)
+#define TIMER_INTE_SET       *((volatile UINT32 *)(CHIP_TIMER_INTE + 0x2000))
 #define ALARM3_BIT           (1u << 3)
 #define TIMER_IRQ_3          3
 #define NVIC_ISER            *((volatile UINT32 *)0xE000E100)
@@ -95,6 +101,18 @@
 
 /* GP0 and GP1 are the console's; GP23 to GP25 and GP29 the Pico W's wireless chip. */
 #define FREE_PINS            0x1C7FFFFCu
+
+#ifdef RP2350
+   /* A pad of the RP2350 stays isolated from its pin until this is cleared, and reads
+   ** nothing until its input is on (pico-sdk, gpio_set_function). */
+   #define PADS_GPIO_SET(p)  *((volatile UINT32 *)(CHIP_PADS_BANK0 + 0x2000 + 0x04 + 4 * (p)))
+   #define PADS_GPIO_CLR(p)  *((volatile UINT32 *)(CHIP_PADS_BANK0 + 0x3000 + 0x04 + 4 * (p)))
+   #define PAD_INPUT_ON      (1u << 6)
+   #define PAD_ISOLATED      (1u << 8)
+   #define PAD_OPEN(p)       (PADS_GPIO_SET(p) = PAD_INPUT_ON, PADS_GPIO_CLR(p) = PAD_ISOLATED)
+#else
+   #define PAD_OPEN(p)       ((void)0)
+#endif
 
 #define RING                 256         /* a power of 2 */
 #define INPUT                256         /* a power of 2 */
@@ -111,7 +129,7 @@ static volatile UINT32 InputHead FORTH_KEEP, InputTail FORTH_KEEP;
 ** latest of those in the ring; Break <= Breaks. */
 static volatile UINT32 Break FORTH_KEEP, Breaks FORTH_KEEP;
 static volatile UINT32 Restarted[RESTART_FAILED + 1] FORTH_KEEP;   /* each outcome, counted */
-static UINT32 Core1Table[48] FORTH_KEEP __attribute__((aligned(256)));
+static UINT32 Core1Table[CHIP_VECTORS] FORTH_KEEP __attribute__((aligned(CHIP_VECTORS_ALIGN)));
 
 extern volatile uint32_t Overruns;
 
@@ -368,7 +386,7 @@ static void Tick(void)
      Received((char)UART_DR);
 } /* end of Tick */
 
-/* ForthMemory: The RP2040's map (datasheet 2.2): the ROM and the flash through the XIP
+/* ForthMemory: The chip's map (RP2040 datasheet 2.2, RP2350 datasheet 2.2): the ROM and the flash through the XIP
 ** read only, the SRAM but the guard of core 0's stack, the peripherals of APB and
 ** AHB-Lite, the SIO and the core's System Control Space, which takes words alone (a byte
 ** read there gave 0, on the board, 2026-10-24); past what each holds, or into the XIP's
@@ -376,23 +394,36 @@ static void Tick(void)
 int ForthMemory(uintptr_t address, size_t size, int write)
 {
   static const struct { uintptr_t Start, End; int Write, Words; } Map[] = {
-     {0x00000000, 0x00004000, 0, 0},   /* ROM */
-     {0x10000000, 0x11000000, 0, 0},   /* XIP, the flash */
-     {0x20000000, 0x20042000, 1, 0},   /* SRAM */
-     {0x40000000, 0x40070000, 1, 0},   /* APB */
-     {0x50000000, 0x50400000, 1, 0},   /* AHB-Lite */
+     #ifdef RP2350
+        {0x00000000, 0x00008000, 0, 0},   /* ROM */
+        {0x10000000, 0x11000000, 0, 0},   /* XIP, the flash */
+        {0x20000000, 0x20082000, 1, 0},   /* SRAM */
+        {0x40000000, 0x40180000, 1, 0},   /* APB */
+        {0x50000000, 0x50700000, 1, 0},   /* AHB */
+     #else
+        {0x00000000, 0x00004000, 0, 0},   /* ROM */
+        {0x10000000, 0x11000000, 0, 0},   /* XIP, the flash */
+        {0x20000000, 0x20042000, 1, 0},   /* SRAM */
+        {0x40000000, 0x40070000, 1, 0},   /* APB */
+        {0x50000000, 0x50400000, 1, 0},   /* AHB-Lite */
+     #endif
      {0xD0000000, 0xD0000180, 1, 0},   /* SIO */
      {0xE000E000, 0xE000F000, 1, 1}};  /* the core's own, its SCS: words alone */
-  extern UINT32 _OSStackGuard, _OSStackGuardEnd;
   size_t i;
   extern volatile int Storing;
   /* The XIP while a save writes the flash (store.c). */
   if (Storing && address < 0x11000000 && address + size > 0x10000000)
      return 0;
-  /* The guard at the bottom of core 0's stack, which its MPU forbids. */
-  if (address < (uintptr_t)&_OSStackGuardEnd &&
-      (address >= (uintptr_t)&_OSStackGuard || size > (uintptr_t)&_OSStackGuard - address))
-     return 0;
+  /* The guard at the bottom of core 0's stack, which its MPU forbids. The RP2350 has none:
+  ** its core checks the stack against MSPLIM. */
+  #ifndef RP2350
+  {
+     extern UINT32 _OSStackGuard, _OSStackGuardEnd;
+     if (address < (uintptr_t)&_OSStackGuardEnd &&
+         (address >= (uintptr_t)&_OSStackGuard || size > (uintptr_t)&_OSStackGuard - address))
+        return 0;
+  }
+  #endif
   for (i = 0; i < sizeof Map / sizeof Map[0]; i += 1)
      if (address >= Map[i].Start && address <= Map[i].End && size <= Map[i].End - address)
         return (!write || Map[i].Write) && (!Map[i].Words || size == 4);
@@ -623,14 +654,15 @@ void ForthPlatformWords(void)
 
 static void InitUART(void)
 {
-  UINT32 divisor;
+  UINT32 divisor, p;
   /* Through the atomic clear alias, as Escapement's driver: core 0 may release other
   ** blocks meanwhile. */
-  RESETS_CLR = RESETS_UART0_BIT | RESETS_IO_BANK0_BIT;
-  while ((RESETS_RESET_DONE & (RESETS_UART0_BIT | RESETS_IO_BANK0_BIT)) !=
-         (RESETS_UART0_BIT | RESETS_IO_BANK0_BIT));
+  RESETS_CLR = RESETS_NEEDED;
+  while ((RESETS_RESET_DONE & RESETS_NEEDED) != RESETS_NEEDED);
   IO_BANK0_CTRL(0) = FUNCSEL_UART;
   IO_BANK0_CTRL(1) = FUNCSEL_UART;
+  for (p = 0; p < 30; p += 1)   /* so that PINS reads them all, as on the RP2040 */
+     PAD_OPEN(p);
   divisor = (8 * CLK_PERI_HZ / BAUD_RATE + 1) / 2;   /* in 64ths, rounded */
   UART_IBRD = divisor >> 6;
   UART_FBRD = divisor & 0x3F;
@@ -643,7 +675,7 @@ static void StartTick(void)
 {
   extern void (* const CortexMxVectorTable[])(void);
   int i;
-  for (i = 0; i < 48; i += 1)
+  for (i = 0; i < CHIP_VECTORS; i += 1)
      Core1Table[i] = (UINT32)CortexMxVectorTable[i];
   Core1Table[16 + TIMER_IRQ_3] = (UINT32)Tick;
   VTOR = (UINT32)Core1Table;

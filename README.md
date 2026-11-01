@@ -186,13 +186,13 @@ timeline shows what the kernel ran, from a trace the port keeps, and a table sho
 slot against its budget. The times are the browser's, not the Pico's. The browser's own
 pauses are left out.
 
-The console can also talk to a real Pico. In Chrome or Edge, click **Connect a Pico** and
-choose its serial port. A USB cable is enough: the Pico has a serial port on its own USB.
+The console can also talk to a real Pico or Pico 2. In Chrome or Edge, click **Connect a Pico**
+and choose its serial port. A USB cable is enough: the board has a serial port on its own USB.
 UART0, on GP0 and GP1, stays the console's while no program has the USB port open.
-The Pico must run this Forth. The web page offers it as a UF2: hold BOOTSEL while plugging
-in the Pico, then copy the file to the RPI-RP2 disk. This replaces its firmware.
+The board must run this Forth. The web page offers a UF2 for each: hold BOOTSEL while plugging
+in the board, then copy the file to the disk that appears. This replaces its firmware.
 The image is then copied from the flash to SRAM at each start, and runs from there.
-Its start is written for the W25Q16JV flash of the Pico. A board with another flash may not
+On the Pico, its start is written for the W25Q16JV flash. A board with another flash may not
 start.
 The console then follows the board. The pins and the slots follow it between two lines, so
 they stop while a line runs. The timeline shows the tasks that have words, from events the
@@ -205,7 +205,7 @@ web page: a word that prints them disturbs it. The tour runs on the board too.
 | Level | What it establishes | When |
 |---|---|---|
 | Host tests | the Forth and the slots on the host, with the sanitizers, under gcc and clang | each push to main and each pull request (gcc) |
-| Pico image | the firmware builds, with Escapement's CI image | each push to main and each pull request |
+| Pico and Pico 2 images | both firmwares build, with Escapement's CI image | each push to main and each pull request |
 | WebAssembly | the web page's Forth and kernel run under Node, in three clock modes, and every step of the tour is played | each push to main and each pull request |
 | Browser | the web page in a headless Chrome, in English and in French: its first step runs and each step fits a 1280 by 680 window without a scroll | each push to main and each pull request |
 | On a Pico | `tools/smoke.fs` and `tools/restart.fs` on Escapement's test bench, read over SWD | by hand, not at each commit |
@@ -221,12 +221,12 @@ web page: a word that prints them disturbs it. The tour runs on the board too.
   the console, which has no budget, and 529 µs in a slot (Pico W, 2026-10-24; the two
   cores' work was not quite the same).
 - **Memory access.** `@`, `!`, `+!`, `c@` and `c!` can reach the Forth's memory and the
-  RP2040's address map (`pico/console.c`, `ForthMemory`). ROM and flash are read only.
+  chip's address map (`pico/console.c`, `ForthMemory`). ROM and flash are read only.
   Cells must be aligned. A misaligned cell, or an address outside these ranges, gives
   `bad address` instead of a fault.
   - Inside them, you can still overwrite the kernel's memory, a peripheral register or a
     compiled definition.
-  - Some reads have side effects. `$40034000 @` reads the UART and takes a byte from the
+  - Some reads have side effects. `$40034000 @` on the Pico, or `$40070000 @` on the Pico 2, reads the UART and takes a byte from the
     console. Reading the SIO FIFO from a slot takes the soft-restart message, and the
     restart then becomes a hard one.
   - The System Control Space only accepts whole cells.
@@ -268,6 +268,7 @@ git clone --recurse-submodules https://github.com/beber007/escapement-forth
 make -C test/host run      # the Forth and the slots on the host, with the sanitizers
 make -C pico               # pico/build/EscapementForth.elf, loaded into SRAM over SWD,
                            # and EscapementForth.uf2, the same image for the flash
+make -C pico BOARD=pico2   # the same for a Pico 2, in pico/build-pico2/
 make -C web serve          # the web page on http://localhost:8000, needs clang and wasm-ld
 make -C web test           # its WebAssembly under Node (JS=.../jsc JS_ARGS=--)
 make -C web page           # it in a headless Chrome, in English and in French
