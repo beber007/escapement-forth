@@ -198,7 +198,7 @@ function pending(queue, pool) {
   while (queue.length > 0) {
     const item = queue.shift(), line = item.tour ? resolve(item.line, pool) : item.line;
     if (line !== null)
-      return { line, tour: item.tour, quiet: item.quiet === true };
+      return { line, tour: item.tour, quiet: item.quiet === true, paste: item.paste === true };
   }
   return null;
 }
@@ -266,10 +266,23 @@ function boardTour(to) {
   }
   return {
     busy: () => sent !== null,
-    add: (line, tour, quiet) => {
-      queue.push({ line, tour, quiet });
+    add: (line, tour, quiet, paste) => {
+      queue.push({ line, tour, quiet, paste: paste === true });
       if (sent === null)
         next();
+    },
+    // Ctrl-C: a paste left out at once, as a line with no word to stop answers without a
+    // word of it. The slots asked again: an ask lost would hold the line for good.
+    interrupt: () => {
+      const had = queue.some((item) => item.paste);
+      abandon(queue, "paste");
+      const running = sent !== null && sent.paste;
+      if (running) {
+        sent.paste = false;
+        to.askSlots();
+      }
+      if (had || running)
+        to.stopped();
     },
     text: (text) => {
       if (sent === null || !sent.quiet)
@@ -284,9 +297,13 @@ function boardTour(to) {
         return;
       if (sent.tour && !answered(said)) {
         failed = true;
-        abandon(queue);
+        abandon(queue, "tour");
         if (sent.quiet)
           to.print(said);
+      }
+      else if (sent.paste && !answered(said)) {
+        abandon(queue, "paste");
+        to.stopped();
       }
       to.line(said);
       next();
@@ -429,15 +446,29 @@ function full(text) {
          /processor full/.test(text) ? "processor" : null;
 }
 
-// answered: Whether a line's output says ok, as the console ends a line it took; what the
-// slots printed meanwhile follows it.
+// answered: Whether a line's output says ok, or compiled inside a definition, as the console
+// ends a line it took; what the slots printed meanwhile follows it.
 function answered(text) {
-  return /(^|\s)ok\n/.test(text);
+  return /(^|\s)(ok|compiled)\n/.test(text);
 }
 
-// abandon: The lines of the tour left in queue left out, those typed kept.
-function abandon(queue) {
-  const kept = queue.filter((item) => !item.tour);
+// pasteLines: A pasted text as the lines the console takes: no empty one, and spaces for the
+// control bytes, a tab as much as a Ctrl-C the board would obey. tooLong: the number of the
+// first line past limit bytes, or 0.
+function pasteLines(text, limit) {
+  const bytes = (l) => Array.from(l).reduce((n, c) => {
+    const code = c.codePointAt(0);
+    return n + (code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4);
+  }, 0);
+  const lines = text.split(/\r\n|\r|\n/).map((l) => l.replace(/[\x00-\x1f\x7f]/g, " "));
+  const kept = lines.filter((l) => l.trim() !== "");
+  const long = kept.findIndex((l) => bytes(l) > limit);
+  return { lines: kept, tooLong: long + 1 };
+}
+
+// abandon: The lines of one kind left in queue, "tour" or "paste", left out: each fails alone.
+function abandon(queue, kind) {
+  const kept = queue.filter((item) => !item[kind]);
   queue.length = 0;
   queue.push(...kept);
 }
