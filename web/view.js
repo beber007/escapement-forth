@@ -141,6 +141,14 @@ function timeline(onFreeze) {
     lastRaw = -1;
   };
 
+  // fresh: The runs so far left out, the clock going on.
+  view.fresh = () => {
+    view.instances = [];
+    view.frozen = view.stopped = view.freezeRow = view.held = null;
+    nested = [];
+    line = null;
+  };
+
   // edge: The clock at the view's right edge.
   view.edge = () => view.frozen !== null ? view.frozen : view.held !== null ? view.held : view.clock;
 

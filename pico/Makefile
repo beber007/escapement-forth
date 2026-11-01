@@ -37,7 +37,7 @@ endif
 KERNEL = $(B)/Escapement_RamEntry.o $(B)/Escapement_CortexMx.o $(B)/Escapement_CortexMx_a.o \
          $(B)/Escapement_Atomic.o $(B)/Escapement_Interrupts.o $(B)/Escapement_Timer.o \
          $(B)/Escapement_Processor.o $(B)/Escapement_Core1.o $(B)/EscapementHard.o
-FORTH = $(B)/forth.o $(B)/slots.o $(B)/console.o $(B)/store.o $(B)/restart.o $(B)/main.o
+FORTH = $(B)/forth.o $(B)/slots.o $(B)/console.o $(B)/store.o $(B)/restart.o $(B)/usb.o $(B)/main.o
 
 all: $(B)/EscapementForth.elf $(B)/EscapementForth.uf2
 
