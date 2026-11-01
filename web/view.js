@@ -453,8 +453,8 @@ function answered(text) {
 }
 
 // pasteLines: A pasted text as the lines the console takes: no empty one, and spaces for the
-// control bytes, a tab as much as a Ctrl-C the board would obey. tooLong: the number of the
-// first line past limit bytes, or 0.
+// control bytes, a tab as much as a Ctrl-C the board would obey. tooLong: the number in the
+// text of the first line past limit bytes, or 0.
 function pasteLines(text, limit) {
   const bytes = (l) => Array.from(l).reduce((n, c) => {
     const code = c.codePointAt(0);
@@ -462,7 +462,7 @@ function pasteLines(text, limit) {
   }, 0);
   const lines = text.split(/\r\n|\r|\n/).map((l) => l.replace(/[\x00-\x1f\x7f]/g, " "));
   const kept = lines.filter((l) => l.trim() !== "");
-  const long = kept.findIndex((l) => bytes(l) > limit);
+  const long = lines.findIndex((l) => l.trim() !== "" && bytes(l) > limit);
   return { lines: kept, tooLong: long + 1 };
 }
 
