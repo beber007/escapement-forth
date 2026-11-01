@@ -590,6 +590,18 @@ check("a line that loops interrupted", r.out.includes("interrupted"), r.out);
 check("  after 10 s", r.ms >= 10000 && r.ms < 11000, r.ms);
 check("  the console answers after it", line("5 .").out === "5  ok\n");
 
+// The 10 s are the wall's, the pauses left out of a word's time counted: on a busy machine
+// such a line ran 34 s (2026-11-01). The clock jumps 5 ms about every 5 ms of the line.
+pauseEvery = 5;
+pauseMs = 5;
+pauseAt = 0;
+callReads = 0;
+r = line("forever");
+callReads = -1;
+pauseEvery = 0;
+check("a line that loops interrupted, with pauses of the browser", r.out.includes("interrupted"), r.out);
+check("  after 10 s with its pauses", r.ms < 8000, r.ms);
+
 // A period whose slots are all taken: the page says so apart from a full dictionary, that
 // stop frees one, not Restart.
 stopAll();
