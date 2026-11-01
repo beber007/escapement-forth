@@ -14,7 +14,7 @@
 **   handler loops, never takes it.
 ** - Hard, if no beat comes back within SOFT_WAIT us: core 1 forces the interrupt of the
 **   timer's alarm 2, which the kernel leaves alone (TIMER_INTF), and core 0 takes it as its
-**   NMI (SYSCFG_PROC0_NMI_MASK). RestartNMI writes the watchdog's SCRATCH4 to 7, the
+**   NMI (NMI_MASK). RestartNMI writes the watchdog's SCRATCH4 to 7, the
 **   bootrom's vector to RAM (RP2040 datasheet 2.8.1.1; pico-sdk, watchdog_reboot), and
 **   resets its core (AIRCR.SYSRESETREQ); the bootrom jumps to RestartEntry.
 **
@@ -23,40 +23,44 @@
 ** not reload. What core 1 and the Forth keep sits in .noinit (FORTH_KEEP), which neither
 ** the loader nor _OSResetHandler touches.
 **
-** Platform version: RP2040 (Raspberry Pi Pico).
+** Platform version: RP2040 (Raspberry Pi Pico), RP2350 (Raspberry Pi Pico 2).
 */
 
 #include "Escapement.h"
 #include "forth.h"
 #include "restart.h"
+#include "chip.h"
 
 #define DETECT     3000      /* us without a beat before a restart */
 #define SOFT_WAIT  5000      /* us for the soft one to bring it back */
 #define HARD_WAIT  50000
 
-#define TIMER_TIMERAWL    *((volatile UINT32 *)(0x40054000 + 0x28))
-#define TIMER_ARMED       *((volatile UINT32 *)(0x40054000 + 0x20))
-#define TIMER_INTR        *((volatile UINT32 *)(0x40054000 + 0x34))
-#define TIMER_INTF        *((volatile UINT32 *)(0x40054000 + 0x3C))
+#define TIMER_TIMERAWL    *((volatile UINT32 *)(CHIP_TIMER + 0x28))
+#define TIMER_ARMED       *((volatile UINT32 *)(CHIP_TIMER + 0x20))
+#define TIMER_INTR        *((volatile UINT32 *)CHIP_TIMER_INTR)
+#define TIMER_INTF        *((volatile UINT32 *)CHIP_TIMER_INTF)
 #define ALARM2_BIT        (1u << 2)
-#define WATCHDOG_SCRATCH  ((volatile UINT32 *)(0x40058000 + 0x0C))
-#define SYSCFG_PROC0_NMI_MASK *((volatile UINT32 *)0x40004000)
+#define WATCHDOG_SCRATCH  ((volatile UINT32 *)(CHIP_WATCHDOG + 0x0C))
+#ifdef RP2350
+   #define NMI_MASK       *((volatile UINT32 *)0xE0080000)   /* EPPB, each core its own */
+#else
+   #define NMI_MASK       *((volatile UINT32 *)0x40004000)   /* SYSCFG */
+#endif
 #define AIRCR             *((volatile UINT32 *)0xE000ED0C)
-#define RESETS_CLR        *((volatile UINT32 *)(0x4000C000 + 0x3000))
-#define RESETS_RESET_DONE *((volatile UINT32 *)(0x4000C000 + 0x08))
-#define RESETS_SYSCFG_BIT (1u << 18)
+#define RESETS_CLR        *((volatile UINT32 *)(CHIP_RESETS + 0x3000))
+#define RESETS_RESET_DONE *((volatile UINT32 *)(CHIP_RESETS + 0x08))
+#define RESETS_SYSCFG_BIT (1u << 18)   /* the RP2040 alone: the RP2350 has its mask in the core */
 #define SIO_FIFO_ST       *((volatile UINT32 *)(0xD0000000 + 0x50))
 #define SIO_FIFO_WR       *((volatile UINT32 *)(0xD0000000 + 0x54))
 #define SIO_FIFO_RD       *((volatile UINT32 *)(0xD0000000 + 0x58))
 #define SIO_FIFO_VLD      (1u << 0)
 #define SIO_FIFO_RDY      (1u << 1)
 #define NVIC_ISER         *((volatile UINT32 *)0xE000E100)
-#define NVIC_ICER         *((volatile UINT32 *)0xE000E180)
-#define NVIC_ICPR         *((volatile UINT32 *)0xE000E280)
+#define NVIC_ICER         ((volatile UINT32 *)0xE000E180)
+#define NVIC_ICPR         ((volatile UINT32 *)0xE000E280)
 #define NVIC_IPR          ((volatile UINT32 *)0xE000E400)
 #define ICSR              *((volatile UINT32 *)0xE000ED04)
 #define VTOR              *((volatile UINT32 *)0xE000ED08)
-#define SIO_IRQ_PROC0     15
 #define RESTART_WORD      0x52535452u   /* "RSTR" */
 #define RESTARTING        0x52535452u
 #define VECTORED_BOOT     0xb007c0d3u
@@ -68,7 +72,7 @@ static volatile UINT32 Restarting FORTH_KEEP;
 static UINT32 SavedData[64] FORTH_KEEP;     /* .data as the image had it */
 
 extern void (* const CortexMxVectorTable[])(void);
-static UINT32 RamTable[64] __attribute__((aligned(256)));
+static UINT32 RamTable[CHIP_VECTORS] __attribute__((aligned(CHIP_VECTORS_ALIGN)));
 
 void _OSResetHandler(void);
 void RestartEntry(void);
@@ -79,8 +83,12 @@ void __attribute__((noreturn, used)) RestartCore0(void)
 {
   extern UINT32 _data, _edata;
   UINT32 *p, i = 0;
-  NVIC_ICER = 0xFFFFFFFF;
-  NVIC_ICPR = 0xFFFFFFFF;
+  NVIC_ICER[0] = 0xFFFFFFFF;
+  NVIC_ICPR[0] = 0xFFFFFFFF;
+  #ifdef RP2350
+     NVIC_ICER[1] = 0xFFFFFFFF;
+     NVIC_ICPR[1] = 0xFFFFFFFF;
+  #endif
   ICSR = (1u << 27) | (1u << 25);    /* PENDSVCLR, PENDSTCLR */
   TIMER_ARMED = 0x7;                 /* written 1, an alarm is disarmed; 3 is core 1's */
   TIMER_INTR = 0x7;
@@ -103,6 +111,14 @@ __asm__(
 "  .thumb_func\n"
 "RestartEntry:\n"
 "  cpsid i\n"
+#ifdef RP2350
+/* A core reset clears ACTLR.EXTEXCLALL, which _OSRamEntry set: the kernel needs it. */
+"  ldr  r0, =0xE000E008\n"
+"  ldr  r1, [r0]\n"
+"  orr  r1, r1, #0x20000000\n"
+"  str  r1, [r0]\n"
+"  dsb\n"
+#endif
 "  ldr  r0, =CortexMxVectorTable\n"
 "  ldr  r1, [r0]\n"
 "  msr  msp, r1\n"
@@ -175,19 +191,21 @@ int RestartInit(void)
   }
   Starts += 1;
   /* The vector table in RAM, the SIO FIFO's interrupt ours, of the highest priority. */
-  for (i = 0; i < 64; i += 1)
+  for (i = 0; i < CHIP_VECTORS; i += 1)
      RamTable[i] = (UINT32)CortexMxVectorTable[i];
-  RamTable[16 + SIO_IRQ_PROC0] = (UINT32)RestartIRQ;
+  RamTable[16 + CHIP_IRQ_FIFO] = (UINT32)RestartIRQ;
   RamTable[2] = (UINT32)RestartNMI;
   /* SYSCFG leaves reset here, or the mask written is lost and no NMI comes (step 2). */
-  RESETS_CLR = RESETS_SYSCFG_BIT;
-  while ((RESETS_RESET_DONE & RESETS_SYSCFG_BIT) == 0);
-  SYSCFG_PROC0_NMI_MASK = ALARM2_BIT;
+  #ifndef RP2350
+     RESETS_CLR = RESETS_SYSCFG_BIT;
+     while ((RESETS_RESET_DONE & RESETS_SYSCFG_BIT) == 0);
+  #endif
+  NMI_MASK = ALARM2_BIT;
   VTOR = (UINT32)RamTable;
   while (SIO_FIFO_ST & SIO_FIFO_VLD)
      (void)SIO_FIFO_RD;
-  NVIC_IPR[SIO_IRQ_PROC0 >> 2] &= ~(0xFFu << (8 * (SIO_IRQ_PROC0 & 3)));
-  NVIC_ISER = 1u << SIO_IRQ_PROC0;
+  NVIC_IPR[CHIP_IRQ_FIFO >> 2] &= ~(0xFFu << (8 * (CHIP_IRQ_FIFO & 3)));
+  NVIC_ISER = 1u << CHIP_IRQ_FIFO;
   return restarted;
 } /* end of RestartInit */
 

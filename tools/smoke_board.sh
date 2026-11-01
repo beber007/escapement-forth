@@ -4,7 +4,7 @@
 # Distributed under the terms of LICENSE at the root of this repository.
 #
 # smoke_board.sh ELF [SECONDS]: on Escapement's bench (its tools/board_ci.md), loads an
-# image of make SCRIPT=... on a Pico, core 1 running, waits, and prints what its console
+# image of make SCRIPT=... on a Pico (RP2040 only, not a Pico 2), core 1 running, waits, and prints what its console
 # printed, read from Log over SWD: no UART needs to be wired.
 #
 #   OPENOCD=~/opt/openocd-rpi/bin/openocd PROBE=probe1 tools/smoke_board.sh \

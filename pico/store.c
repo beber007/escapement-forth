@@ -3,8 +3,8 @@
 ** Distributed under the terms of LICENSE at the root of this repository.
 */
 /* File store.c: The store of the dictionary SAVE keeps (forth_platform.h): the last
-** 16 KB of the Pico's 2 MB of flash, written through the bootrom's functions (RP2040
-** datasheet 2.8.3.1.3), read through the XIP.
+** 16 KB of the flash, 2 MB on the Pico and 4 MB on the Pico 2, written through the bootrom's
+** functions (RP2040 datasheet 2.8.3.1.3, RP2350 datasheet 5.5.8), read through the XIP.
 **
 ** The image runs from SRAM, and so does all it calls while the flash leaves the XIP: no
 ** code of its own is there. A word that reads the XIP meanwhile, on core 0, which goes
@@ -12,14 +12,18 @@
 ** may still meet it. Erased then written, the store holds no header until
 ** its last page: a reset in between leaves it empty, as a cold start sees it.
 **
-** Platform version: RP2040 (Raspberry Pi Pico).
+** Platform version: RP2040 (Raspberry Pi Pico), RP2350 (Raspberry Pi Pico 2).
 */
 
 #include "Escapement.h"
 #include "forth.h"
 #include "forth_platform.h"
 
-#define STORE_OFFSET  0x1FC000u          /* in the flash: its last 16 KB */
+#ifdef RP2350
+   #define STORE_OFFSET  0x3FC000u        /* in the flash: its last 16 KB */
+#else
+   #define STORE_OFFSET  0x1FC000u
+#endif
 #define STORE_ROOM    0x4000u
 #define XIP_BASE      0x10000000u
 #define PAGE          256u               /* what the flash programs at once */
@@ -27,9 +31,13 @@
 #define SECTOR_ERASE  0x20u
 
 #define ROM_FUNCTIONS  0x14              /* halves: the bootrom's table, its lookup */
-#define ROM_LOOKUP     0x18
+#ifdef RP2350
+   #define ROM_LOOKUP  0x16
+   #define ROM_ARM_SECURE 0x0004u
+#else
+   #define ROM_LOOKUP  0x18
+#endif
 
-typedef void *(*Lookup)(UINT16 *table, UINT32 code);
 typedef void (*Plain)(void);
 typedef void (*Erase)(UINT32 offset, size_t count, UINT32 block, UINT8 command);
 typedef void (*Program)(UINT32 offset, const UINT8 *data, size_t count);
@@ -54,9 +62,17 @@ static UINT32 Half(UINT32 address)
 
 static void *Rom(char a, char b)
 {
-  Lookup lookup = (Lookup)(uintptr_t)Half(ROM_LOOKUP);
-  return lookup((UINT16 *)(uintptr_t)Half(ROM_FUNCTIONS),
-                (UINT32)(UINT8)a | (UINT32)(UINT8)b << 8);
+  #ifdef RP2350
+     /* The Arm Secure function (pico-sdk, bootrom_constants.h). */
+     typedef void *(*Lookup)(UINT32 code, UINT32 mask);
+     Lookup lookup = (Lookup)(uintptr_t)Half(ROM_LOOKUP);
+     return lookup((UINT32)(UINT8)a | (UINT32)(UINT8)b << 8,ROM_ARM_SECURE);
+  #else
+     typedef void *(*Lookup)(UINT16 *table, UINT32 code);
+     Lookup lookup = (Lookup)(uintptr_t)Half(ROM_LOOKUP);
+     return lookup((UINT16 *)(uintptr_t)Half(ROM_FUNCTIONS),
+                   (UINT32)(UINT8)a | (UINT32)(UINT8)b << 8);
+  #endif
 } /* end of Rom */
 
 /* Leave, Enter: The flash out of the XIP, for the bootrom to write it, then back in it,
@@ -75,8 +91,8 @@ static void Enter(void)
 } /* end of Enter */
 
 /* ForthBuild: The sum of the image's code and constants, from its start in SRAM to
-** _etext: some 24 KB, 3.3 ms at 125 MHz (gcc makes the multiplication shifts and adds
-** on the M0+), at each SAVE and at a cold start that finds a store. */
+** _etext: some 24 KB, 3.3 ms at 125 MHz on the Pico (gcc makes the multiplication shifts
+** and adds on the M0+), at each SAVE and at a cold start that finds a store. */
 uint32_t ForthBuild(void)
 {
   extern UINT8 _etext;
