@@ -142,7 +142,7 @@ const pend = (queue, pool) => {
   const item = V.pending(queue, pool);
   return item === null ? null : item.line;
 };
-const V = Function(text(args[3]) + " return { boardLink, boardFrame, boardTour, boardTrace, timeline, resolve, pending, abandon, answered, full, grainOf, coarse, time, share, count, rowNames, hit, span, WINDOWS, ZOOM };")();
+const V = Function(text(args[3]) + " return { boardLink, boardFrame, boardTour, boardTrace, timeline, resolve, pending, abandon, answered, pasteLines, full, grainOf, coarse, time, share, count, rowNames, hit, span, WINDOWS, ZOOM };")();
 
 forth.web_init();
 take();
@@ -632,8 +632,73 @@ line("' hi 10 every");
 line(": spin  0 begin 1+ dup 3000000 = until drop ;");
 const printed = line("spin").out;
 check("  a slot's output after the ok, answered", /ok\nx/.test(printed) && V.answered(printed), printed);
+// A paste, in lines the console takes: a line of a definition is answered too.
+check("a line that goes on a definition, answered", V.answered(" compiled\n"), "");
+{
+  const p = V.pasteLines("\tone  two\r\n\n  three\x03four\nlast", 127);
+  check("a paste in lines, no empty one, no control byte", p.tooLong === 0 && p.lines.length === 3 &&
+        p.lines[0] === " one  two" && p.lines[1] === "  three four" && p.lines[2] === "last", p.lines);
+  const long = V.pasteLines("ok\n" + "é".repeat(64) + "\nok", 127);
+  check("a line past the limit in bytes is named", long.tooLong === 2, long.tooLong);
+  check("a line just at the limit passes", V.pasteLines("x".repeat(127) + "\ny", 127).tooLong === 0, "");
+  const q = [{ line: "1", tour: false, paste: true }, { line: "2", tour: false }, { line: "3", tour: true }];
+  V.abandon(q, "paste");
+  check("a failed paste leaves out its own lines only", q.length === 2 && q[0].line === "2" && q[1].line === "3", q);
+  const sent = [], printed = [];
+  const b = V.boardTour({ send: (l) => sent.push(l), askSlots: () => {}, print: (t) => printed.push(t),
+                          line: () => {}, done: () => {}, stopped: () => printed.push("STOPPED") });
+  b.add(": a", false, false, true);
+  b.add("1 ;", false, false, true);
+  b.add("nope", false, false, true);
+  b.add("9 .", false, false, true);
+  b.text(": a compiled\n"); b.slots([]);
+  check("a paste goes on after compiled", sent[1] === "1 ;", sent);
+  b.text("1 ; ok\n"); b.slots([]);
+  check("then after ok", sent[2] === "nope", sent);
+  b.text("nope ?\n"); b.slots([]);
+  check("a line that failed stops the paste and says so", sent.length === 3 && printed.includes("STOPPED") && !b.busy(), [sent, printed]);
+  // A failed paste says nothing of a tour step that came during it, which still runs, and the
+  // other way round.
+  const ran = [], ends = [];
+  const mix = V.boardTour({ send: (l) => ran.push(l), askSlots: () => {}, print: () => {}, line: () => {},
+                            done: (f) => ends.push(f), stopped: () => {} });
+  mix.add("nope", false, false, true);
+  mix.add("drop", false, false, true);
+  mix.add("step", true, false);
+  mix.text("nope ?\n"); mix.slots([]);
+  mix.text("step ok\n"); mix.slots([]);
+  check("a failed paste keeps the tour's lines, their step not failed",
+        ran.join() === "nope,step" && ends[ends.length - 1] === false, [ran, ends]);
+  const ran2 = [], ends2 = [];
+  const mix2 = V.boardTour({ send: (l) => ran2.push(l), askSlots: () => {}, print: () => {}, line: () => {},
+                             done: (f) => ends2.push(f), stopped: () => {} });
+  mix2.add("nope", true, false);
+  mix2.add("pasted", false, false, true);
+  mix2.text("nope ?\n"); mix2.slots([]);
+  check("a failed tour line keeps the paste's lines", ran2.join() === "nope,pasted", ran2);
+  // Ctrl-C: the rest left out at once, the slots asked again in case the ask was lost.
+  const c = [], notes = [];
+  let asks = 0;
+  const cut = V.boardTour({ send: (l) => c.push(l), askSlots: () => { asks += 1; }, print: () => {}, line: () => {},
+                            done: () => {}, stopped: () => notes.push("STOPPED") });
+  cut.add("1", false, false, true);
+  cut.add("2", false, false, true);
+  cut.interrupt();
+  check("Ctrl-C stops a paste and says so once", notes.length === 1 && asks === 2, [notes, asks]);
+  cut.text("1 interrupted\n"); cut.slots([]);
+  check("  the rest not sent, the note not repeated, no line held",
+        c.join() === "1" && notes.length === 1 && !cut.busy(), [c, notes]);
+  const none = [];
+  let asksNone = 0;
+  const idle = V.boardTour({ send: () => {}, askSlots: () => { asksNone += 1; }, print: () => {}, line: () => {},
+                             done: () => {}, stopped: () => none.push("STOPPED") });
+  idle.interrupt();
+  idle.add("step", true, false);
+  idle.interrupt();
+  check("Ctrl-C outside a paste says nothing and asks nothing more", none.length === 0 && asksNone === 1, [none, asksNone]);
+}
 const queue = [{ line: "1 .", tour: true }, { line: "2 .", tour: false }, { line: "3 .", tour: true }];
-V.abandon(queue);
+V.abandon(queue, "tour");
 check("  the rest of the tour's lines left out, not those typed", queue.length === 1 && queue[0].line === "2 .", queue);
 
 // A clock read to 16.7 ms, as Firefox's resistFingerprinting reads it: the page says the

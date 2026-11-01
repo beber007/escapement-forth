@@ -401,6 +401,7 @@
   let filled = null;   // what the line under way said full, from full()
   let sentTour = false, said = "";   // the line under way of the tour, and its output
   let sent = "";       // the line sent, echoed once the worker starts it
+  let sentPaste = false;   // a line of a paste, whose failure stops the rest
   let sentQuiet = false, noteDue = null;   // a line that sets a step up, and what says so once
   const queue = [];
 
@@ -523,6 +524,8 @@
                          "protect your privacy. That is too coarse for the kernel, so the tour is off. Most " +
                          "browsers, with default settings, give 1 ms or better.",
           full: "The dictionary, the list of words, is full. Click Restart Forth to empty it.\n",
+          pasteStopped: "The paste stopped at this line. The lines after it were not sent.",
+          pasteLong: "Line {n} is over 127 bytes. Nothing was sent.",
           boardFull: "The Pico's dictionary, the list of words, is full. Only loading its image again empties it.\n",
           periodFull: "The four slots of that period are taken. n stop frees slot n.\n",
           processorFull: "All the budgets must fit in 95% of the processor. n stop frees slot n.\n",
@@ -549,6 +552,8 @@
                          "protéger ta vie privée. C'est trop imprécis pour le noyau, la visite est donc " +
                          "désactivée. Avec leurs réglages par défaut, la plupart des navigateurs donnent 1 ms ou mieux.",
           full: "Le dictionnaire, la liste des mots, est plein. Clique sur Relancer le Forth pour le vider.\n",
+          pasteStopped: "Le collage s'est arrêté à cette ligne. Les lignes suivantes n'ont pas été envoyées.",
+          pasteLong: "La ligne {n} dépasse 127 octets. Rien n'a été envoyé.",
           boardFull: "Le dictionnaire du Pico, la liste des mots, est plein. Seul un nouveau chargement de son image le vide.\n",
           periodFull: "Les quatre cases de cette période sont prises. n stop libère la case n.\n",
           processorFull: "Tous les budgets doivent tenir dans 95 % du processeur. n stop libère la case n.\n",
@@ -617,10 +622,10 @@
 
   // send: The line given to the Forth once the line before is done, and echoed as the
   // board's console does, " ok" after it on the same line.
-  function send(line, tour, quiet) {
+  function send(line, tour, quiet, paste) {
     if (link !== null) {
-      if (tour || boardLines.busy())
-        boardLines.add(line, tour === true, quiet === true);
+      if (tour || paste || boardLines.busy())
+        boardLines.add(line, tour === true, quiet === true, paste === true);
       else if (!quiet)
         link.send(line);   // the board echoes it
       return;
@@ -630,7 +635,7 @@
         print(T[lang].boardLost + "\n", "note");
       return;
     }
-    queue.push({ line, tour: tour === true, quiet: quiet === true });
+    queue.push({ line, tour: tour === true, quiet: quiet === true, paste: paste === true });
     next();
   }
 
@@ -644,6 +649,7 @@
     sent = item.line;
     sentTour = item.tour;
     sentQuiet = item.quiet;
+    sentPaste = item.paste;
     worker.postMessage(item.line);
   }
 
@@ -1332,7 +1338,8 @@
           typeFailed = failed;
           if (typing)
             tourDone();
-        } });
+        },
+        stopped: () => print(T[lang].pasteStopped + "\n", "note") });
       // A board's pins are inputs until told; the tour's LEDs need no line on the page's Forth.
       boardLines.add("1 15 lshift output 1 20 lshift output", true, true);
       boardAnswered = true;
@@ -1399,9 +1406,13 @@
         // were before, or the slider set a variable no word reads.
         if (sentTour && !answered(said)) {
           typeFailed = true;
-          abandon(queue);
+          abandon(queue, "tour");
           if (sentQuiet && !filled)
             print(said);
+        }
+        else if (sentPaste && !answered(said)) {
+          abandon(queue, "paste");
+          print(T[lang].pasteStopped + "\n", "note");
         }
         filled = null;
         busy = false;
@@ -1450,6 +1461,30 @@
     input.setSelectionRange(caret[0], caret[1]);
   }
   input.addEventListener("input", bound);
+  // A paste of several lines, which an input would join: each line sent once the one before
+  // is answered, on the board as in the browser; the first that fails stops the rest.
+  input.addEventListener("paste", (event) => {
+    const text = event.clipboardData.getData("text/plain");
+    if (!/[\r\n]/.test(text.replace(/[\r\n]+$/, "")))
+      return;
+    event.preventDefault();
+    const start = input.selectionStart, end = input.selectionEnd;
+    const pasted = pasteLines(input.value.slice(0, start) + text + input.value.slice(end), LINE);
+    if (pasted.tooLong !== 0) {
+      print(T[lang].pasteLong.replace("{n}", String(pasted.tooLong)) + "\n", "note");
+      return;
+    }
+    input.value = kept = "";
+    back = 0;
+    pasted.lines.forEach((line) => {
+      history.push(line);
+      // With the board lost, the one line says so.
+      if (link !== null || worker !== null)
+        send(line, false, false, true);
+    });
+    if (link === null && worker === null && pasted.lines.length > 0)
+      send(pasted.lines[0], false, false, true);
+  });
   input.addEventListener("compositionend", bound);
   input.addEventListener("keydown", (event) => {
     // A composition's keys are its own, Enter and the arrows among them; Safari ends it
@@ -1460,6 +1495,7 @@
     if (link !== null && event.ctrlKey && event.key.toLowerCase() === "c" &&
         input.selectionStart === input.selectionEnd && window.getSelection().toString() === "") {
       link.interrupt();
+      boardLines.interrupt();
       event.preventDefault();
     }
     else if (event.key === "Enter") {

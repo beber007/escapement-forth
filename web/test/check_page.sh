@@ -262,9 +262,27 @@ perl -0pi -e 's{<head>}{<head>
                 TOUR[0].lines = lines;
                 shown.failed = [ran, silent(), document.getElementById("output").textContent.includes("nosuchword"),
                                 document.getElementById("output").textContent.split(T[lang].full).length - 1];
-                fetch("/probe?" + encodeURIComponent(JSON.stringify(Object.assign(shown, {
-                  errors, output: document.getElementById("output").textContent,
-                  pool: document.querySelector("#pool").textContent }))));
+                // A paste of several lines: each sent in turn, a definition across two, and
+                // the first that fails stops the rest. One too long sends nothing.
+                const paste = (text) => {
+                  const data = new DataTransfer();
+                  data.setData("text/plain", text);
+                  input.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+                };
+                const output = () => document.getElementById("output").textContent;
+                const nl = String.fromCharCode(10);
+                paste([": pasted", "  4321 ;", "pasted .", "nosuchpasted", "8765 .", ""].join(nl));
+                setTimeout(() => {
+                  shown.paste = [output().includes("4321  ok"), output().includes("nosuchpasted"),
+                                 output().includes("8765"), output().includes(T[lang].pasteStopped)];
+                  paste("1234 ." + nl + "5".repeat(200));
+                  setTimeout(() => {
+                    shown.paste.push(output().includes("1234"), output().includes(T[lang].pasteLong.replace("{n}", "2")));
+                    fetch("/probe?" + encodeURIComponent(JSON.stringify(Object.assign(shown, {
+                      errors, output: output(),
+                      pool: document.querySelector("#pool").textContent }))));
+                  }, 500);
+                }, 1500);
               }, 1000);
               }, 3500);
             }, 1000);
@@ -341,6 +359,9 @@ print(urllib.parse.unquote(m.group(1)) if m else "{}")' "$work/server.log")
     failed=1
   elif ! check 's["focus"][0] == "step-back" and s["note"] == "'$lang'"'; then
     echo "FAILED  $lang: the focus lost at the tour's end, or the page's notes not in $lang: $shown"
+    failed=1
+  elif ! check 's["paste"] == [True, True, False, True, False, True]'; then
+    echo "FAILED  $lang: a paste of several lines: $shown"
     failed=1
   elif ! check 's["banner"][0] == "" and s["banner"][1] not in ("", True) and s["banner"][2] == ""'; then
     echo "FAILED  $lang: the timeline stopped without saying so: $shown"
