@@ -169,13 +169,16 @@ perl -0pi -e 's{<head>}{<head>
         view.window = 200000;
         view.pause();
         const under = (x) => view.frozen - view.window + (Math.max(x, box.left + layout.label) - box.left - layout.label) * view.window / (layout.w - layout.label);
-        const pinch = (x) => plot.dispatchEvent(new WheelEvent("wheel", { deltaY: -60, ctrlKey: true, bubbles: true,
-          cancelable: true, clientX: x, clientY: box.top + 20 }));
-        shown.pinched = [under(box.left + 200)];
-        pinch(box.left + 200);
-        shown.pinched.push(view.window, under(box.left + 200), under(box.left + 10));
-        pinch(box.left + 10);
-        shown.pinched.push(view.window, under(box.left + 10));
+        // The pointer where the event has it: its clientX a whole pixel, box.left not
+        // at every width of the window.
+        const pinch = (x) => new WheelEvent("wheel", { deltaY: -60, ctrlKey: true, bubbles: true,
+          cancelable: true, clientX: x, clientY: box.top + 20 });
+        const inside = pinch(box.left + 200), aside = pinch(box.left + 10);
+        shown.pinched = [under(inside.clientX)];
+        plot.dispatchEvent(inside);
+        shown.pinched.push(view.window, under(inside.clientX), under(aside.clientX));
+        plot.dispatchEvent(aside);
+        shown.pinched.push(view.window, under(aside.clientX));
         view.pause();
         for (let k = 0; k < 12; k += 1)
           wider.click();
