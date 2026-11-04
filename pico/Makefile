@@ -26,6 +26,12 @@ else
    CPU = -mcpu=cortex-m0plus -mthumb
    UF2 = EscapementForth.uf2
 endif
+# make BOARD=picow builds the Pico's image plus the radio (radio/), in build-picow/.
+ifeq ($(BOARD),picow)
+   B = build-picow
+   UF2 = EscapementForth-picow.uf2
+   RADIO = 1
+endif
 
 INCLUDE = -I. -I../src -I$(PORT) -I$(E)/CORTEX-Mx -I$(E)
 # -fno-strict-aliasing as Escapement's examples: its kernel needs it.
@@ -52,11 +58,27 @@ KERNEL = $(B)/Escapement_RamEntry.o $(B)/Escapement_CortexMx.o $(B)/Escapement_C
          $(B)/Escapement_Processor.o $(B)/Escapement_Core1.o $(B)/EscapementHard.o
 FORTH = $(B)/forth.o $(B)/slots.o $(B)/console.o $(B)/store.o $(B)/restart.o $(B)/usb.o $(B)/main.o
 
+# The radio: the CYW43 driver and the pico-sdk's Bluetooth shared bus, each with its own
+# warnings. They use a few C library functions of our own (radio/libc).
+ifdef RADIO
+   CYW43 = ../lib/cyw43-driver/src
+   CFLAGS += -DPICO_W
+   INCLUDE += -Iradio
+   RADIO_INCLUDE = -Iradio/libc -I$(CYW43) -I../lib/cyw43-driver/firmware -I$(B)
+   RADIO_BIN = $(B)/radio.bin
+   RADIO_OBJS = $(B)/bus.o $(B)/radio.o $(B)/libc.o $(B)/cybt_shared_bus.o \
+            $(B)/cybt_shared_bus_driver.o $(B)/cyw43_ll.o $(B)/cyw43_spi.o $(B)/cyw43_ctrl.o
+   # The radio's objects go in an archive, which radio/kept.ld names: a restart of core 0
+   # keeps their state.
+   RADIO_A = $(B)/radio.a
+   RADIO_LINK = -Wl,--whole-archive $(RADIO_A) -Wl,--no-whole-archive -Tradio/kept.ld
+endif
+
 all: $(B)/EscapementForth.elf $(B)/$(UF2)
 
-$(B)/EscapementForth.elf: $(KERNEL) $(FORTH)
-	$(CC) $(CPU) -Wl,--gc-sections -nostdlib -o $@ $^ -T$(PORT)/$(SRAM_LD) -lgcc \
-	   -Wl,--defsym=_ForthKeptEnd=ADDR\(.noinit\)+SIZEOF\(.noinit\)
+$(B)/EscapementForth.elf: $(KERNEL) $(FORTH) $(RADIO_A) $(if $(RADIO),radio/kept.ld)
+	$(CC) $(CPU) -Wl,--gc-sections -nostdlib -o $@ $(KERNEL) $(FORTH) $(RADIO_LINK) \
+	   -T$(PORT)/$(SRAM_LD) -lgcc -Wl,--defsym=_ForthKeptEnd=ADDR\(.noinit\)+SIZEOF\(.noinit\)
 
 $(B)/image.bin: $(B)/EscapementForth.elf
 	$(OBJCOPY) -O binary $< $@
@@ -76,9 +98,9 @@ $(B)/Boot2.o: $(B)/Boot2.S
 $(B)/flash.elf: $(B)/Boot2.o $(B)/flash_boot.o flash_boot.ld
 	$(CC) $(CPU) -nostdlib -o $@ $(B)/Boot2.o $(B)/flash_boot.o -Tflash_boot.ld
 endif
-$(B)/$(UF2): $(B)/flash.elf ../tools/uf2.py
+$(B)/$(UF2): $(B)/flash.elf ../tools/uf2.py $(RADIO_BIN)
 	$(OBJCOPY) -O binary $< $(B)/flash.bin
-	python3 ../tools/uf2.py $(B)/flash.bin $@ $(BOARD)
+	python3 ../tools/uf2.py $(B)/flash.bin $@ $(BOARD) $(RADIO_BIN)
 
 $(B)/%.o: $(PORT)/%.S
 	$(CC) $(AFLAGS) $(INCLUDE) -o $@ $<
@@ -96,9 +118,32 @@ $(B)/%.o: ../src/%.c
 	$(CC) $(CFLAGS) -Wextra -Werror -fwrapv $(INCLUDE) -o $@ $<
 $(B)/%.o: %.c
 	$(CC) $(CFLAGS) -Wextra -Werror -fwrapv $(INCLUDE) -o $@ $<
+ifdef RADIO
+$(B)/radio.a: $(RADIO_OBJS)
+	rm -f $@
+	$(CROSS_COMPILE)ar rcs $@ $^
+# The firmware's bytes and its lengths come from one header. One rule writes both, even
+# under -j: the make 3.81 of macOS has no grouped targets.
+RADIO_FIRMWARE = ../lib/cyw43-driver/firmware/wb43439A0_7_95_49_00_combined.h
+$(B)/radio_lengths.h: $(RADIO_FIRMWARE) ../tools/radio_firmware.py
+	python3 ../tools/radio_firmware.py $(RADIO_FIRMWARE) $(B)/radio.bin $@
+# If radio.bin alone is gone, the header is current. The header keeps its date, and the
+# new copy of it is thrown away.
+$(B)/radio.bin: $(B)/radio_lengths.h
+	test -f $@ || { python3 ../tools/radio_firmware.py $(RADIO_FIRMWARE) $@ $@.lengths && rm -f $@.lengths; }
+$(B)/cyw43_ll.o: $(B)/radio_lengths.h
+# The pico-sdk's copies (cybt_*) build as they came. Our own files build as strictly as
+# the rest. Make 3.81 takes the first pattern that fits, so cybt_% comes first.
+$(B)/cybt_%.o: radio/cybt_%.c
+	$(CC) $(CFLAGS) $(INCLUDE) $(RADIO_INCLUDE) -o $@ $<
+$(B)/%.o: radio/%.c
+	$(CC) $(CFLAGS) -Wextra -Werror -fwrapv $(INCLUDE) $(RADIO_INCLUDE) -o $@ $<
+$(B)/%.o: $(CYW43)/%.c
+	$(CC) $(CFLAGS) -Wno-unused-function $(INCLUDE) $(RADIO_INCLUDE) -o $@ $<
+endif
 
 clean:
-	rm -rf build build-script build-pico2 build-pico2-script
+	rm -rf build build-script build-pico2 build-pico2-script build-picow build-picow-script
 
 .PHONY: all clean
 

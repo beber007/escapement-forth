@@ -27,6 +27,9 @@
 #include "restart.h"
 #include "usb.h"
 #include "chip.h"
+#ifdef PICO_W
+   #include "radio.h"
+#endif
 
 #define UART0_BASE           CHIP_UART0
 #define UART_REG(offset)     *((volatile UINT32 *)(UART0_BASE + (offset)))
@@ -714,6 +717,32 @@ void Console(void)
   InitUART();
   StartTick();
   ForthPrintText("\nEscapement Forth\n");
+  #ifdef PICO_W
+     {
+        UINT32 start = TIMER_TIMERAWL;
+        int failed = RadioStart(), k;
+        if (failed == 0 && RadioFailed != NULL)   /* the driver gave up, and went on */
+           failed = -1;
+        if (failed == 0) {
+           ForthPrintText("radio up in ");
+           ForthPrintNumber((Cell)((TIMER_TIMERAWL - start) / 1000));
+           ForthPrintText(" ms\n");
+        }
+        else {
+           ForthPrintText("radio failed ");
+           ForthPrintNumber((Cell)failed);
+           if (RadioFailed != NULL) {
+              ForthPrintText(", ");
+              ForthPrintText(RadioFailed);
+           }
+           ForthPrintText("\nline ");
+           ForthPrintNumber(RadioLine);
+           ForthPrintText("\n");
+           for (k = 0; k < RadioSaidCount && k < RADIO_SAID; k += 1)
+              ForthPrintText(RadioSaid[k]);
+        }
+     }
+  #endif
   /* A word BOOT, saved, runs at a cold start, unless a Ctrl-C comes within BOOT_WAIT: one
   ** that faults core 1 would hold it at every start. */
   if (ForthFind("boot",4) != NULL) {
