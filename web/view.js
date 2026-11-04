@@ -334,13 +334,11 @@ function boardTrace() {
   };
 }
 
-// boardLink: A serial port (Web Serial) opened on the board's console: onText gets what it
-// prints, onEnd is told if the port ends by itself, the board unplugged.
-async function boardLink(port, onText, onEnd, onFrame = () => {}, onEvent = () => {}) {
-  await port.open({ baudRate: 115200 });
-  const decoder = new TextDecoder(), framed = new TextDecoder(), encoder = new TextEncoder();
-  const writer = port.writable.getWriter();
-  let reader = null, closing = false;
+// boardStream: Splits what the board's console sends, as it comes. onText gets what it
+// prints, onFrame gets its answers (pico/console.c), and onEvent gets the trace's events.
+// It works the same over a serial port or Bluetooth.
+function boardStream(onText, onFrame, onEvent) {
+  const decoder = new TextDecoder(), framed = new TextDecoder();
   // The console's text, with its frames (pico/console.c) taken out. What a word printed
   // that looks like one, cut short or of no kind, stays text.
   let frame = null;
@@ -350,7 +348,7 @@ async function boardLink(port, onText, onEnd, onFrame = () => {}, onEvent = () =
       onText(text);
   };
   let event = null;
-  const onBytes = (bytes) => {
+  return (bytes) => {
     let text = [];
     const flush = () => {
       if (text.length > 0)
@@ -397,7 +395,59 @@ async function boardLink(port, onText, onEnd, onFrame = () => {}, onEvent = () =
     }
     flush();
   };
-  (async () => {
+}
+
+// boardCommands: The commands the page sends the console. They go through write, which
+// takes bytes.
+function boardCommands(write) {
+  const encoder = new TextEncoder();
+  return {
+    send: (line) => write(encoder.encode(line + "\r")),
+    interrupt: () => write(Uint8Array.of(3)),
+    askPins: () => write(Uint8Array.of(5)),
+    askSlots: () => write(Uint8Array.of(6)),
+    trace: (on) => write(Uint8Array.of(on ? 14 : 15)),
+  };
+}
+
+// boardAsking: What the page asks the board through link, at each tick of ask. It asks for
+// the pins, or for the slots every 10th time. It asks nothing more until the last request
+// is answered: more requests would fill the console's ring. After 100 ticks with no
+// answer, it asks again in case. Over Bluetooth, the board sends its pins by itself
+// (TellPins, console.c). The page then asks only for the slots, and pins sent unasked
+// answer nothing.
+function boardAsking(link) {
+  let answered = true, unanswered = 0, asks = 0;
+  return {
+    tick: () => {
+      unanswered += 1;
+      if (!answered && unanswered < 100)
+        return;
+      asks += 1;
+      if (link.pushesPins && asks % 10 !== 0)
+        return;
+      answered = false;
+      unanswered = 0;
+      if (asks % 10 === 0)
+        link.askSlots();
+      else
+        link.askPins();
+    },
+    frame: (frame) => {
+      if (frame.slots || !link.pushesPins)
+        answered = true;
+    },
+  };
+}
+
+// boardLink: A serial port (Web Serial) opened on the board's console: onText gets what it
+// prints, onEnd is told if the port ends by itself, the board unplugged.
+async function boardLink(port, onText, onEnd, onFrame = () => {}, onEvent = () => {}) {
+  await port.open({ baudRate: 115200 });
+  const writer = port.writable.getWriter();
+  let reader = null, closing = false;
+  const onBytes = boardStream(onText, onFrame, onEvent);
+  const closed = (async () => {
     // An error the port survives, a break or a framing error, gives a new stream; one it
     // does not, the board unplugged, leaves none.
     while (!closing && port.readable !== null) {
@@ -427,14 +477,113 @@ async function boardLink(port, onText, onEnd, onFrame = () => {}, onEvent = () =
   })();
   const write = (bytes) => writer.write(bytes).catch(() => {});
   return {
-    send: (line) => write(encoder.encode(line + "\r")),
-    interrupt: () => write(Uint8Array.of(3)),
-    askPins: () => write(Uint8Array.of(5)),
-    askSlots: () => write(Uint8Array.of(6)),
-    trace: (on) => write(Uint8Array.of(on ? 14 : 15)),
+    ...boardCommands(write),
+    // close resolves once the port is closed: opening it again before that would fail.
     close: () => {
       closing = true;
-      return reader === null ? undefined : reader.cancel().catch(() => {});
+      return (reader === null ? Promise.resolve() : reader.cancel().catch(() => {})).then(() => closed);
+    },
+  };
+}
+
+// The Nordic UART service of the Pico W's console (pico/radio/console.gatt). The board
+// reads the bytes written to RX. It sends its output as notifications on TX.
+const UART_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const UART_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+const UART_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+const UART_CHUNK = 20;   // what any connection takes in one write: the smallest MTU minus 3
+
+// bluetoothLink: Opens the console of a Pico W over Bluetooth LE (Web Bluetooth), as
+// boardLink opens a serial port's. onEnd is told if the connection ends by itself, when the
+// board is out of reach or reset. Writes go one after the other, a chunk at a time: a long
+// line is not cut short, and lines keep their order.
+// A connection may never finish when the board is barely in reach. It is given up after
+// wait ms: otherwise the page would wait for it forever.
+async function bluetoothLink(device, onText, onEnd, onFrame = () => {}, onEvent = () => {}, wait = 20000) {
+  const opening = (async () =>
+    bluetoothOpened(device, await device.gatt.connect(), onText, onEnd, onFrame, onEvent))();
+  let timer;
+  const given = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(Object.assign(new Error("no answer in " + wait / 1000 + " s"),
+      { slow: true })), wait);
+  });
+  try {
+    return await Promise.race([opening, given]);
+  } catch (e) {
+    opening.then((link) => link.close(), () => {});   // close one that comes too late
+    device.gatt.disconnect();   // or the board, which takes one connection, stays taken
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// bluetoothOpened: The rest of bluetoothLink, once connected. onEnd is told only once the
+// link is open: the caller handles a failure before that.
+async function bluetoothOpened(device, server, onText, onEnd, onFrame, onEvent) {
+  const service = await server.getPrimaryService(UART_SERVICE);
+  const rx = await service.getCharacteristic(UART_RX), tx = await service.getCharacteristic(UART_TX);
+  const onBytes = boardStream(onText, onFrame, onEvent);
+  let closing = false, leaving = false, queue = Promise.resolve();
+  // The browser gives the same device to each connection. This connection owns it until a
+  // newer one takes it. An older connection that closes late must then leave it alone.
+  const owner = {};
+  device.escapementOwner = owner;
+  const notified = (e) =>
+    onBytes(new Uint8Array(e.target.value.buffer, e.target.value.byteOffset, e.target.value.byteLength));
+  tx.addEventListener("characteristicvaluechanged", notified);
+  try {
+    await tx.startNotifications();
+  } catch (e) {
+    tx.removeEventListener("characteristicvaluechanged", notified);
+    throw e;
+  }
+  // The browser gives the same device and characteristics to each connection: the
+  // listeners must go with this connection.
+  // release: Removes the listeners this connection put on the device and its
+  // characteristic.
+  const release = () => {
+    device.removeEventListener("gattserverdisconnected", ended);
+    tx.removeEventListener("characteristicvaluechanged", notified);
+  };
+  const ended = () => {
+    release();
+    if (!closing && !leaving)
+      onEnd();
+    closing = true;
+  };
+  device.addEventListener("gattserverdisconnected", ended);
+  const write = (bytes) => {
+    if (leaving)
+      return queue;
+    for (let i = 0; i < bytes.length; i += UART_CHUNK) {
+      const chunk = bytes.slice(i, i + UART_CHUNK);
+      queue = queue.then(() => closing ? undefined : rx.writeValueWithoutResponse(chunk)).catch(() => {
+        // A line with a chunk missing would still run on the board: the link is given up
+        // instead.
+        if (!closing) {
+          ended();
+          if (device.escapementOwner === owner)
+            device.gatt.disconnect();
+        }
+      });
+    }
+    return queue;
+  };
+  return {
+    ...boardCommands(write),
+    pushesPins: true,
+    // What was written before goes out first, such as the trace(false) sent just before.
+    // Nothing goes out after.
+    close: () => {
+      const last = queue;
+      leaving = true;
+      return last.then(() => {
+        closing = true;
+        release();
+        if (device.escapementOwner === owner)
+          device.gatt.disconnect();
+      });
     },
   };
 }

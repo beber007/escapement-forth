@@ -181,7 +181,7 @@
   .steps button { border: 1px solid var(--line); background: var(--bg); border-radius: 0.5rem; padding: 0.375rem 0.75rem;
                   font-size: 0.9rem; }
   .steps .run { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
-  .steps button:disabled { opacity: 0.45; cursor: default; }
+  .steps button:disabled, .restart:disabled { opacity: 0.45; cursor: default; }
 
   .rules { margin-top: 2.25rem; }
   .rules h2 { font-size: 1.05rem; margin: 0 0 0.75rem; }
@@ -246,8 +246,8 @@
              transition: width 200ms; }
   .gauge b { position: absolute; top: -0.25rem; bottom: -0.25rem; width: 2px; background: var(--over); }
   .gauge-text { font-size: 0.78rem; color: var(--muted); }
-  .actions { flex: none; display: flex; gap: 0.5rem; }
-  .actions .restart { flex: 1; }
+  .actions { flex: none; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .actions .restart { flex: 1 1 auto; white-space: nowrap; }
   .restart { flex: none; background: transparent; border: 1px solid var(--line); border-radius: 0.5rem; padding: 0.25rem;
              font-size: 0.8rem; color: var(--muted); }
   .restart:hover { color: var(--ink); border-color: var(--muted); }
@@ -330,9 +330,10 @@
       <div class="actions">
         <button class="restart" id="restart" data-i18n="restart">Restart Forth</button>
         <button class="restart" id="connect" data-i18n="connect" hidden>Connect a Pico</button>
+        <button class="restart" id="bluetooth" data-i18n="bluetooth" hidden>Bluetooth</button>
         <button class="restart" id="disconnect" data-i18n="disconnect" hidden>Disconnect</button>
       </div>
-      <p class="firmware" id="firmware" data-i18n="firmware" hidden>Firmware for the <a href="EscapementForth.uf2" download>Pico</a> or the <a href="EscapementForth-pico2.uf2" download>Pico 2</a>: hold BOOTSEL while plugging the board in, then copy the file to the disk that appears. It replaces its firmware. The board then has a serial port on its USB.</p>
+      <p class="firmware" id="firmware" data-i18n="firmware" hidden>Firmware for the <a href="EscapementForth.uf2" download>Pico</a>, the <a href="EscapementForth-pico2.uf2" download>Pico 2</a> or the <a href="EscapementForth-picow.uf2" download>Pico W</a>: hold BOOTSEL while plugging the board in, then copy the file to the disk that appears. The board then has a serial port on its USB. In Chrome, you can also connect to a Pico W over Bluetooth.</p>
     </div>
   </div>
 
@@ -506,7 +507,7 @@
     how4: "<b>L'échéance d'abord</b>Le noyau fait toujours passer la tâche dont l'échéance est la plus proche (EDF). La tâche de 1 ms interrompt celle de 1 s. La console passe après toutes.",
     demo: '<a href="https://youtu.be/f03H2mjgLlU">Voir la démo (2 min)</a>',
     rules: "Les règles", tour: "Visite guidée", cost: "Coût de <code>work</code>",
-    restart: "Relancer le Forth", connect: "Brancher un Pico", firmware: 'Firmware pour le <a href="EscapementForth.uf2" download>Pico</a> ou le <a href="EscapementForth-pico2.uf2" download>Pico 2</a> : maintiens BOOTSEL en branchant la carte, puis copie le fichier sur le disque qui apparaît. Il remplace son firmware. La carte a alors un port série sur son USB.', disconnect: "Débrancher", live: "La frise : ce que lance le noyau", running: "en cours, une couleur par tâche",
+    restart: "Relancer le Forth", connect: "Brancher un Pico", bluetooth: "Bluetooth", firmware: 'Firmware pour le <a href="EscapementForth.uf2" download>Pico</a>, le <a href="EscapementForth-pico2.uf2" download>Pico 2</a> ou le <a href="EscapementForth-picow.uf2" download>Pico W</a> : maintiens BOOTSEL en branchant la carte, puis copie le fichier sur le disque qui apparaît. La carte a alors un port série sur son USB. Dans Chrome, le Pico W marche aussi en Bluetooth.', disconnect: "Débrancher", live: "La frise : ce que lance le noyau", running: "en cours, une couleur par tâche",
     waiting: "en attente, interrompue", release: "lancement", overlegend: "au-delà du budget",
     pool: "Le tableau des cases", poolnote: "temps le plus long / budget",
     honest: "Cette page web et la carte",
@@ -533,7 +534,8 @@
           board: "Connected to a Pico.",
           boardLost: "The Pico is gone. Connect it again, or click Restart Forth.",
           boardHello: "This console is now the Pico's. The pins and the slots follow it between two lines. The timeline shows the tasks that have words. The tour runs on it. GP15 and GP20 are now outputs. Ctrl-C stops a word.\n",
-          boardFailed: "Could not open the port: ",
+          boardFailed: "Could not connect to the board: ",
+          bluetoothOff: "Bluetooth is off.", bluetoothSlow: "No answer in 20 s.",
           welcome: "Escapement Forth, in WebAssembly. Type a line and press Enter, or follow the tour.\n",
           budget: "trial budget ", free: "free", trial: "trial", promoted: "promoted", failedChip: "failed",
           figures: (e) => time(e.max, "en") + " / " + time(e.budget, "en") + "\n" + count(e.runs) + (e.runs === 1 ? " run" : " runs") +
@@ -561,7 +563,8 @@
           board: "Relié à un Pico.",
           boardLost: "Le Pico n'est plus là. Rebranche-le, ou clique sur Relancer le Forth.",
           boardHello: "Cette console est maintenant celle du Pico. Les broches et les cases le suivent entre deux lignes. La frise montre les tâches qui ont des mots. La visite tourne dessus. GP15 et GP20 sont maintenant des sorties. Ctrl-C arrête un mot.\n",
-          boardFailed: "Impossible d'ouvrir le port : ",
+          boardFailed: "Impossible de se connecter à la carte : ",
+          bluetoothOff: "Le Bluetooth est éteint.", bluetoothSlow: "Pas de réponse en 20 s.",
           welcome: "Escapement Forth, en WebAssembly. Tape une ligne puis Entrée, ou suis la visite.\n",
           budget: "budget d'essai ", free: "libre", trial: "essai", promoted: "promu", failedChip: "en échec",
           figures: (e) => time(e.max, "fr") + " / " + time(e.budget, "fr") + "\n" + count(e.runs) + " fois" +
@@ -1231,9 +1234,11 @@
     worker = null;
     if (link !== null) {
       link.trace(false);
-      link.close();
+      closed = link.close();
     }
     link = null;
+    connection = null;
+    boardAsks = null;
     clearInterval(asking);
     view.reset();
     showViews();
@@ -1254,16 +1259,26 @@
     flipped = -Infinity;
   }
 
+  let connecting = false;   // see connect
+  let closed = Promise.resolve();   // the last link's close: the next connection waits for it
+  // within: Waits for p, but no longer than ms.
+  const within = (p, ms) => Promise.race([p, new Promise((done) => setTimeout(done, ms))]);
   function showLinked() {
     document.getElementById("connect").hidden = link !== null || !("serial" in navigator);
-    document.getElementById("firmware").hidden = link !== null || !("serial" in navigator);
+    document.getElementById("bluetooth").hidden = link !== null || !("bluetooth" in navigator);
+    document.getElementById("connect").disabled = document.getElementById("bluetooth").disabled = connecting;
+    document.getElementById("firmware").hidden = link !== null || !("serial" in navigator || "bluetooth" in navigator);
     document.getElementById("disconnect").hidden = link === null;
     document.querySelector(".legend .tick").parentElement.hidden = link !== null;
   }
 
-  // ask: The pins often, the slots less: what the console has not answered yet, it is
-  // running a line, and more would fill its ring. Asked again after a while, in case.
-  let boardLines = null, traceIn = null, asking = null, traceAsked = 0, asks = 0, boardAnswered = true, unanswered = 0;
+  // ask: What the board is asked (boardAsking), and the trace it sends.
+  let boardLines = null, traceIn = null, asking = null, traceAsked = 0, boardAsks = null;
+  // connection: The board's connection, or null. A connection cleared while it opened is
+  // not wanted any more: the Forth restarted, or the board was let go. What an older
+  // connection sends while it closes is for no one. So is what this one sends before it
+  // is ready.
+  let connection = null;
   function ask() {
     const traced = traceIn.flush();
     if (traced !== null)
@@ -1277,33 +1292,41 @@
     // The tour's lines ask the slots themselves: one more would come before they ended.
     if (boardLines.busy())
       return;
-    unanswered += 1;
-    if (!boardAnswered && unanswered < 100)
-      return;
-    boardAnswered = false;
-    unanswered = 0;
-    asks += 1;
-    if (asks % 10 === 0)
-      link.askSlots();
-    else
-      link.askPins();
+    boardAsks.tick();
   }
 
-  // connect: The console on a Pico the visitor chooses, the Forth of the page stopped.
-  let connecting = false;
-  async function connect() {
-    if (connecting)
+  // connect: Connects to the console on a Pico the visitor chooses, and stops the page's
+  // Forth. choose asks the browser for the board, and open opens it with boardLink or
+  // bluetoothLink. Only one connection runs at a time, even one the page let go of, until
+  // it ends: two would take the same board. Meanwhile the buttons are greyed.
+  async function connect(choose, open) {
+    if (connecting || connection !== null)
       return;
     connecting = true;
+    showLinked();
+    // What the board sends before this connection is ready is for no one. The page takes
+    // the board's text and frames only once boardLines and boardAsks belong to it.
+    const mine = { ready: false };
+    const ours = () => connection === mine && mine.ready;
+    connection = mine;
     try {
-      const port = await navigator.serial.requestPort();
-      const opened = await boardLink(port, (text) => boardLines.text(text), () => {
+      // The browser asks first, while the click still counts as a user gesture: it refuses
+      // after 5 s.
+      const chosen = await choose();
+      // Waits for the last link to close, as the board may be the same. A close that hangs
+      // is given up after 2 s.
+      await within(closed, 2000);
+      if (connection !== mine)
+        return;
+      const lost = () => {
+        connection = null;
         link = null;
         if (typing) {
           typeFailed = true;
           tourDone();
         }
         clearInterval(asking);
+        boardAsks = null;
         pool = [];
         load = 0;
         showPool();
@@ -1313,8 +1336,18 @@
         print(T[lang].boardLost + "\n", "note");
         showLinked();
         showStep();
+      };
+      const opened = await open(chosen, (text) => ours() && boardLines.text(text), () => {
+        if (connection !== mine)
+          return;
+        if (mine.ready)
+          lost();
+        else
+          mine.ended = true;   // the end is told once it is ready
       }, (frame) => {
-        boardAnswered = true;
+        if (!ours())
+          return;
+        boardAsks.frame(frame);
         if (frame.slots) {
           pool = frame.slots;
           load = frame.load;
@@ -1324,8 +1357,14 @@
         }
         else
           showPins(frame.pins);
-      }, (event) => traceIn.add(event));
+      }, (event) => ours() && traceIn.add(event));
+      if (connection !== mine) {
+        closed = opened.close();   // the next connection waits for it too
+        await within(closed, 2000);
+        return;
+      }
       clear();
+      connection = mine;
       link = opened;
       boardLines = boardTour({ send: (line) => link.send(line), askSlots: () => link.askSlots(),
         print: (text) => print(text),
@@ -1342,10 +1381,14 @@
         stopped: () => print(T[lang].pasteStopped + "\n", "note") });
       // A board's pins are inputs until told; the tour's LEDs need no line on the page's Forth.
       boardLines.add("1 15 lshift output 1 20 lshift output", true, true);
-      boardAnswered = true;
-      unanswered = 0;
+      boardAsks = boardAsking(link);
       traceIn = boardTrace();
+      mine.ready = true;
       link.trace(true);
+      // Over Bluetooth, the pins come when they change. Their current state is asked for
+      // once.
+      if (link.pushesPins)
+        link.askPins();
       asking = setInterval(ask, 50);
       statusState = ["board", ""];
       showStatus();
@@ -1353,12 +1396,19 @@
       showLinked();
       print(T[lang].boardHello, "note");
       input.focus();
+      if (mine.ended)   // the board left while it opened
+        lost();
     } catch (e) {
+      if (connection !== mine)   // given up: the page's Forth has the console now
+        return;
+      connection = null;
       // None chosen is no failure.
       if (e.name !== "NotFoundError")
         print(T[lang].boardFailed + e.message + "\n", "note");
+    } finally {
+      connecting = false;
+      showLinked();
     }
-    connecting = false;
   }
 
   function start() {
@@ -1531,7 +1581,18 @@
       input.focus();
   });
   document.getElementById("restart").addEventListener("click", start);
-  document.getElementById("connect").addEventListener("click", connect);
+  document.getElementById("connect").addEventListener("click", () =>
+    connect(() => navigator.serial.requestPort(), boardLink));
+  document.getElementById("bluetooth").addEventListener("click", () =>
+    connect(async () => {
+      // With Bluetooth off, the browser says that no device was chosen, as when none is.
+      // So the page says it here.
+      if (navigator.bluetooth.getAvailability && !(await navigator.bluetooth.getAvailability()))
+        throw new Error(T[lang].bluetoothOff);
+      return navigator.bluetooth.requestDevice({ filters: [{ services: [UART_SERVICE] }] });
+    }, (device, ...on) => bluetoothLink(device, ...on)
+      // The timeout error, in the page's language.
+      .catch((e) => { throw e.slow ? new Error(T[lang].bluetoothSlow) : e; })));
   document.getElementById("disconnect").addEventListener("click", () => {
     start();
     input.focus();
