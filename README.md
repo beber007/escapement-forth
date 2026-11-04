@@ -73,8 +73,8 @@ flowchart LR
 - **Core 0** runs Escapement's hard kernel (EDF) and the slots (`src/slots.c`). There is
   one task per period, 1, 10, 100 and 1000 ms, and each task has four slots.
 - **Core 1** runs the console: a small indirect-threaded Forth (`src/forth.c`) on the Pico's
-  USB while a program has that port open, and otherwise on UART0 (GP0 TX, GP1 RX, 115200
-  8N1). It has no kernel. An interrupt every millisecond watches core 0 and reads both. Ctrl-C stops the running word, or clears the line.
+  USB while a program has that port open. Otherwise, on a Pico W, it is on Bluetooth while a
+  web page is connected. Otherwise it is on UART0 (GP0 TX, GP1 RX, 115200 8N1). It has no kernel. An interrupt every millisecond watches core 0 and reads the ports. Ctrl-C stops the running word, or clears the line.
 
 ```forth
 \ board words: output high low toggle pins ( masks: 1 15 lshift is GP15 )
@@ -186,9 +186,10 @@ timeline shows what the kernel ran, from a trace the port keeps, and a table sho
 slot against its budget. The times are the browser's, not the Pico's. The browser's own
 pauses are left out.
 
-The console can also talk to a real Pico or Pico 2. In Chrome or Edge, click **Connect a Pico**
+The console can also talk to a real Pico, Pico 2 or Pico W. In Chrome or Edge, click **Connect a Pico**
 and choose its serial port. A USB cable is enough: the board has a serial port on its own USB.
-UART0, on GP0 and GP1, stays the console's while no program has the USB port open.
+UART0, on GP0 and GP1, stays the console's while no program has the USB port open. On a
+Pico W, no one must be connected over Bluetooth either.
 The board must run this Forth. The web page offers a UF2 for each: hold BOOTSEL while plugging
 in the board, then copy the file to the disk that appears. This replaces its firmware.
 The image is then copied from the flash to SRAM at each start, and runs from there.
@@ -200,6 +201,15 @@ board sends while the web page is connected. Its times are then the Pico's. It c
 at 115200 baud, words on the 1 ms task nearly fill the link. Bytes 28, 30 and 31 are for the
 web page: a word that prints them disturbs it. The tour runs on the board too.
 
+A Pico W can also be reached without a cable, over Bluetooth LE. In Chrome, click **Bluetooth**
+and choose "Escapement Forth". The board must be near: a Mac a few metres away never finished
+the connection. The board takes one connection at a time. Anyone near can connect: there is
+no pairing. If a program opens the board's USB port, it takes the console, and the board
+closes the Bluetooth connection at once. Over Bluetooth, the board sends its pins to the web
+page as soon as they change, at most every 10 ms, but not while a line runs. If Chrome says
+"GATT operation failed", the computer may still remember the services of another firmware on
+this board. On a Mac, `sudo pkill bluetoothd` makes it forget them.
+
 A paste of several lines goes one line at a time, each once the one before is answered. The
 first line that fails stops the rest. On the board, Ctrl-C stops it too. If a line is over 127
 bytes, nothing is sent.
@@ -209,7 +219,7 @@ bytes, nothing is sent.
 | Level | What it establishes | When |
 |---|---|---|
 | Host tests | the Forth and the slots on the host, with the sanitizers, under gcc and clang | each push to main and each pull request (gcc) |
-| Pico and Pico 2 images | both firmwares build, with Escapement's CI image | each push to main and each pull request |
+| Pico, Pico 2 and Pico W images | the three firmwares build, with Escapement's CI image | each push to main and each pull request |
 | WebAssembly | the web page's Forth and kernel run under Node, in three clock modes, and every step of the tour is played | each push to main and each pull request |
 | Browser | the web page in a headless Chrome, in English and in French: its first step runs and each step fits a 1280 by 680 window without a scroll | each push to main and each pull request |
 | On a Pico | `tools/smoke.fs` and `tools/restart.fs` on Escapement's test bench, read over SWD | by hand, not at each commit |
@@ -273,6 +283,7 @@ make -C test/host run      # the Forth and the slots on the host, with the sanit
 make -C pico               # pico/build/EscapementForth.elf, loaded into SRAM over SWD,
                            # and EscapementForth.uf2, the same image for the flash
 make -C pico BOARD=pico2   # the same for a Pico 2, in pico/build-pico2/
+make -C pico BOARD=picow   # a Pico W, with its radio and Bluetooth, in pico/build-picow/
 make -C web serve          # the web page on http://localhost:8000, needs clang and wasm-ld
 make -C web test           # its WebAssembly under Node (JS=.../jsc JS_ARGS=--)
 make -C web page           # it in a headless Chrome, in English and in French
@@ -281,6 +292,10 @@ make -C web page           # it in a headless Chrome, in English and in French
 Without a UART, `make -C pico SCRIPT=tools/smoke.fs` (or `tools/restart.fs`) builds an
 image that types that file at start and keeps the output in RAM.
 `tools/smoke_board.sh` reads it over SWD on Escapement's test bench.
+
+The Pico W's radio firmware is in the flash, at 1 MB. The UF2 file includes it. If you load the
+image into SRAM over SWD instead, first write `pico/build-picow/radio.bin` once into the flash,
+at `0x10100000`.
 
 The image loads like Escapement's examples (see its `docs/rp2040.md`), with OpenOCD's
 `set USE_CORE 0`, so that core 1 runs. Escapement is a submodule, pinned to the commit
@@ -293,3 +308,15 @@ This project is developed with the help of an AI, as Escapement is. The AI's pro
 ## Licence
 
 See [LICENSE](LICENSE), the same as Escapement's.
+
+The Pico W's image includes code under other licences. The licences of cyw43-driver and
+BTstack allow its use only on Raspberry Pi hardware:
+- [cyw43-driver](https://github.com/georgerobotics/cyw43-driver), the radio's driver and
+  firmware, in `lib/cyw43-driver`: see its `LICENSE.RP`.
+- [BTstack](https://github.com/bluekitchen/btstack), the Bluetooth stack, in `lib/btstack`:
+  see [pico/radio/LICENSE.BTstack.RP](pico/radio/LICENSE.BTstack.RP), Raspberry Pi's licence
+  for the Pico W.
+- A few files of the [pico-sdk](https://github.com/raspberrypi/pico-sdk), whole or in part,
+  in `pico/radio`: see [pico/radio/LICENSE.pico-sdk](pico/radio/LICENSE.pico-sdk).
+
+The Pico and Pico 2 images include none of this code.

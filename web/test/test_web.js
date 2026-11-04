@@ -142,7 +142,18 @@ const pend = (queue, pool) => {
   const item = V.pending(queue, pool);
   return item === null ? null : item.line;
 };
-const V = Function(text(args[3]) + " return { boardLink, boardFrame, boardTour, boardTrace, timeline, resolve, pending, abandon, answered, pasteLines, full, grainOf, coarse, time, share, count, rowNames, hit, span, WINDOWS, ZOOM };")();
+// JavaScriptCore has setTimeout but no clearTimeout. view.js uses it, as browsers have it.
+if (typeof clearTimeout === "undefined") {
+  const cancelled = new Set(), timeout = setTimeout;
+  let next = 0;
+  globalThis.setTimeout = (f, ms) => {
+    const id = ++next;
+    timeout(() => { if (!cancelled.delete(id)) f(); }, ms);
+    return id;
+  };
+  globalThis.clearTimeout = (id) => { cancelled.add(id); };
+}
+const V = Function(text(args[3]) + " return { boardLink, bluetoothLink, boardAsking, UART_SERVICE, boardFrame, boardTour, boardTrace, timeline, resolve, pending, abandon, answered, pasteLines, full, grainOf, coarse, time, share, count, rowNames, hit, span, WINDOWS, ZOOM };")();
 
 forth.web_init();
 take();
@@ -939,7 +950,135 @@ async function boardLinkChecks() {
   let fault = "";
   try { await boardLink(failing, () => {}, () => {}); } catch (e) { fault = e.message; }
   check("a port that cannot open says why", fault === "busy", fault);
+  await bluetoothChecks(encode, settle);
 }
+
+// bluetoothLink, on a fake Pico W: its Nordic UART service, what it notifies, what is
+// written to it, and how it ends.
+async function bluetoothChecks(encode, settle) {
+  const { bluetoothLink, UART_SERVICE } = V;
+  const makeDevice = (failNotify, failWrite) => {
+    const device = { writes: [], tried: 0, busy: 0, overlapped: false, disconnected: 0, listeners: {}, service: null };
+    const tx = { listener: null,
+      addEventListener: (name, f) => { tx.listener = f; },
+      removeEventListener: (name, f) => { if (tx.listener === f) tx.listener = null; },
+      startNotifications: async () => { if (failNotify) throw new Error("GATT operation failed"); } };
+    const rx = { writeValueWithoutResponse: async (bytes) => {
+      device.busy += 1;
+      device.overlapped = device.overlapped || device.busy > 1;
+      await null;
+      device.busy -= 1;
+      device.tried += 1;
+      if (device.tried === failWrite)
+        throw new Error("GATT operation failed");
+      device.writes.push(Array.from(bytes));
+    } };
+    device.tx = tx;
+    device.notify = (text) => {
+      const b = encode(text);
+      tx.listener({ target: { value: new DataView(b.buffer) } });
+    };
+    device.addEventListener = (name, f) => { device.listeners[name] = f; };
+    device.removeEventListener = (name, f) => { if (device.listeners[name] === f) delete device.listeners[name]; };
+    device.gatt = {
+      connect: async () => ({ getPrimaryService: async (uuid) => {
+        device.service = uuid;
+        return { getCharacteristic: async (uuid) => (uuid.startsWith("6e400002") ? rx : tx) };
+      } }),
+      disconnect: () => {
+        device.disconnected += 1;
+        if (device.listeners.gattserverdisconnected)
+          device.listeners.gattserverdisconnected();
+      },
+    };
+    return device;
+  };
+  let got = "", ended = 0;
+  let device = makeDevice(false);
+  let link = await bluetoothLink(device, (t) => { got += t; }, () => { ended += 1; });
+  check("Bluetooth: the Nordic UART service", device.service === UART_SERVICE, device.service);
+  device.notify("1 ok\r\n");
+  check("Bluetooth: what the board notifies is text", got === "1 ok\n", got);
+  const line = ": blink  1 15 lshift toggle ; ' blink 100 every";
+  link.send(line);
+  await link.interrupt();
+  await settle();
+  check("Bluetooth: no write over 20 bytes", device.writes.every((w) => w.length <= 20), device.writes);
+  check("Bluetooth: a line whole, in order, then Ctrl-C",
+        device.writes.flat().join() === Array.from(encode(line + "\r")).concat([3]).join(), device.writes);
+  check("Bluetooth: one write at a time", !device.overlapped, "");
+  await link.close();
+  check("Bluetooth: closing disconnects, and is not an end", device.disconnected === 1 && ended === 0, ended);
+  check("Bluetooth: closing lets go of the device", !device.listeners.gattserverdisconnected && device.tx.listener === null, "");
+  device = makeDevice(false);
+  link = await bluetoothLink(device, () => {}, () => { ended += 1; });
+  link.trace(false);
+  await link.close();
+  check("Bluetooth: closing sends what was written before", device.writes.flat().join() === "15" &&
+        device.disconnected === 1 && ended === 0, device.writes);
+  device = makeDevice(false);
+  const older = await bluetoothLink(device, () => {}, () => { ended += 1; });
+  link = await bluetoothLink(device, () => {}, () => { ended += 1; });
+  await older.close();
+  check("Bluetooth: an older link closed leaves a newer one be", device.disconnected === 0 && ended === 0 &&
+        device.listeners.gattserverdisconnected !== undefined, device.disconnected);
+  await link.close();
+  device = makeDevice(false, 2);
+  const stale = await bluetoothLink(device, () => {}, () => { ended += 1; });
+  link = await bluetoothLink(device, () => {}, () => { ended += 1; });
+  stale.send(line);
+  await settle();
+  check("Bluetooth: an older link's write refused leaves a newer one be", device.disconnected === 0, device.disconnected);
+  await link.close();
+  ended = 0;
+  device = makeDevice(false);
+  link = await bluetoothLink(device, () => {}, () => { ended += 1; });
+  device.listeners.gattserverdisconnected();
+  check("Bluetooth: the board gone ends the link", ended === 1, ended);
+  check("Bluetooth: the end lets go of the device", !device.listeners.gattserverdisconnected && device.tx.listener === null, "");
+  ended = 0;
+  device = makeDevice(false, 2);
+  link = await bluetoothLink(device, () => {}, () => { ended += 1; });
+  link.send(line);
+  await settle();
+  check("Bluetooth: a write refused, no more of the line sent", device.writes.length === 1, device.writes);
+  check("Bluetooth: a write refused ends the link", ended === 1 && device.disconnected === 1, ended);
+  ended = 0;
+  device = makeDevice(true);
+  let fault = "";
+  try { await bluetoothLink(device, () => {}, () => { ended += 1; }); } catch (e) { fault = e.message; }
+  check("Bluetooth: a failure says why", fault === "GATT operation failed", fault);
+  check("Bluetooth: a failure lets the board go, and is not an end", device.disconnected === 1 && ended === 0, ended);
+  check("Bluetooth: a failure lets go of what it notifies", device.tx.listener === null, "");
+  device = makeDevice(false);
+  device.gatt.connect = () => new Promise(() => {});
+  fault = "";
+  try { await bluetoothLink(device, () => {}, () => { ended += 1; }, undefined, undefined, 20); } catch (e) { fault = e.slow; }
+  check("Bluetooth: a connection that never comes is given up, the page told why", fault === true && device.disconnected === 1 && ended === 0, fault);
+}
+
+// boardAsking: the pins every 50 ms and the slots every 500 ms, with no second request
+// before the answer. Over Bluetooth, the board sends its pins by itself, and they answer
+// nothing.
+function askingChecks() {
+  const run = (pushesPins, frames) => {
+    const asked = [];
+    const asking = V.boardAsking({ pushesPins, askPins: () => asked.push("p"), askSlots: () => asked.push("s") });
+    for (let i = 0; i < 20; i++) {
+      asking.tick();
+      for (const f of frames(asked))
+        asking.frame(f);
+    }
+    return asked.join("");
+  };
+  const answering = (asked) => { const n = asked.n || 0; asked.n = asked.length; return asked.slice(n).map((a) => a === "s" ? { slots: [] } : { pins: 0 }); };
+  check("asking: the pins each tick, the slots each 10th", run(false, answering) === "pppppppppsppppppppps", run(false, answering));
+  check("asking: none again before the answer", run(false, () => []) === "p", run(false, () => []));
+  check("asking: over Bluetooth, the slots alone", run(true, answering) === "ss", run(true, answering));
+  check("asking: over Bluetooth, pins told answer no asking", run(true, (asked) => [{ pins: asked.length }]) === "s",
+        run(true, (asked) => [{ pins: asked.length }]));
+}
+askingChecks();
 
 boardLinkChecks().catch((e) => check("the link's checks ran", false, String(e))).then(() => {
   say(failures === 0 ? "all passed" : failures + " FAILED");

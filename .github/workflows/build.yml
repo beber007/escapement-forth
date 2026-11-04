@@ -35,3 +35,7 @@ jobs:
         run: |
           make -C pico BOARD=pico2
           arm-none-eabi-size pico/build-pico2/EscapementForth.elf
+      - name: Pico W image
+        run: |
+          make -C pico BOARD=picow
+          arm-none-eabi-size pico/build-picow/EscapementForth.elf
