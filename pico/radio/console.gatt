@@ -1,0 +1,9 @@
+// The console over Bluetooth LE (link.c): its name, and the Nordic UART service.
+PRIMARY_SERVICE, GAP_SERVICE
+CHARACTERISTIC, GAP_DEVICE_NAME, READ, "Escapement Forth"
+
+// Its hash changes with the attributes: a client that kept them knows to look again.
+PRIMARY_SERVICE, GATT_SERVICE
+CHARACTERISTIC, GATT_DATABASE_HASH, READ,
+
+#import <nordic_spp_service.gatt>
