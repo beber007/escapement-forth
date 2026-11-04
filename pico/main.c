@@ -20,6 +20,9 @@
 #include "console.h"
 #include "restart.h"
 #include "chip.h"
+#ifdef PICO_W
+   #include "radio.h"
+#endif
 
 #define VTOR              *((volatile UINT32 *)0xE000ED08)
 #define WATCHDOG_CTRL_CLR *((volatile UINT32 *)(CHIP_WATCHDOG + 0x3000))
@@ -73,6 +76,9 @@ int main(void)
      /* A firmware in the flash may have armed the watchdog, which the debugger's hold on
      ** core 1 paused: core 1 runs from here on. */
      WATCHDOG_CTRL_CLR = WATCHDOG_ENABLE;
+     #ifdef PICO_W
+        RadioClear();
+     #endif
      OSInitializeSystemClocks();
      ForthInit();
      ConsoleInit();

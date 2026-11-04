@@ -46,12 +46,14 @@
    #define CHIP_TIMER_INTF     (CHIP_TIMER + 0x3C)
    #define CHIP_WATCHDOG       0x40058000
    #define CHIP_IO_BANK0       0x40014000
+   #define CHIP_PADS_BANK0     0x4001C000
    #define CHIP_UART0          0x40034000
    #define CHIP_PLL_USB        0x4002C000
    #define CHIP_CLK_USB_CTRL   (0x40008000 + 0x54)
    #define CHIP_CLK_USB_DIV    (0x40008000 + 0x58)
    #define CHIP_CLK_USB_DIV_1  (1u << 8)
    #define CHIP_RESET_IO_BANK0 (1u << 5)
+   #define CHIP_RESET_PADS     (1u << 8)
    #define CHIP_RESET_PLL_USB  (1u << 13)
    #define CHIP_RESET_TIMER    (1u << 21)
    #define CHIP_RESET_UART0    (1u << 22)
