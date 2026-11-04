@@ -29,6 +29,14 @@
 #include "chip.h"
 #ifdef PICO_W
    #include "radio.h"
+   #include "link.h"
+#else
+   /* The Pico and the Pico 2 have no radio: no program is ever connected over it. */
+   #define LinkActive()      0
+   #define LinkRoom()        0u
+   #define LinkSend(c)       ((void)(c))
+   #define LinkPoll(r)       ((void)(r))
+   #define LinkDrop()        ((void)0)
 #endif
 
 #define UART0_BASE           CHIP_UART0
@@ -78,6 +86,7 @@
 #define CLOCK_EVERY          50000       /* us between two clocks for the page */
 #define SHARE_EVERY          5000        /* us between two shares of the events */
 #define TRACE_ASKED          5000000     /* us a page's asking holds */
+#define PINS_EVERY           10000       /* us at least between two reports of the pins */
 #define EVENTS_A_MS_USB      16
 #define FR_TXFE              (1u << 7)
 #define SIO_GPIO_IN          *((volatile UINT32 *)(0xD0000000 + 0x04))
@@ -155,6 +164,7 @@ volatile uint32_t TraceOn FORTH_KEEP;
 static volatile uint32_t Events[EVENTS] FORTH_KEEP;
 static volatile uint32_t EventHead FORTH_KEEP, EventTail FORTH_KEEP, EventLost FORTH_KEEP;
 static volatile uint32_t TraceAsked FORTH_KEEP, LastClock FORTH_KEEP, LastShare FORTH_KEEP;
+static int TraceAskedNow FORTH_KEEP;   /* ASK_TRACE heard in this tick of core 1's interrupt */
 static volatile int WasActive FORTH_KEEP;
 static volatile int Sending FORTH_KEEP;   /* an event under way: the interrupt holds off */
 
@@ -183,12 +193,29 @@ void TraceNote(uint32_t kind, uint32_t period)
   ForthUnmask(mask);
 } /* end of TraceNote */
 
+/* Linked: Whether a program holds the console over Bluetooth. A program on the USB comes
+** first: anyone nearby can connect over Bluetooth, with no pairing. */
+static int Linked(void)
+{
+  return LinkActive() && !UsbActive();
+} /* end of Linked */
+
+/* Ignored: Drops what comes over Bluetooth while a program holds the USB. */
+static void Ignored(char c)
+{
+  (void)c;
+} /* end of Ignored */
+
 static void SendByte(char c)
 {
   #ifdef SCRIPT
      if (LogLength < sizeof Log)
         Log[LogLength++] = c;
   #endif
+  if (Linked()) {   /* a program connected over Bluetooth */
+     LinkSend(c);
+     return;
+  }
   if (UsbActive()) {   /* a program has it open */
      UsbSend(c);
      return;
@@ -209,6 +236,10 @@ static void SendEvent(uint32_t event)
 ** USB's ring, of which each ms sends 64 bytes. */
 static UINT32 TraceRoom(void)
 {
+  if (Linked()) {
+     UINT32 room = LinkRoom() / 4;
+     return room < EVENTS_A_MS_USB ? room : EVENTS_A_MS_USB;
+  }
   if (UsbActive()) {
      UINT32 room = UsbRoom() / 4;
      return room < EVENTS_A_MS_USB ? room : EVENTS_A_MS_USB;
@@ -258,6 +289,7 @@ static void TraceHeard(char c)
         EventLost = 1;   /* what ran before this may not have ended */
      }
      TraceAsked = TIMER_TIMERAWL;
+     TraceAskedNow = 1;
      TraceOn = 1;
   }
   else
@@ -267,7 +299,7 @@ static void TraceHeard(char c)
 /* TraceLine: The start or end of a line, on core 1 outside its interrupt. */
 static void TraceLine(uint32_t kind)
 {
-  if (!TraceOn || (UsbActive() && UsbRoom() < 4))
+  if (!TraceOn || (Linked() && LinkRoom() < 4) || (!Linked() && UsbActive() && UsbRoom() < 4))
      return;
   Sending = 1;
   SendEvent(Event(kind,0));
@@ -280,7 +312,7 @@ static void Send(char c)
   if (TraceOn && TIMER_TIMERAWL - LastShare >= SHARE_EVERY) {
      LastShare = TIMER_TIMERAWL;
      Sending = 1;
-     SendEvents(UsbActive() ? TraceRoom() : EVENTS_A_TICK);   /* UART0's may wait, here */
+     SendEvents(UsbActive() || Linked() ? TraceRoom() : EVENTS_A_TICK);   /* UART0's may wait, here */
      Sending = 0;
   }
   SendByte(c);
@@ -318,17 +350,24 @@ static void Drain(void)
   }
 } /* end of Drain */
 
-/* Frame: What a program asks of the console with a byte of its own, sent apart from the
-** text between FRAME_START and FRAME_END: the pins or the pool. In a terminal, Ctrl-E and
-** Ctrl-F print them. Never while a line runs: the console answers between lines. */
+/* Frame: Sends the pins or the pool between FRAME_START and FRAME_END, apart from the
+** text. A program asks for them with a byte of its own. TellPins also sends the pins
+** unasked. In a terminal, Ctrl-E and Ctrl-F print them. A frame never comes while a line
+** runs: the console answers between lines. */
+static UINT32 PinsTold FORTH_KEEP, PinsToldAt FORTH_KEEP;
+
 static void Frame(char c)
 {
+  UINT32 pins;
   Send(FRAME_START);
   if (c == ASK_PINS) {
      ForthEmit('p');
      ForthEmit(' ');
      /* The outputs alone: an input nothing drives reads anything. */
-     ForthPrintNumber((Cell)(SIO_GPIO_IN & SIO_GPIO_OE));
+     pins = SIO_GPIO_IN & SIO_GPIO_OE;
+     PinsTold = pins & FREE_PINS;
+     PinsToldAt = TIMER_TIMERAWL;
+     ForthPrintNumber((Cell)pins);
   }
   else {
      ForthEmit('s');
@@ -338,7 +377,39 @@ static void Frame(char c)
   Send(FRAME_END);
 } /* end of Frame */
 
-/* Received: In core 1's interrupt, a byte from UART0 or the USB. */
+/* TellPins: Between lines, sends the free pins to a page over Bluetooth as soon as they
+** change. When the page asked for them, they followed its requests, which came up to
+** 15 ms early or late. That was enough to make a pin that blinks every 100 ms blink
+** unevenly on the page. Only the free pins count: the radio's own pins change all the
+** time. TellPins sends only with room for the frame and for one ms of the trace. A
+** dropped frame would leave its pins marked as told, and the page never asks for them. */
+static void TellPins(void)
+{
+  if (TraceOn && Linked() && LinkRoom() >= 32 + 4 * EVENTS_A_MS_USB &&
+      (SIO_GPIO_IN & SIO_GPIO_OE & FREE_PINS) != PinsTold &&
+      TIMER_TIMERAWL - PinsToldAt >= PINS_EVERY)
+     Frame(ASK_PINS);
+} /* end of TellPins */
+
+#ifdef PICO_W
+/* TellRadio: Between lines, tells once that the radio failed after the start, in core 1's
+** interrupt. The console goes on without Bluetooth. */
+static int RadioTold;
+
+static void TellRadio(void)
+{
+  if (RadioFailed != NULL && !RadioTold) {
+     RadioTold = 1;
+     ForthPrintText("bluetooth failed, ");
+     ForthPrintText(RadioFailed);
+     ForthPrintText("\n");
+  }
+} /* end of TellRadio */
+#else
+#define TellRadio() ((void)0)
+#endif
+
+/* Received: Takes a byte from UART0, the USB or Bluetooth, in core 1's interrupt. */
 static void Received(char c)
 {
   UINT32 head;
@@ -370,7 +441,8 @@ static void Received(char c)
   }
 } /* end of Received */
 
-/* Tick: Core 1's interrupt, alarm 3: core 0 watched, what UART0 and the USB received taken. */
+/* Tick: Core 1's interrupt, on alarm 3. It watches core 0 and takes what UART0, the USB
+** and Bluetooth received. */
 static void Tick(void)
 {
   int restart;
@@ -380,13 +452,25 @@ static void Tick(void)
      Restarted[restart] += 1;
   SendTrace();
   UsbPoll(Received);
-  /* A port opened or closed, its program may be gone: the trace is for one that asks. */
-  if (UsbActive() != WasActive) {
-     WasActive = UsbActive();
-     TraceOn = 0;
+  LinkPoll(Linked() ? Received : Ignored);   /* input is read where the output goes */
+  if (UsbActive() && LinkActive())   /* USB first: the Bluetooth page is dropped, not ignored */
+     LinkDrop();
+  /* A port opened or closed, so its program may be gone. The trace is only for a program
+  ** that asks. A program that asked in this tick, as its port opened, counts. That can
+  ** only be the USB's program: Bluetooth's input waits for the next tick. The trace never
+  ** stays on for UART0. */
+  if ((UsbActive() | Linked() << 1) != WasActive) {
+     WasActive = UsbActive() | Linked() << 1;
+     if (!TraceAskedNow || WasActive == 0)   /* UART0's terminal never asks for it */
+        TraceOn = 0;
+     else {   /* the new program asked: the old program's leftover trace is not for it */
+        EventTail = EventHead;
+        EventLost = 1;
+     }
   }
   while ((UART_FR & FR_RXFE) == 0)
      Received((char)UART_DR);
+  TraceAskedNow = 0;
 } /* end of Tick */
 
 /* ForthMemory: The chip's map (RP2040 datasheet 2.2, RP2350 datasheet 2.2): the ROM and the flash through the XIP
@@ -698,7 +782,9 @@ void ConsoleInit(void)
   SIO_GPIO_OUT_CLR = 0xFFFFFFFF;
   TraceOn = EventHead = EventTail = EventLost = 0;
   TraceAsked = LastClock = LastShare = 0;
+  TraceAskedNow = 0;
   Sending = WasActive = 0;
+  PinsTold = PinsToldAt = 0;
   InputHead = InputTail = 0;
   Break = 0;
   Breaks = 0;
@@ -727,6 +813,14 @@ void Console(void)
            ForthPrintText("radio up in ");
            ForthPrintNumber((Cell)((TIMER_TIMERAWL - start) / 1000));
            ForthPrintText(" ms\n");
+           if (LinkStart() != 0 || RadioFailed != NULL) {
+              ForthPrintText("bluetooth failed");
+              if (RadioFailed != NULL) {
+                 ForthPrintText(", ");
+                 ForthPrintText(RadioFailed);
+              }
+              ForthPrintText("\n");
+           }
         }
         else {
            ForthPrintText("radio failed ");
@@ -741,6 +835,7 @@ void Console(void)
            for (k = 0; k < RadioSaidCount && k < RADIO_SAID; k += 1)
               ForthPrintText(RadioSaid[k]);
         }
+        RadioTold = RadioFailed != NULL;   /* told above */
      }
   #endif
   /* A word BOOT, saved, runs at a cold start, unless a Ctrl-C comes within BOOT_WAIT: one
@@ -786,6 +881,10 @@ void Console(void)
      ** ring (a review, 2026-10-24). */
      if (InputTail == InputHead) {
         Drain();
+        if (length == 0) {   /* between lines, not within one that comes in pieces */
+           TellPins();
+           TellRadio();
+        }
         continue;
      }
      c = Take();

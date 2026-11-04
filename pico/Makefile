@@ -26,7 +26,8 @@ else
    CPU = -mcpu=cortex-m0plus -mthumb
    UF2 = EscapementForth.uf2
 endif
-# make BOARD=picow builds the Pico's image plus the radio (radio/), in build-picow/.
+# make BOARD=picow builds the Pico's image plus the radio's Bluetooth (radio/), in
+# build-picow/.
 ifeq ($(BOARD),picow)
    B = build-picow
    UF2 = EscapementForth-picow.uf2
@@ -64,10 +65,17 @@ ifdef RADIO
    CYW43 = ../lib/cyw43-driver/src
    CFLAGS += -DPICO_W
    INCLUDE += -Iradio
-   RADIO_INCLUDE = -Iradio/libc -I$(CYW43) -I../lib/cyw43-driver/firmware -I$(B)
+   BTSTACK = ../lib/btstack/src
+   RADIO_INCLUDE = -Iradio/libc -I$(CYW43) -I../lib/cyw43-driver/firmware -I$(BTSTACK) -I$(B)
    RADIO_BIN = $(B)/radio.bin
    RADIO_OBJS = $(B)/bus.o $(B)/radio.o $(B)/libc.o $(B)/cybt_shared_bus.o \
-            $(B)/cybt_shared_bus_driver.o $(B)/cyw43_ll.o $(B)/cyw43_spi.o $(B)/cyw43_ctrl.o
+            $(B)/cybt_shared_bus_driver.o $(B)/cyw43_ll.o $(B)/cyw43_spi.o $(B)/cyw43_ctrl.o \
+            $(B)/transport.o $(B)/link.o $(B)/btstack_run_loop.o $(B)/btstack_linked_list.o \
+            $(B)/btstack_memory.o $(B)/btstack_memory_pool.o $(B)/btstack_util.o \
+            $(B)/btstack_crypto.o $(B)/hci.o $(B)/hci_cmd.o $(B)/hci_dump.o $(B)/l2cap.o \
+            $(B)/l2cap_signaling.o $(B)/ad_parser.o $(B)/att_db.o $(B)/att_server.o \
+            $(B)/att_dispatch.o $(B)/le_device_db_memory.o $(B)/sm.o \
+            $(B)/nordic_spp_service_server.o $(B)/btstack_tlv.o $(B)/hci_event.o
    # The radio's objects go in an archive, which radio/kept.ld names: a restart of core 0
    # keeps their state.
    RADIO_A = $(B)/radio.a
@@ -140,6 +148,20 @@ $(B)/%.o: radio/%.c
 	$(CC) $(CFLAGS) -Wextra -Werror -fwrapv $(INCLUDE) $(RADIO_INCLUDE) -o $@ $<
 $(B)/%.o: $(CYW43)/%.c
 	$(CC) $(CFLAGS) -Wno-unused-function $(INCLUDE) $(RADIO_INCLUDE) -o $@ $<
+$(B)/%.o: $(BTSTACK)/%.c
+	$(CC) $(CFLAGS) $(INCLUDE) $(RADIO_INCLUDE) -o $@ $<
+$(B)/%.o: $(BTSTACK)/ble/%.c
+	$(CC) $(CFLAGS) $(INCLUDE) $(RADIO_INCLUDE) -o $@ $<
+$(B)/%.o: $(BTSTACK)/ble/gatt-service/%.c
+	$(CC) $(CFLAGS) $(INCLUDE) $(RADIO_INCLUDE) -o $@ $<
+# Without PyCryptodome or openssl's CMAC, compile_gatt.py hashes the database at random.
+# The image could not be built again the same way, so the build refuses it.
+$(B)/console_gatt.h: radio/console.gatt ../lib/btstack/tool/compile_gatt.py \
+                    $(BTSTACK)/ble/gatt-service/nordic_spp_service.gatt
+	python3 ../lib/btstack/tool/compile_gatt.py $< $@ -I $(BTSTACK)/ble/gatt-service >/dev/null 2>$@.log; \
+	status=$$?; cat $@.log >&2; \
+	if [ $$status != 0 ] || grep -q "random value" $@.log; then rm -f $@; exit 1; fi
+$(B)/link.o: $(B)/console_gatt.h
 endif
 
 clean:
