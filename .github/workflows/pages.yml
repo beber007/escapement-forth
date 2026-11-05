@@ -3,9 +3,21 @@ name: pages
 # The page of web/, the console and the hard kernel in WebAssembly, built with the
 # distribution's clang and lld; published on GitHub Pages from main, built only on a pull
 # request.
+# A push to main deploys only when something the page or its firmware is made of
+# changed: web/ and src/, pico/ and the tools it runs, the kernel, the radio's libraries,
+# this file. A push of examples/ alone deployed the same page again, and GitHub Pages,
+# stuck, failed it (2026-11-05). workflow_dispatch deploys by hand.
 on:
   push:
     branches: [main]
+    paths:
+      - "web/**"
+      - "src/**"
+      - "pico/**"
+      - "tools/**"
+      - "escapement"
+      - "lib/**"
+      - ".github/workflows/pages.yml"
   pull_request:
   workflow_dispatch:
 
