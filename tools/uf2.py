@@ -20,9 +20,9 @@ FLASH = 0x10000000
 PAGE = 256
 SECTOR = 4096
 BOARDS = {   # the family, and store.c's STORE_OFFSET
-    "pico": (0xE48BFF56, 0x1FC000),
-    "pico2": (0xE48BFF59, 0x3FC000),   # RP2350, Arm, Secure
-    "picow": (0xE48BFF56, 0x1FC000),
+    "pico": (0xE48BFF56, 0x1E0000),
+    "pico2": (0xE48BFF59, 0x3E0000),   # RP2350, Arm, Secure
+    "picow": (0xE48BFF56, 0x1E0000),
 }
 RADIO = 0x100000   # RADIO_FIRMWARE of pico/radio/radio_firmware.h, in the flash
 FAMILY_FLAG = 0x00002000

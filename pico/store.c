@@ -3,7 +3,7 @@
 ** Distributed under the terms of LICENSE at the root of this repository.
 */
 /* File store.c: The store of the dictionary SAVE keeps (forth_platform.h): the last
-** 16 KB of the flash, 2 MB on the Pico and 4 MB on the Pico 2, written through the bootrom's
+** 128 KB of the flash, 2 MB on the Pico and 4 MB on the Pico 2, written through the bootrom's
 ** functions (RP2040 datasheet 2.8.3.1.3, RP2350 datasheet 5.5.8), read through the XIP.
 **
 ** The image runs from SRAM, and so does all it calls while the flash leaves the XIP: no
@@ -20,11 +20,11 @@
 #include "forth_platform.h"
 
 #ifdef RP2350
-   #define STORE_OFFSET  0x3FC000u        /* in the flash: its last 16 KB */
+   #define STORE_OFFSET  0x3E0000u        /* in the flash: its last 128 KB */
 #else
-   #define STORE_OFFSET  0x1FC000u
+   #define STORE_OFFSET  0x1E0000u
 #endif
-#define STORE_ROOM    0x4000u
+#define STORE_ROOM    0x20000u
 #define XIP_BASE      0x10000000u
 #define PAGE          256u               /* what the flash programs at once */
 #define SECTOR        4096u              /* and erases */

@@ -7,7 +7,7 @@
 
 MEMORY
 {
-    FLASH (rx) : ORIGIN = 0x10000000, LENGTH = 4080K   /* the last 16 KB: a saved dictionary */
+    FLASH (rx) : ORIGIN = 0x10000000, LENGTH = 3968K   /* the last 128 KB: a saved dictionary */
 }
 
 SECTIONS

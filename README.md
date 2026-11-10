@@ -43,7 +43,7 @@ This is a prototype: step 3 of [Escapement's issue #40](https://github.com/beber
 
 | | |
 |---|---|
-| Pico image | 30,724 bytes of code and constants (Forth, slots, console, kernel), and 23,304 bytes of RAM reserved at build time. GCC 16.2, 2026-10-31 |
+| Pico image | 30,976 bytes of code and constants (Forth, slots, console, kernel), and 103,880 bytes of RAM reserved at build time, 94,208 of them for the dictionary. GCC 16.2, 2026-11-10 |
 | Slots' own cost | 8 µs charged to each release, against 6.6 to 7.3 µs measured on the Pico ([issue #40](https://github.com/beber007/escapement/issues/40), step 1) |
 | Budget check | About 13 % at most, on an empty `do loop`: 1,000 turns took 466 µs at the console and 529 µs in a slot (Pico W, 2026-10-24; the two cores' work was not quite the same) |
 | Restart of core 0 | 3 to 4 ms for core 1 to notice that core 0 is stuck and restart it, keeping the dictionary, the slots and the console; 5 ms more if interrupts are masked or the core faulted |
@@ -152,7 +152,7 @@ A slot stopped by `throw` shows `failed: thrown`, without the number.
 <details>
 <summary>Saving to flash</summary>
 
-`save` stores the dictionary (words and variable values) in the last 16 KB of flash
+`save` stores the dictionary (words and variable values) in the last 128 KB of flash
 (`pico/store.c`). The next cold start loads it. `unsave` erases it.
 
 If a saved word is named `boot`, it runs at cold start, unless you press Ctrl-C within
