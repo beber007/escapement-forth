@@ -30,9 +30,9 @@ typedef intptr_t Cell;
 #endif
 
 #define FORTH_STACK   16     /* cells of each stack of a context */
-#define FORTH_WORDS   192    /* words of the dictionary, built in ones included */
-#define FORTH_CODE    2048   /* cells of the code space, colon definitions and data */
-#define FORTH_NAMES   1536   /* bytes of the names of the words defined at the console */
+#define FORTH_WORDS   1024   /* words of the dictionary, built in ones included */
+#define FORTH_CODE    16384  /* cells of the code space, colon definitions and data */
+#define FORTH_NAMES   8192   /* bytes of the names of the words defined at the console */
 #define FORTH_LINE    128    /* bytes of a line of input */
 #define FORTH_CATCHES 4      /* CATCHes under way at once in a context */
 

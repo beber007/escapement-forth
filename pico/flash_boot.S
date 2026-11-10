@@ -8,7 +8,7 @@
 ** table. On both boards, this
 ** copies the image, as it is, to the SRAM it is linked for, and starts it where a debugger
 ** does (Escapement_RamEntry.S). So the image runs as it does when loaded over SWD: nothing
-** of it reads the flash but a saved dictionary (store.c), which stays in the last 16 KB.
+** of it reads the flash but a saved dictionary (store.c), which stays in the last 128 KB.
 */
 
     .syntax unified

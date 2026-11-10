@@ -14,6 +14,11 @@
 
 static int Failures, Cases;
 
+/* CODE: FORTH_CODE, in the lines typed. */
+#define TEXT(x) #x
+#define CODE(x) TEXT(x)
+#define CELLS CODE(FORTH_CODE)
+
 /* Check: Types the lines, NULL ended, at a fresh console; compares what it printed. */
 static void Check(const char *name, const char *const lines[], const char *expected)
 {
@@ -91,12 +96,12 @@ static void Interpreter(void)
   CASE("undone after an error"," frob ?\n<0>  ok\n","1 2 frob",".s");
   CASE("name expected"," : name expected\n",":");
   CASE("dot quote at the end of the code space"," ok\n .\" dictionary full\n<0>  ok\n",
-       "2046 cells allot",": x .\" abc\" ;",".s");
+       CELLS " 2 - cells allot",": x .\" abc\" ;",".s");
   CASE("exit inside a loop"," ok\n f unbalanced control\n",": f 10 5 do exit loop ;","f");
   CASE("allot inside a definition"," ok\n a inside a definition\n",": a 8 allot ; immediate",
        ": x a ;");
   CASE("variable in a full code space"," ok\n variable dictionary full\n b ?\n",
-       "variable a 2047 cells allot","variable b","5 b !");
+       "variable a " CELLS " 1 - cells allot","variable b","5 b !");
   CASE("exit inside a loop from 0"," ok\n ok\n g unbalanced control\n",
        ": f 10 0 do exit loop .\" after\" ;",": g f .\" g-after\" ;","g");
   CASE("exit inside a loop over the code space"," ok\n ok\n f unbalanced control\n",
@@ -668,22 +673,22 @@ static void Standard(void)
   ** left open, not a branch to 0 that ended the run unseen (a review, 2026-10-24). */
   ForthInit();
   Type("variable v : m ['] else catch . ; immediate defer d : g d 7 . ;");
-  Type("v 16384 + here - 40 - allot");
+  Type("v " CELLS " cells + here - 40 - allot");
   Type(": f 0 if m ;");
   Expect("else caught, the code full"," ok\n ok\n-8  ; unbalanced control\n");
   ForthInit();
   Type("variable v : m ['] again catch . ; immediate");
-  Type("v 16384 + here - 8 - allot");   /* a cell left, for EXIT */
+  Type("v " CELLS " cells + here - 8 - allot");   /* a cell left, for EXIT */
   Type(": f begin m ;");
   Expect("again caught, the code full"," ok\n ok\n-8  ; unbalanced control\n");
   ForthInit();
   Type("variable v : m ['] loop catch . ; immediate");
-  Type("v 16384 + here - 48 - allot");
+  Type("v " CELLS " cells + here - 48 - allot");
   Type(": f 10 0 do m ;");
   Expect("loop caught, the code full"," ok\n ok\n-8  ; unbalanced control\n");
   ForthInit();
   Type("variable v : m ['] until catch . ; immediate");
-  Type("v 16384 + here - 8 - allot");
+  Type("v " CELLS " cells + here - 8 - allot");
   Type(": f begin m ;");
   Expect("until caught, the code full"," ok\n ok\n-8  ; unbalanced control\n");
   ForthInit();
