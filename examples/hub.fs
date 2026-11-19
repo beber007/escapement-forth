@@ -1,7 +1,8 @@
 \ Several modules on one port, through a Grove I2C Hub: a SHT40 or SHT41 ($44), an ADXL345
 \ ($53), and what display adds, such as oled.fs. Paste i2c.fs first.
-\ One word serves the bus every millisecond: it reads the last answer, or starts the next
-\ exchange. Another one turns the answers into values, every 100 ms.
+\ One word serves the bus every millisecond, every 10 ms on a Pico: it reads the last
+\ answer, or starts the next exchange. Another one turns the answers into values, every
+\ 100 ms.
 1 i2c-port constant bus   \ the port: 1 for I2C1, 0 for I2C0
 variable bad  variable current  variable tick  variable pending
 variable lost  variable held   \ the display's writes lost; the turns the bus was not free
@@ -59,6 +60,7 @@ variable temp  variable humid  variable ax  variable ay  variable az
   $2D push $208 push  begin bus idle? until
   0 tick !  0 pending !  0 held ! ;
 hub-setup
-' hub 1 every
+\ On a Pico, a turn takes up to 218 µs: more than a tenth of 1 ms, its budget (#52).
+' hub 1 10 chip every
 ' measure 100 every
 slots
