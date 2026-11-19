@@ -76,7 +76,9 @@ variable cursor  variable dirty  variable line  variable col  variable phase  va
   phase @ 0< 0= if phase @ dup setting 1+ dup 132 > if drop -1 then phase ! exit then
   col @ 0< if
     dirty @ 0= if exit then
-    0 begin 1 over lshift dirty @ and 0= while 1+ repeat
+    \ The next changed line after the last one sent: each has its turn, even when
+    \ screen changes the lines faster than they go (#52).
+    line @ begin 1+ 7 and 1 over lshift dirty @ and until
     dup line !  0 col !  1 swap lshift invert dirty @ and dirty !  exit
   then
   \ $80 says one command follows: the page, then the column's low and high halves.
