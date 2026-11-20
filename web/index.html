@@ -142,6 +142,13 @@
   /* The pins the words may drive, on a strip of board. */
   .board { background: linear-gradient(160deg, var(--pcb), var(--pcb-edge)); border-radius: 0.5rem;
            padding: 0.375rem 0.5rem; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+  /* The displays at $3C, shown once something was sent to them: 128 x 64, a pixel 2 px. */
+  .screens { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+  .screen { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 2px;
+            font: 0.65rem ui-monospace, Menlo, monospace; color: var(--muted); }
+  .screen canvas { width: 256px; height: 128px; image-rendering: pixelated; background: #000;
+                   border-radius: 0.25rem; box-shadow: 0 0 0 0.25rem #1b1f2a; }
+  .screens[hidden], .screen[hidden] { display: none; }
   .pins { display: grid; grid-template-columns: repeat(auto-fit, minmax(1.75rem, 1fr)); gap: 0.5rem 0; }
   .pin { display: flex; flex-direction: column; align-items: center; gap: 2px;
          font: 0.65rem ui-monospace, Menlo, monospace; color: rgba(255, 255, 255, 0.75); }
@@ -289,6 +296,12 @@
       </div>
       <div class="status" id="status">Loading…</div>
       <div class="board" role="group" aria-label="Pins" data-i18n-label="pins"><div class="pins" id="pins"></div></div>
+      <div class="screens" id="screens" hidden>
+        <figure class="screen" hidden><canvas width="128" height="64" role="img" aria-label="The display at $3C on I2C0"
+          data-i18n-label="screen0"></canvas><figcaption>I2C0 · $3C</figcaption></figure>
+        <figure class="screen" hidden><canvas width="128" height="64" role="img" aria-label="The display at $3C on I2C1"
+          data-i18n-label="screen1"></canvas><figcaption>I2C1 · $3C</figcaption></figure>
+      </div>
       <section class="card timeline-card">
         <div class="head"><h2><span class="h" data-i18n="live">The timeline: what the kernel runs</span></h2>
           <span class="views"><span class="scale" role="group" aria-label="Scale" data-i18n-label="scale"><button
@@ -436,6 +449,10 @@
   const SENSOR = [...EXAMPLES.i2c, ...EXAMPLES.sht4x.slice(0, SHT_START)];
   const ADXL_START = EXAMPLES.adxl345.indexOf("adxl-setup");
   const ACCEL = [...EXAMPLES.i2c, ...EXAMPLES.adxl345.slice(0, ADXL_START)];
+  // The display's step: i2c.fs and hub.fs, all typed quietly, then oled.fs up to where it
+  // binds its words.
+  const OLED_START = EXAMPLES.oled.indexOf("' oled is display");
+  const DISPLAY = [...EXAMPLES.i2c, ...EXAMPLES.hub.filter((l) => l !== "slots"), ...EXAMPLES.oled.slice(0, OLED_START)];
   const SOLUTION = ": led  1 20 lshift toggle ;\n' led 1000 every";
   const TOUR = [
     { id: "period", look: ["@15", "=blink"], quiet: 2, lines: [STOP_ALL, PINS_OFF, ...BLINK],
@@ -510,6 +527,14 @@
       fr: { title: "Lire un accéléromètre",
             text: "Un ADXL345 mesure l'accélération sur trois axes, en mg. 1000 mg, c'est la pesanteur. Ici, la page web le simule, sur une carte qui penche lentement. `adxl` est lancé toutes les 10 ms. Il lit la réponse précédente, puis demande la suivante. Comme `sht`, il n'attend jamais dans sa case.",
             watch: "la console affiche les trois axes toutes les secondes. Le deuxième reste près de -1000 mg : c'est la pesanteur. Dans la case de `adxl`, le temps reste petit." } },
+    { id: "display", look: ["#screens", "=hub"], quiet: 4 + DISPLAY.length, setup: "setupDisplay",
+      lines: [...SETUP, ...DISPLAY, ...EXAMPLES.oled.slice(OLED_START).filter((l) => l !== "slots")],
+      en: { title: "Show on a display",
+            text: "A display of 128 x 64 pixels sits on the same bus, at $3C. Here, the web page simulates it and draws it under the pins. `hub` serves the bus every 10 ms. On some turns, it talks to a sensor. On the others, it gives the bus to `oled`. `oled` sends one character a turn, and only the lines that changed. `screen` writes the text once a second.",
+            watch: "the display shows the temperature, the humidity and the three axes. It changes every second. In `hub`'s slot, the time stays small." },
+      fr: { title: "Afficher sur un écran",
+            text: "Un écran de 128 × 64 pixels est branché sur le même bus, en $3C. Ici, la page web le simule et le dessine sous les broches. `hub` sert le bus toutes les 10 ms. À certains tours, il parle à un capteur. Aux autres, il laisse le bus à `oled`. `oled` envoie un caractère à chaque tour, et seulement les lignes qui ont changé. `screen` écrit le texte une fois par seconde.",
+            watch: "l'écran affiche la température, l'humidité et les trois axes. Il change toutes les secondes. Dans la case de `hub`, le temps reste petit." } },
     { id: "yours", look: [".window"], quiet: 2, lines: [STOP_ALL, PINS_OFF],
       en: { title: "Your turn",
             text: "This button stops everything. Then, in the console, make LED GP20 blink, switching state once a second. Hint: go back to step 1 for a model. `words` lists every word you can use.",
@@ -542,7 +567,8 @@
     honest5: "Une ligne tapée est arrêtée au bout de 10 s, comme Ctrl-C sur la carte. Les mots que tu crées disparaissent avec la page web : <code>save</code> n'a pas de flash où écrire.",
   };
   const FR_LABEL = { pins: "Broches", scale: "Échelle", lang: "Langue", how: "Comment ça marche", input: "Entrée Forth", tour: "Visite guidée",
-                     back: "Étape précédente", next: "Étape suivante", wider: "Plus large", finer: "Plus fin" };
+                     back: "Étape précédente", next: "Étape suivante", wider: "Plus large", finer: "Plus fin",
+                     screen0: "L'écran en $3C sur I2C0", screen1: "L'écran en $3C sur I2C1" };
   const T = {
     en: { loading: "Loading…", ready: "Ready. Forth runs in this web page. Nothing is sent.",
           coarse: (g) => "Your browser only gives the time to within " + time(g, "en") + ", probably to " +
@@ -572,6 +598,7 @@
           run: "Type these lines", onward: "Next step →", watch: "Watch:", slotOf: (name) => "‹slot of " + name + "›", now: "now", pause: "Pause", resume: "Resume", frozen: "The timeline is frozen. Drag it to look back as far as 10 s. Click Resume to continue.", stopAll: "‹stop every slot›", setup: "‹setup: stop every slot, restart blink›",
           setupSensor: "‹setup: stop every slot, restart blink, then examples/i2c.fs and the start of sht4x.fs›",
           setupAccel: "‹setup: stop every slot, restart blink, then examples/i2c.fs and the start of adxl345.fs›",
+          setupDisplay: "‹setup: stop every slot, restart blink, then examples/i2c.fs, hub.fs and the start of oled.fs›",
           tipTask: (row, names) => "Task " + row + (names ? ": " + names : ", no word"), tipConsole: "A line of the console",
           tipAgo: (ago) => "Started " + ago + " ago", tipRunning: "Still running",
           tipTook: (wall, own) => "Took " + wall + (own === wall ? "" : ", " + own + " of it running"), tipOver: "Over budget, cut off" },
@@ -605,6 +632,7 @@
           stopAll: "‹arrêter toutes les cases›", setup: "‹remise en place : tout arrêter, relancer blink›",
           setupSensor: "‹remise en place : tout arrêter, relancer blink, puis examples/i2c.fs et le début de sht4x.fs›",
           setupAccel: "‹remise en place : tout arrêter, relancer blink, puis examples/i2c.fs et le début de adxl345.fs›",
+          setupDisplay: "‹remise en place : tout arrêter, relancer blink, puis examples/i2c.fs, hub.fs et le début de oled.fs›",
           tipTask: (row, names) => "Tâche " + row + (names ? " : " + names : ", sans mot"), tipConsole: "Une ligne de la console",
           tipAgo: (ago) => "Lancée il y a " + ago, tipRunning: "Encore en cours",
           tipTook: (wall, own) => "A duré " + wall + (own === wall ? "" : ", dont " + own + " d'exécution"), tipOver: "Au-delà du budget, coupée" },
@@ -635,6 +663,28 @@
     while (output.childNodes.length > 2000)
       output.firstChild.remove();
     terminal.scrollTop = terminal.scrollHeight;
+  }
+
+  // showScreens: The displays whose pixels came, drawn; each shown from then on.
+  const screens = [...document.querySelectorAll("#screens .screen")];
+  function showScreens(list) {
+    for (const { port, pixels } of list) {
+      const context = screens[port].querySelector("canvas").getContext("2d");
+      const image = context.createImageData(128, 64);
+      for (let i = 0; i < pixels.length; i += 1)
+        image.data.set(pixels[i] !== 0 ? [214, 236, 255, 255] : [0, 0, 0, 255], i * 4);
+      context.putImageData(image, 0, 0);
+      screens[port].hidden = false;
+    }
+    const box = document.getElementById("screens"), appears = box.hidden;
+    box.hidden = screens.every((e) => e.hidden);
+    // On a phone, the step that watches it scrolls to it once it is there.
+    if (appears && !box.hidden && onPhone() && ran === step && TOUR[step].look[0] === "#screens")
+      box.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+  function hideScreens() {
+    screens.forEach((e) => { e.hidden = true; });
+    document.getElementById("screens").hidden = true;
   }
 
   function showPins(pins) {
@@ -1268,6 +1318,7 @@
     connection = null;
     boardAsks = null;
     clearInterval(asking);
+    hideScreens();
     view.reset();
     showViews();
     setCost(500);
@@ -1466,6 +1517,8 @@
         load = m.load;
         loadBound = m.bound;
         showPool();
+        if (m.screens.length > 0)
+          showScreens(m.screens);
       }
       else if (m.start) {
         if (sentQuiet && noteDue !== null) {

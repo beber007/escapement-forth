@@ -18,4 +18,8 @@ int ChipHas(uint32_t address);
 uint32_t ChipRead(uint32_t address, uint32_t now);
 void ChipWrite(uint32_t address, uint32_t value, uint32_t now);
 
+/* ChipScreen: What the display of port shows, 128 x 64 pixels, a byte each, 1 lit; and
+** a count that changes with what it shows, alone if pixels is NULL; at now, in us. */
+uint32_t ChipScreen(int port, uint8_t *pixels, uint32_t now);
+
 #endif /* CHIP_WEB_H */

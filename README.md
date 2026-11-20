@@ -188,8 +188,9 @@ pauses are left out.
 
 The web page also simulates the RP2040's two I2C controllers. On each port, a SHT41 sensor
 answers at `$44`, an ADXL345 at `$53` and a display at `$3C`. The files of `examples/` run
-there as on a Pico. The bus times were measured on a Pico. The display takes its bytes but
-shows nothing yet. The web page reads and writes these registers a cell at a time only. A
+there as on a Pico. The bus times were measured on a Pico. Once something is sent to a
+display, the web page draws it under the pins. Paste `i2c.fs`, `hub.fs` and `oled.fs`: the
+display of I2C1 shows what the two sensors measure. The web page reads and writes these registers a cell at a time only. A
 `c@` on one, or a write to its atomic aliases (+$1000, +$2000, +$3000), gives `bad address`
 there. A Pico takes both.
 

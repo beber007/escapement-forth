@@ -21,6 +21,8 @@ on:
       - "examples/i2c.fs"
       - "examples/sht4x.fs"
       - "examples/adxl345.fs"
+      - "examples/hub.fs"
+      - "examples/oled.fs"
       - ".github/workflows/pages.yml"
   pull_request:
   workflow_dispatch:
