@@ -20,6 +20,7 @@ on:
       - "lib/**"
       - "examples/i2c.fs"
       - "examples/sht4x.fs"
+      - "examples/adxl345.fs"
       - ".github/workflows/pages.yml"
   pull_request:
   workflow_dispatch:
