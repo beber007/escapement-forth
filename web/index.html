@@ -429,10 +429,13 @@
   const PINS_OFF = "-1 low";   // stopped, a pin keeps its state
   const BLINK = [": blink  1 15 lshift toggle ;", "' blink 100 every"];
   const SETUP = [STOP_ALL, PINS_OFF, ...BLINK];
-  // The sensor's step: examples/i2c.fs and sht4x.fs (examples.js, made by web/Makefile),
-  // typed quietly up to where sht4x.fs sets the bus up; its last lines shown, but slots.
+  // The sensors' steps: examples/i2c.fs, then sht4x.fs or adxl345.fs (examples.js, made by
+  // web/Makefile), typed quietly up to where the file sets the bus up; its last lines
+  // shown, but slots.
   const SHT_START = EXAMPLES.sht4x.indexOf("bus i2c-setup");
   const SENSOR = [...EXAMPLES.i2c, ...EXAMPLES.sht4x.slice(0, SHT_START)];
+  const ADXL_START = EXAMPLES.adxl345.indexOf("adxl-setup");
+  const ACCEL = [...EXAMPLES.i2c, ...EXAMPLES.adxl345.slice(0, ADXL_START)];
   const SOLUTION = ": led  1 20 lshift toggle ;\n' led 1000 every";
   const TOUR = [
     { id: "period", look: ["@15", "=blink"], quiet: 2, lines: [STOP_ALL, PINS_OFF, ...BLINK],
@@ -499,6 +502,14 @@
       fr: { title: "Lire un capteur",
             text: "Un capteur SHT41 mesure la température et l'humidité. Le Pico le lit par le bus I2C. Ici, la page web simule le bus et le capteur. `sht` demande une mesure, puis la lit 100 ms plus tard, au lancement suivant. Entre les deux, il laisse le processeur aux autres.",
             watch: "la console affiche la température et l'humidité toutes les secondes. Dans la case de `sht`, le temps reste petit. Sur une carte sans capteur, `bad` augmente." } },
+    { id: "accel", look: ["=adxl", ".window"], quiet: 4 + ACCEL.length, setup: "setupAccel",
+      lines: [...SETUP, ...ACCEL, ...EXAMPLES.adxl345.slice(ADXL_START).filter((l) => l !== "slots")],
+      en: { title: "Read an accelerometer",
+            text: "An ADXL345 measures acceleration on three axes, in mg. 1000 mg is gravity. Here, the web page simulates it, on a board that slowly tilts. `adxl` runs every 10 ms. It reads the last answer, then asks for the next one. Like `sht`, it never waits in its slot.",
+            watch: "the console prints the three axes every second. The second one stays near -1000 mg: gravity. In `adxl`'s slot, the time stays small." },
+      fr: { title: "Lire un accéléromètre",
+            text: "Un ADXL345 mesure l'accélération sur trois axes, en mg. 1000 mg, c'est la pesanteur. Ici, la page web le simule, sur une carte qui penche lentement. `adxl` est lancé toutes les 10 ms. Il lit la réponse précédente, puis demande la suivante. Comme `sht`, il n'attend jamais dans sa case.",
+            watch: "la console affiche les trois axes toutes les secondes. Le deuxième reste près de -1000 mg : c'est la pesanteur. Dans la case de `adxl`, le temps reste petit." } },
     { id: "yours", look: [".window"], quiet: 2, lines: [STOP_ALL, PINS_OFF],
       en: { title: "Your turn",
             text: "This button stops everything. Then, in the console, make LED GP20 blink, switching state once a second. Hint: go back to step 1 for a model. `words` lists every word you can use.",
@@ -560,6 +571,7 @@
           help: "Show a solution", bravo: "Well done:", won: "GP20 switches state once a second. Your word runs on the kernel.",
           run: "Type these lines", onward: "Next step →", watch: "Watch:", slotOf: (name) => "‹slot of " + name + "›", now: "now", pause: "Pause", resume: "Resume", frozen: "The timeline is frozen. Drag it to look back as far as 10 s. Click Resume to continue.", stopAll: "‹stop every slot›", setup: "‹setup: stop every slot, restart blink›",
           setupSensor: "‹setup: stop every slot, restart blink, then examples/i2c.fs and the start of sht4x.fs›",
+          setupAccel: "‹setup: stop every slot, restart blink, then examples/i2c.fs and the start of adxl345.fs›",
           tipTask: (row, names) => "Task " + row + (names ? ": " + names : ", no word"), tipConsole: "A line of the console",
           tipAgo: (ago) => "Started " + ago + " ago", tipRunning: "Still running",
           tipTook: (wall, own) => "Took " + wall + (own === wall ? "" : ", " + own + " of it running"), tipOver: "Over budget, cut off" },
@@ -592,6 +604,7 @@
           run: "Taper ces lignes", onward: "Étape suivante →", watch: "Regarde :", slotOf: (name) => "‹case de " + name + "›", now: "maintenant", pause: "Pause", resume: "Reprendre", frozen: "La frise est figée. Fais-la glisser pour remonter jusqu'à 10 s en arrière. Clique sur Reprendre pour continuer.",
           stopAll: "‹arrêter toutes les cases›", setup: "‹remise en place : tout arrêter, relancer blink›",
           setupSensor: "‹remise en place : tout arrêter, relancer blink, puis examples/i2c.fs et le début de sht4x.fs›",
+          setupAccel: "‹remise en place : tout arrêter, relancer blink, puis examples/i2c.fs et le début de adxl345.fs›",
           tipTask: (row, names) => "Tâche " + row + (names ? " : " + names : ", sans mot"), tipConsole: "Une ligne de la console",
           tipAgo: (ago) => "Lancée il y a " + ago, tipRunning: "Encore en cours",
           tipTook: (wall, own) => "A duré " + wall + (own === wall ? "" : ", dont " + own + " d'exécution"), tipOver: "Au-delà du budget, coupée" },

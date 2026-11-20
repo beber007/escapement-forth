@@ -37,9 +37,9 @@ $(B)/forth.wasm: $(SOURCES) $(B)/EscapementHard.o $(HEADERS) imports.txt index.h
 	cp index.html view.js worker.js $(B)/
 
 # The examples the tour types, as JavaScript strings (tools/examples_js.sh).
-EXAMPLES = ../examples/i2c.fs ../examples/sht4x.fs
+EXAMPLES = ../examples/i2c.fs ../examples/sht4x.fs ../examples/adxl345.fs
 
-$(B)/examples.js: $(EXAMPLES) ../tools/examples_js.sh
+$(B)/examples.js: $(EXAMPLES) ../tools/examples_js.sh Makefile
 	mkdir -p $(B)
 	sh ../tools/examples_js.sh $(EXAMPLES) > $@
 

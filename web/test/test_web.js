@@ -201,10 +201,12 @@ const tour = Function("ZOOM", "EXAMPLES", block + " return TOUR;")(V.ZOOM, EXAMP
 check("the page has a tour", tour.length >= 6, tour.length);
 check("  its code marked in pairs", tour.every((s) => ["en", "fr"].every((l) =>
       (s[l].text + s[l].watch).split("`").length % 2 === 1)), "");
-// The sensor's step types the examples it needs quietly too: what it shows is its last 4.
+// The sensors' steps type the examples they need quietly too: what they show is their
+// last lines, 4 at most.
 check("  each step can run alone, its pins off, blink set up but in the first and the last", tour.every((s, k) =>
       s.lines[0].startsWith("0 stop") && s.lines[1] === "-1 low" &&
-      s.quiet === (k === 0 || k === tour.length - 1 ? 2 : s.setup ? s.lines.length - 4 : 4)), "");
+      (s.setup ? s.quiet > 4 && s.lines.length - s.quiet >= 1 && s.lines.length - s.quiet <= 4 :
+       s.quiet === (k === 0 || k === tour.length - 1 ? 2 : 4))), tour.map((s) => [s.id, s.quiet, s.lines.length]));
 check("each step said in English and in French", tour.every((s) => ["en", "fr"].every((l) =>
       s[l] && s[l].title && s[l].text && typeof s[l].watch === "string")), "");
 
@@ -399,6 +401,15 @@ const STEPS = {
     const e = view().slots[named("sht")];
     check("  sht in its slot of 100 ms, far below its budget", e.runs >= 10 && e.max < e.budget / 2 && e.over === 0, e);
   },
+  accel: (out) => {
+    // The model's axes: x from -500 to 500 mg, y from -1000 to -875, z from -100 to 100.
+    // With the worker let run every 30 ms, three runs of adxl come one after the other.
+    const printed = idle(2500);
+    check("  the three axes printed each second", /(^|\n)-?\d{1,3} -(1000|9\d\d|8[7-9]\d) -?\d{1,3} mg  0 bad/.test(printed), printed);
+    // Its budget is 1 ms: a clock read to the ms gives a run 0 or 1000 us, never more.
+    const e = view().slots[named("adxl")], below = STEP >= 1 ? e.max <= e.budget : e.max < e.budget / 2;
+    check("  adxl in its slot of 10 ms, far below its budget", e.runs >= 50 && below && e.over === 0, e);
+  },
   period: (out) => {
     seen = [];
     idle(300);
@@ -500,7 +511,7 @@ check("no release skipped by the tour", number(line("overruns .").out) <= SKIPS,
 
 // The steps typed again, out of order, each still showing what it says.
 for (const id of ["cost", "admitted", "refused", "period", "fails", "fails", "fails", "fails", "fails", "refused",
-                  "admitted", "preempted", "sensor", "cost", "yours"]) {
+                  "admitted", "preempted", "sensor", "accel", "sensor", "cost", "yours"]) {
   idle(250);
   play(tour.find((x) => x.id === id), " again");
 }
