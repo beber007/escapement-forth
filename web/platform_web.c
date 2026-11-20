@@ -16,6 +16,7 @@
 #include "forth.h"
 #include "forth_platform.h"
 #include "slots.h"
+#include "chip_web.h"
 
 /* What the worker gives: the time in milliseconds, performance.now(), and where the
 ** output goes. */
@@ -168,6 +169,26 @@ int ForthMemory(uintptr_t address, size_t size, int write)
   (void)address; (void)size; (void)write;
   return 0;
 } /* end of ForthMemory */
+
+/* ForthRegister, ForthRegisterRead, ForthRegisterWrite: The registers of chip_web.c, a
+** cell at a time, on the browser's clock as Wall reads it: never the kernel's sync, which
+** would let a slot run in the middle of the model. */
+int ForthRegister(uintptr_t address, size_t size)
+{
+  return size == 4 && ChipHas((uint32_t)address);
+} /* end of ForthRegister */
+
+intptr_t ForthRegisterRead(uintptr_t address, size_t size)
+{
+  (void)size;
+  return (intptr_t)ChipRead((uint32_t)address,Wall());
+} /* end of ForthRegisterRead */
+
+void ForthRegisterWrite(uintptr_t address, size_t size, intptr_t value)
+{
+  (void)size;
+  ChipWrite((uint32_t)address,(uint32_t)value,Wall());
+} /* end of ForthRegisterWrite */
 
 /* ForthBreak: No key reaches the worker while a word runs: the console's line is stopped
 ** once it has run WEB_LINE_US, as Ctrl-C would; what it printed goes out meanwhile. On the

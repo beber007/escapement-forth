@@ -28,6 +28,16 @@ void ForthBarrier(void);
 ** not fault on the board. */
 int ForthMemory(uintptr_t address, size_t size, int write);
 
+#ifdef FORTH_REGISTERS
+/* ForthRegister, ForthRegisterRead, ForthRegisterWrite: On a platform whose registers no
+** pointer reaches, the web page's: whether the size bytes at address are a register it
+** models, then its read or its write, in place of the pointer's. The board has none of
+** them: built without FORTH_REGISTERS, its images stay as they were. */
+int ForthRegister(uintptr_t address, size_t size);
+intptr_t ForthRegisterRead(uintptr_t address, size_t size);
+void ForthRegisterWrite(uintptr_t address, size_t size, intptr_t value);
+#endif
+
 /* ForthBreak: Whether a break was asked at the console since it was last asked, Ctrl-C
 ** on the board: the word the console runs then stops, FORTH_BREAK. */
 int ForthBreak(void);

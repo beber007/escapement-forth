@@ -194,13 +194,17 @@ function trace() {
 
 // The tour of the page, each line answered ok, the page's order and pace, and what each
 // step must show: an ok follows a word's refusal too ("too few runs  ok").
+// EXAMPLES: the lines of examples/ the tour types, examples.js beside forth.wasm.
+const EXAMPLES = Function(text(args[0].replace(/forth\.wasm$/, "examples.js")) + " return EXAMPLES;")();
 const block = source.slice(source.indexOf("const STOP_ALL ="), source.indexOf("];", source.indexOf("const TOUR = [")) + 2);
-const tour = Function("ZOOM", block + " return TOUR;")(V.ZOOM);
+const tour = Function("ZOOM", "EXAMPLES", block + " return TOUR;")(V.ZOOM, EXAMPLES);
 check("the page has a tour", tour.length >= 6, tour.length);
 check("  its code marked in pairs", tour.every((s) => ["en", "fr"].every((l) =>
       (s[l].text + s[l].watch).split("`").length % 2 === 1)), "");
+// The sensor's step types the examples it needs quietly too: what it shows is its last 4.
 check("  each step can run alone, its pins off, blink set up but in the first and the last", tour.every((s, k) =>
-      s.lines[0].startsWith("0 stop") && s.lines[1] === "-1 low" && s.quiet === (k === 0 || k === tour.length - 1 ? 2 : 4)), "");
+      s.lines[0].startsWith("0 stop") && s.lines[1] === "-1 low" &&
+      s.quiet === (k === 0 || k === tour.length - 1 ? 2 : s.setup ? s.lines.length - 4 : 4)), "");
 check("each step said in English and in French", tour.every((s) => ["en", "fr"].every((l) =>
       s[l] && s[l].title && s[l].text && typeof s[l].watch === "string")), "");
 
@@ -389,6 +393,12 @@ check("  in French, a decimal comma", V.time(1500, "fr") === "1,5 ms" && V.time(
 
 const named = (n) => view().slots.findIndex((e) => e.state !== 0 && e.name === n);
 const STEPS = {
+  sensor: (out) => {
+    const printed = idle(2500);
+    check("  the temperature and the humidity printed each second", /2[0-2]\.\d\dC  5[0-5]\.\d\d%  0 bad/.test(printed), printed);
+    const e = view().slots[named("sht")];
+    check("  sht in its slot of 100 ms, far below its budget", e.runs >= 10 && e.max < e.budget / 2 && e.over === 0, e);
+  },
   period: (out) => {
     seen = [];
     idle(300);
@@ -464,15 +474,16 @@ const STEPS = {
   },
   yours: (out) => check("  every slot free", view().slots.every((e) => e.state === 0), view().slots),
 };
-// play: A step typed as the page types it, each line answered ok, none left out, then
-// what the step must show checked.
+// play: A step typed as the page types it, each line answered ok, or compiled inside a
+// definition, the last one ok, none left out, then what the step must show checked.
 function play(s, label) {
   const lost = [];
   let out = "";
-  for (const l of s.lines) {
+  for (const [i, l] of s.lines.entries()) {
     const r = pend([{ line: l, tour: true }], view().slots);
     const x = r === null ? null : line(r);
-    if (x === null || !x.out.endsWith("ok\n") || /full|\?/.test(x.out))
+    const open = x !== null && x.out === " compiled\n" && i < s.lines.length - 1;
+    if (x === null || !(x.out.endsWith("ok\n") || open) || /full|\?/.test(x.out))
       lost.push([l, x && x.out]);
     out += x === null ? "" : x.out;
   }
@@ -489,7 +500,7 @@ check("no release skipped by the tour", number(line("overruns .").out) <= SKIPS,
 
 // The steps typed again, out of order, each still showing what it says.
 for (const id of ["cost", "admitted", "refused", "period", "fails", "fails", "fails", "fails", "fails", "refused",
-                  "admitted", "preempted", "cost", "yours"]) {
+                  "admitted", "preempted", "sensor", "cost", "yours"]) {
   idle(250);
   play(tour.find((x) => x.id === id), " again");
 }
@@ -742,6 +753,128 @@ for (const s of tour) {
   traceTail = 0;
   play(s, " alone");
 }
+
+// The I2C model (chip_web.c) against a Pico: web/test/i2c_reference.fs pasted after
+// examples/i2c.fs, its output against what the bench's Pico printed,
+// i2c_reference.txt. Each change of the registers, the last of a watch to be compared:
+// the same state, seen between the Pico's two readings around it, which come every
+// 107 us, read one register after the other. TX_OVER, RX_OVER and RX_UNDER are left
+// out, but where a scenario sets them: the Pico kept TX_OVER past a disable once, not the
+// next time, and the model clears them all. On the browser's clock read to the us only:
+// read to 0.1 ms or to the ms, a pause of 6500 us waits 7000, and the exchanges there go
+// by steps of the clock.
+const dir = args[1].replace(/index\.html$/, "");
+const SCENARIOS = new Set(["id", "ack", "absent", "absent-read", "write", "overflow", "measure",
+  "busy", "ready", "again", "adxl", "devid", "hold", "user", "flushed", "cleared", "full", "drain",
+  "rx-full", "rx-drain", "under", "tar", "pair", "repeated", "late-off"]);
+const STICKY = 0x0B, SLACK = 50;
+const SETS = { overflow: 0x08, "rx-full": 0x02, under: 0x01 };
+// overflow: when the TX FIFO is full depends on how fast the Forth writes it, 20 entries
+// in some 170 us on the Pico, during which the controller takes one or two more.
+const UNTIMED = new Set(["overflow"]);
+
+function paste(path) {
+  let out = "";
+  for (const l of text(path).split("\n"))
+    out += line(l).out;
+  return out;
+}
+
+function scenarios(out) {
+  const list = [];
+  for (const raw of out.split("\n")) {
+    const l = raw.replace(/\s*ok$/, "").trim();
+    if (l === "" || l === "compiled" || l.startsWith("\\"))
+      continue;
+    const words = l.split(/\s+/);
+    if (SCENARIOS.has(words[0])) {
+      list.push({ head: l, blocks: [], other: [] });
+      continue;
+    }
+    const at = list[list.length - 1];
+    if (at === undefined)
+      continue;
+    if (words.length === 6 && words.every((w) => /^-?\d+$/.test(w))) {
+      const s = words.map(Number), b = at.blocks[at.blocks.length - 1];
+      // The readings of one watch come 40 us apart at least (next? in i2c_reference.fs).
+      if (b === undefined || s[0] - b[b.length - 1][0] < 40)
+        at.blocks.push([s]);
+      else
+        b.push(s);
+    }
+    else
+      at.other.push(l);
+  }
+  return list;
+}
+
+function i2cChecks() {
+  boot();
+  forth.web_init();
+  take();
+  paste(dir + "../examples/i2c.fs");
+  const scan = line("1 i2c-scan").out;
+  check("i2c: the scan finds the three devices", scan.startsWith("3c 44 53 3 found"), scan);
+  if (STEP !== 0)
+    return;
+  const ref = scenarios(text(dir + "test/i2c_reference.txt"));
+  const got = scenarios(paste(dir + "test/i2c_reference.fs"));
+  check("i2c: the reference's scenarios, each run", got.length === ref.length &&
+        got.every((g, i) => g.head === ref[i].head), got.map((g) => g.head));
+  for (let i = 0; i < Math.min(ref.length, got.length); i += 1) {
+    const r = ref[i], g = got[i], name = r.head.split(" ")[0];
+    check("i2c " + r.head + ": what it printed", JSON.stringify(g.other) === JSON.stringify(r.other),
+          { pico: r.other, page: g.other });
+    if (g.blocks.length !== r.blocks.length) {
+      check("i2c " + r.head + ": its watches", false, { pico: r.blocks.length, page: g.blocks.length });
+      continue;
+    }
+    r.blocks.forEach((rb, k) => {
+      const rs = rb[rb.length - 1], gs = g.blocks[k][g.blocks[k].length - 1];
+      const from = rb.length > 1 ? rb[rb.length - 2][0] : 0;
+      const same = rs[1] === gs[1] && (rs[2] & ~STICKY) === (gs[2] & ~STICKY) &&
+                   rs.slice(3).every((v, j) => v === gs[3 + j]);
+      const set = SETS[name] === undefined || (rs[2] & gs[2] & SETS[name]) === SETS[name];
+      check("i2c " + r.head + ": its last state, " + rs.slice(1).join(" "), same && set, { pico: rs, page: gs });
+      if (!UNTIMED.has(name))
+        check("  reached between " + from + " and " + rs[0] + " us", gs[0] >= from - SLACK && gs[0] <= rs[0] + SLACK,
+              { pico: rb, page: g.blocks[k] });
+    });
+  }
+  // A measure asked after a read left held, on a Forth anew: the Pico measured it, and
+  // printed 0 6 (2026-11-20).
+  boot();
+  forth.web_init();
+  take();
+  paste(dir + "../examples/i2c.fs");
+  line("1 i2c-port constant bus  bus i2c-setup");
+  line(": push ( x -- ) bus data ! ;");
+  line(": ask $44 bus i2c-to $2FD push begin bus idle? until ;");
+  line(": take $44 bus i2c-to 5 0 do $100 push loop $300 push begin bus idle? until " +
+       "bus $34 + @ $40 and . bus $78 + @ . ;");
+  line(": pause ( us -- ) now begin now over - >r over r> < until 2drop ;");
+  line(": part $44 bus i2c-to $100 push $100 push 2000 pause ;");
+  line("ask");
+  idle(100);
+  line("part");
+  line("ask");
+  idle(100);
+  const held = line("take").out;
+  check("i2c: a measure asked after a read left held", held === "0 6  ok\n", held);
+  // The clock wraps every 2^32 us, some 71.6 min: a measure asked, then read 10 s short
+  // of 2^32 us later. The clock then reads 10 s less than when it was asked.
+  const WRAP_MS = 4294967.296 - 10000;
+  line("ask");
+  idle(100);
+  jump += WRAP_MS;
+  idle(100);
+  const late = line("take").out;
+  jump -= WRAP_MS;
+  boot();
+  forth.web_init();
+  check("i2c: a measure read past the clock's wrap", late === "0 6  ok\n", late);
+}
+i2cChecks();
 
 // boardLink, on a port made up: what the Pico sends, what it is sent, how it ends.
 async function boardLinkChecks() {

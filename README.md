@@ -186,6 +186,13 @@ timeline shows what the kernel ran, from a trace the port keeps, and a table sho
 slot against its budget. The times are the browser's, not the Pico's. The browser's own
 pauses are left out.
 
+The web page also simulates the RP2040's two I2C controllers. On each port, a SHT41 sensor
+answers at `$44`, an ADXL345 at `$53` and a display at `$3C`. The files of `examples/` run
+there as on a Pico. The bus times were measured on a Pico. The display takes its bytes but
+shows nothing yet. The web page reads and writes these registers a cell at a time only. A
+`c@` on one, or a write to its atomic aliases (+$1000, +$2000, +$3000), gives `bad address`
+there. A Pico takes both.
+
 The console can also talk to a real Pico, Pico 2 or Pico W. In Chrome or Edge, click **Connect a Pico**
 and choose its serial port. A USB cable is enough: the board has a serial port on its own USB.
 UART0, on GP0 and GP1, stays the console's while no program has the USB port open. On a
@@ -220,7 +227,7 @@ bytes, nothing is sent.
 |---|---|---|
 | Host tests | the Forth and the slots on the host, with the sanitizers, under gcc and clang | each push to main and each pull request (gcc) |
 | Pico, Pico 2 and Pico W images | the three firmwares build, with Escapement's CI image | each push to main and each pull request |
-| WebAssembly | the web page's Forth and kernel run under Node, in three clock modes, and every step of the tour is played | each push to main and each pull request |
+| WebAssembly | the web page's Forth and kernel run under Node, in three clock modes, every step of the tour is played, and the I2C model replays exchanges recorded on a Pico | each push to main and each pull request |
 | Browser | the web page in a headless Chrome, in English and in French: its first step runs and each step fits a 1280 by 680 window without a scroll | each push to main and each pull request |
 | On a Pico | `tools/smoke.fs` and `tools/restart.fs` on Escapement's test bench, read over SWD | by hand, not at each commit |
 

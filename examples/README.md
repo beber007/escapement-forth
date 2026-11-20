@@ -2,7 +2,7 @@
 
 Forth words for I2C sensors and a display, written with `@` and `!` on the chip's registers. The Grove Shield for Pi Pico has two I2C ports: I2C0 on GP8 (SDA) and GP9 (SCL), and I2C1 on GP6 and GP7. The bus runs at 100 kHz. Set the shield's switch to 3.3 V.
 
-Paste `i2c.fs` into the web page's console, once. Then paste the other files. Their first lines name their port: `1 i2c-port constant bus` for I2C1. Change the number if the module is on the other port. `oled.fs` has no such line: it uses the port of `hub.fs`. Each of `sht4x.fs` and `adxl345.fs` takes a port for itself. `hub.fs` serves both sensors on one port.
+Paste `i2c.fs` into the web page's console, once. Without a board, the web page simulates the bus and the three modules, on both ports. Then paste the other files. Their first lines name their port: `1 i2c-port constant bus` for I2C1. Change the number if the module is on the other port. `oled.fs` has no such line: it uses the port of `hub.fs`. Each of `sht4x.fs` and `adxl345.fs` takes a port for itself. `hub.fs` serves both sensors on one port.
 
 | File | Sensor | Address |
 |---|---|---|

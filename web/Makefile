@@ -15,13 +15,13 @@
 # A clang with the wasm32 target and wasm-ld (Homebrew's llvm and lld), no C library.
 CLANG ?= $(firstword $(wildcard /opt/homebrew/opt/llvm/bin/clang) clang)
 CFLAGS = --target=wasm32 -std=c99 -Wall -Wextra -Werror -O2 -fwrapv -nostdlib \
-         -ffreestanding -fno-builtin -I../src -Ikernel -I$(E)
+         -ffreestanding -fno-builtin -DFORTH_REGISTERS -I../src -Ikernel -I$(E)
 LDFLAGS = -Wl,--no-entry -Wl,--allow-undefined-file=imports.txt
 B = $(or $(BUILD),build)
 E = ../escapement/Escapement
 
-SOURCES = ../src/forth.c ../src/slots.c platform_web.c kernel/kernel_web.c
-HEADERS = ../src/forth.h ../src/forth_platform.h ../src/slots.h $(wildcard kernel/*.h) \
+SOURCES = ../src/forth.c ../src/slots.c platform_web.c chip_web.c kernel/kernel_web.c
+HEADERS = ../src/forth.h ../src/forth_platform.h ../src/slots.h chip_web.h $(wildcard kernel/*.h) \
           $(E)/EscapementHard.h $(E)/Escapement_Modes.h
 
 all: $(B)/forth.wasm
@@ -31,9 +31,17 @@ $(B)/EscapementHard.o: $(E)/EscapementHard.c $(HEADERS)
 	mkdir -p $(B)
 	$(CLANG) $(filter-out -Wextra,$(CFLAGS)) -c -o $@ $<
 
-$(B)/forth.wasm: $(SOURCES) $(B)/EscapementHard.o $(HEADERS) imports.txt index.html view.js worker.js
+$(B)/forth.wasm: $(SOURCES) $(B)/EscapementHard.o $(HEADERS) imports.txt index.html view.js worker.js \
+                 $(B)/examples.js
 	$(CLANG) $(CFLAGS) $(LDFLAGS) -o $@ $(SOURCES) $(B)/EscapementHard.o
 	cp index.html view.js worker.js $(B)/
+
+# The examples the tour types, as JavaScript strings (tools/examples_js.sh).
+EXAMPLES = ../examples/i2c.fs ../examples/sht4x.fs
+
+$(B)/examples.js: $(EXAMPLES) ../tools/examples_js.sh
+	mkdir -p $(B)
+	sh ../tools/examples_js.sh $(EXAMPLES) > $@
 
 JS ?= node
 JS_ARGS ?=

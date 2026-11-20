@@ -556,6 +556,26 @@ static void PDepth(Context *c, const Word *w)
   FORTH_PUSH(c,c->Depth);
 } /* end of PDepth */
 
+/* REGISTER, LOAD, STORE, PLUS_STORE: What Reach gives for a register of the platform,
+** which @ ! c@ c! +! TYPE then reach through ForthRegisterRead and ForthRegisterWrite
+** (forth_platform.h); without FORTH_REGISTERS, the pointer's read and write alone. */
+#define REGISTER 2
+#ifdef FORTH_REGISTERS
+#define LOAD(r,a,type) ((r) == REGISTER ? (type)ForthRegisterRead((uintptr_t)(a),sizeof(type)) \
+                                        : *(const volatile type *)(a))
+#define STORE(r,a,type,v) \
+   ((r) == REGISTER ? ForthRegisterWrite((uintptr_t)(a),sizeof(type),(intptr_t)(v)) \
+                    : (void)(*(volatile type *)(a) = (v)))
+#define PLUS_STORE(r,a,v) \
+   ((r) == REGISTER ? ForthRegisterWrite((uintptr_t)(a),sizeof(Cell), \
+                         ForthRegisterRead((uintptr_t)(a),sizeof(Cell)) + (v)) \
+                    : (void)(*(volatile Cell *)(a) += (v)))
+#else
+#define LOAD(r,a,type) ((void)(r), *(const volatile type *)(a))
+#define STORE(r,a,type,v) ((void)(r), (void)(*(volatile type *)(a) = (v)))
+#define PLUS_STORE(r,a,v) ((void)(r), (void)(*(volatile Cell *)(a) += (v)))
+#endif
+
 /* Reach: Whether the size bytes at a are the Forth's memory, or what the platform says
 ** may be read or written there, a cell at a cell's boundary, which the M0+ needs; or the
 ** error set, FORTH_ADDRESS, rather than a fault. Measured from a, not summed with it,
@@ -563,6 +583,10 @@ static void PDepth(Context *c, const Word *w)
 static int Reach(Context *c, Cell a, size_t size, int write)
 {
   uintptr_t p = (uintptr_t)a;
+#ifdef FORTH_REGISTERS
+  if (p % size == 0 && ForthRegister(p,size))
+     return REGISTER;
+#endif
   if (p % size == 0 &&
       ((p >= (uintptr_t)Code && p <= (uintptr_t)&Code[FORTH_CODE] &&
         size <= (uintptr_t)&Code[FORTH_CODE] - p) ||
@@ -576,51 +600,56 @@ static int Reach(Context *c, Cell a, size_t size, int write)
 
 static void PFetch(Context *c, const Word *w)
 {
+  int r;
   (void)w;
   FORTH_NEED(c,1);
-  if (Reach(c,FORTH_TOP(c),sizeof(Cell),0))
-     FORTH_TOP(c) = *(const volatile Cell *)FORTH_TOP(c);
+  if ((r = Reach(c,FORTH_TOP(c),sizeof(Cell),0)) != 0)
+     FORTH_TOP(c) = LOAD(r,FORTH_TOP(c),Cell);
 } /* end of PFetch */
 
 static void PCFetch(Context *c, const Word *w)
 {
+  int r;
   (void)w;
   FORTH_NEED(c,1);
-  if (Reach(c,FORTH_TOP(c),1,0))
-     FORTH_TOP(c) = *(const volatile uint8_t *)FORTH_TOP(c);
+  if ((r = Reach(c,FORTH_TOP(c),1,0)) != 0)
+     FORTH_TOP(c) = LOAD(r,FORTH_TOP(c),uint8_t);
 } /* end of PCFetch */
 
 static void PStore(Context *c, const Word *w)
 {
   Cell *a;
+  int r;
   (void)w;
   FORTH_NEED(c,2);
-  if (!Reach(c,FORTH_TOP(c),sizeof(Cell),1))
+  if ((r = Reach(c,FORTH_TOP(c),sizeof(Cell),1)) == 0)
      return;
   a = (Cell *)FORTH_POP(c);
-  *(volatile Cell *)a = FORTH_POP(c);
+  STORE(r,a,Cell,FORTH_POP(c));
 } /* end of PStore */
 
 static void PCStore(Context *c, const Word *w)
 {
   uint8_t *a;
+  int r;
   (void)w;
   FORTH_NEED(c,2);
-  if (!Reach(c,FORTH_TOP(c),1,1))
+  if ((r = Reach(c,FORTH_TOP(c),1,1)) == 0)
      return;
   a = (uint8_t *)FORTH_POP(c);
-  *(volatile uint8_t *)a = (uint8_t)FORTH_POP(c);
+  STORE(r,a,uint8_t,(uint8_t)FORTH_POP(c));
 } /* end of PCStore */
 
 static void PPlusStore(Context *c, const Word *w)
 {
   Cell *a;
+  int r;
   (void)w;
   FORTH_NEED(c,2);
-  if (!Reach(c,FORTH_TOP(c),sizeof(Cell),1))
+  if ((r = Reach(c,FORTH_TOP(c),sizeof(Cell),1)) == 0)
      return;
   a = (Cell *)FORTH_POP(c);
-  *(volatile Cell *)a += FORTH_POP(c);
+  PLUS_STORE(r,a,FORTH_POP(c));
 } /* end of PPlusStore */
 
 static void PTrue(Context *c, const Word *w)
@@ -787,6 +816,7 @@ static void PSQuote(Context *c, const Word *w)
 static void PType(Context *c, const Word *w)
 {
   Cell a, n, i;
+  int r;
   (void)w;
   FORTH_NEED(c,2);
   n = FORTH_POP(c);
@@ -794,9 +824,9 @@ static void PType(Context *c, const Word *w)
   for (i = 0; i < n; i += 1) {
      if (i % FORTH_BUDGET_STEPS == FORTH_BUDGET_STEPS - 1 && (Check(c), c->Error != FORTH_OK))
         return;
-     if (!Reach(c,a + i,1,0))
+     if ((r = Reach(c,a + i,1,0)) == 0)
         return;
-     ForthEmit(*(const volatile char *)(a + i));
+     ForthEmit((char)LOAD(r,a + i,char));
   }
 } /* end of PType */
 
