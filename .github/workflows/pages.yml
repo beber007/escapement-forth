@@ -5,8 +5,9 @@ name: pages
 # request.
 # A push to main deploys only when something the page or its firmware is made of
 # changed: web/ and src/, pico/ and the tools it runs, the kernel, the radio's libraries,
-# this file. A push of examples/ alone deployed the same page again, and GitHub Pages,
-# stuck, failed it (2026-11-05). workflow_dispatch deploys by hand.
+# the two examples the tour types, this file. A push of the other examples alone deployed
+# the same page again, and GitHub Pages, stuck, failed it (2026-11-05). workflow_dispatch
+# deploys by hand.
 on:
   push:
     branches: [main]
@@ -17,6 +18,8 @@ on:
       - "tools/**"
       - "escapement"
       - "lib/**"
+      - "examples/i2c.fs"
+      - "examples/sht4x.fs"
       - ".github/workflows/pages.yml"
   pull_request:
   workflow_dispatch:

@@ -382,6 +382,7 @@
     <a href="https://github.com/beber007/escapement">Escapement</a></footer>
 </main>
 
+<script src="examples.js"></script>
 <script src="view.js"></script>
 <script>
   const output = document.getElementById("output");
@@ -428,6 +429,10 @@
   const PINS_OFF = "-1 low";   // stopped, a pin keeps its state
   const BLINK = [": blink  1 15 lshift toggle ;", "' blink 100 every"];
   const SETUP = [STOP_ALL, PINS_OFF, ...BLINK];
+  // The sensor's step: examples/i2c.fs and sht4x.fs (examples.js, made by web/Makefile),
+  // typed quietly up to where sht4x.fs sets the bus up; its last lines shown, but slots.
+  const SHT_START = EXAMPLES.sht4x.indexOf("bus i2c-setup");
+  const SENSOR = [...EXAMPLES.i2c, ...EXAMPLES.sht4x.slice(0, SHT_START)];
   const SOLUTION = ": led  1 20 lshift toggle ;\n' led 1000 every";
   const TOUR = [
     { id: "period", look: ["@15", "=blink"], quiet: 2, lines: [STOP_ALL, PINS_OFF, ...BLINK],
@@ -486,6 +491,14 @@
       fr: { title: "Qui passe en premier ?",
             text: "`long` dure 80 ms, toutes les secondes. `busy` dure 0,5 ms, toutes les 10 ms. S'il attendait la fin de `long`, `busy` raterait huit lancements. Le noyau fait donc passer le mot dont l'échéance est la plus proche. L'échéance d'un mot, c'est son prochain lancement.",
             watch: "la frise se fige quand `long` a fini. La ligne 1 s est coupée en morceaux, et la ligne 10 ms passe dans les trous. Clique sur Reprendre pour continuer." } },
+    { id: "sensor", look: ["=sht", ".window"], quiet: 4 + SENSOR.length, setup: "setupSensor",
+      lines: [...SETUP, ...SENSOR, ...EXAMPLES.sht4x.slice(SHT_START).filter((l) => l !== "slots")],
+      en: { title: "Read a sensor",
+            text: "A SHT41 sensor measures temperature and humidity. The Pico reads it over the I2C bus. Here, the web page simulates the bus and the sensor. `sht` asks for a measurement, then reads it 100 ms later, on its next run. In between, it leaves the processor to the others.",
+            watch: "the console prints the temperature and humidity every second. In `sht`'s slot, the time stays small. On a board with no sensor, `bad` goes up." },
+      fr: { title: "Lire un capteur",
+            text: "Un capteur SHT41 mesure la température et l'humidité. Le Pico le lit par le bus I2C. Ici, la page web simule le bus et le capteur. `sht` demande une mesure, puis la lit 100 ms plus tard, au lancement suivant. Entre les deux, il laisse le processeur aux autres.",
+            watch: "la console affiche la température et l'humidité toutes les secondes. Dans la case de `sht`, le temps reste petit. Sur une carte sans capteur, `bad` augmente." } },
     { id: "yours", look: [".window"], quiet: 2, lines: [STOP_ALL, PINS_OFF],
       en: { title: "Your turn",
             text: "This button stops everything. Then, in the console, make LED GP20 blink, switching state once a second. Hint: go back to step 1 for a model. `words` lists every word you can use.",
@@ -546,6 +559,7 @@
           summary: (w, rows, over) => "In the last " + w + ": " + rows + "; " + over + " over budget.",
           help: "Show a solution", bravo: "Well done:", won: "GP20 switches state once a second. Your word runs on the kernel.",
           run: "Type these lines", onward: "Next step →", watch: "Watch:", slotOf: (name) => "‹slot of " + name + "›", now: "now", pause: "Pause", resume: "Resume", frozen: "The timeline is frozen. Drag it to look back as far as 10 s. Click Resume to continue.", stopAll: "‹stop every slot›", setup: "‹setup: stop every slot, restart blink›",
+          setupSensor: "‹setup: stop every slot, restart blink, then examples/i2c.fs and the start of sht4x.fs›",
           tipTask: (row, names) => "Task " + row + (names ? ": " + names : ", no word"), tipConsole: "A line of the console",
           tipAgo: (ago) => "Started " + ago + " ago", tipRunning: "Still running",
           tipTook: (wall, own) => "Took " + wall + (own === wall ? "" : ", " + own + " of it running"), tipOver: "Over budget, cut off" },
@@ -577,6 +591,7 @@
           help: "Voir une solution", bravo: "Bravo :", won: "GP20 change d'état une fois par seconde. Ton mot tourne sur le noyau.",
           run: "Taper ces lignes", onward: "Étape suivante →", watch: "Regarde :", slotOf: (name) => "‹case de " + name + "›", now: "maintenant", pause: "Pause", resume: "Reprendre", frozen: "La frise est figée. Fais-la glisser pour remonter jusqu'à 10 s en arrière. Clique sur Reprendre pour continuer.",
           stopAll: "‹arrêter toutes les cases›", setup: "‹remise en place : tout arrêter, relancer blink›",
+          setupSensor: "‹remise en place : tout arrêter, relancer blink, puis examples/i2c.fs et le début de sht4x.fs›",
           tipTask: (row, names) => "Tâche " + row + (names ? " : " + names : ", sans mot"), tipConsole: "Une ligne de la console",
           tipAgo: (ago) => "Lancée il y a " + ago, tipRunning: "Encore en cours",
           tipTook: (wall, own) => "A duré " + wall + (own === wall ? "" : ", dont " + own + " d'exécution"), tipOver: "Au-delà du budget, coupée" },
@@ -1052,7 +1067,7 @@
       e.append(code);
     });
   }
-  const setupText = (s) => s.quiet === 2 ? T[lang].stopAll : T[lang].setup;
+  const setupText = (s) => s.setup ? T[lang][s.setup] : s.quiet === 2 ? T[lang].stopAll : T[lang].setup;
   function showStep() {
     const s = TOUR[step], said = s[lang], finish = step === TOUR.length - 1;
     document.getElementById("step-count").textContent = (step + 1) + " / " + TOUR.length;
