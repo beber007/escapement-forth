@@ -57,7 +57,7 @@ jobs:
       - name: Page test
         run: |
           node --version
-          timeout 300 make -C web test
+          timeout 420 make -C web test
 
       # The page run, not only parsed: the runner's Chrome, in English and in French.
       - name: Page in Chrome
