@@ -14,9 +14,13 @@ bus data constant fifo
   bus $78 + @ 5 > if 6 0 do bus data @ over i + c! loop then drop ;
 : nothing ;
 defer display  ' nothing is display   \ the free turns, for a display
-variable sht-raw 2 allot  variable sht-new  variable adxl-raw 2 allot
-: take-sht sht-raw copy6 1 sht-new ! ;
-: take-adxl adxl-raw copy6 ;
+\ Each answer has a count: odd while hub writes the answer, even once it is all there.
+\ A run cut by its budget can stop in the middle, and leave the count odd.
+variable sht-raw 2 allot  variable sht-count  variable adxl-raw 2 allot  variable adxl-count
+: begin-write ( count -- ) dup @ 1 or swap ! ;
+: end-write ( count -- ) 1 swap +! ;
+: take-sht sht-count begin-write sht-raw copy6 sht-count end-write ;
+: take-adxl adxl-count begin-write adxl-raw copy6 adxl-count end-write ;
 \ Twenty turns. The SHT4x: a measure asked on the first, read on the eleventh. The ADXL345:
 \ its 6 registers from $32, on the sixth and the sixteenth. display on the others.
 : step
@@ -39,6 +43,18 @@ variable sht-raw 2 allot  variable sht-new  variable adxl-raw 2 allot
   step ;
 \ The values, from the bytes read.
 variable temp  variable humid  variable ax  variable ay  variable az
+variable sample 2 allot  variable sht-seen
+\ hub can run in the middle of measure, and write an answer there: a copy that it cut
+\ would mix two answers. So the copy is made again until no answer came during it. An odd
+\ count is an answer being written, or left half written by a cut run: measure then keeps
+\ its last values (#53).
+: copy-bytes ( from to -- ) 6 0 do over i + c@ over i + c! loop 2drop ;
+: snapshot ( raw count -- n )   \ the 6 bytes into sample, and the count they go with
+  begin
+    dup @ >r  over sample copy-bytes
+    dup @ r@ =  r@ 1 and or if r> nip nip exit then  r> drop
+  again ;
+: whole? ( n -- flag ) 1 and 0= ;
 : crc8 ( crc byte -- crc )
   xor 8 0 do
     dup $80 and if 1 lshift $31 xor else 1 lshift then $FF and
@@ -47,18 +63,20 @@ variable temp  variable humid  variable ax  variable ay  variable az
 : be16 ( address -- n ) dup c@ 8 lshift swap 1+ c@ or ;
 : axis ( address -- mg ) dup c@ swap 1+ c@ 8 lshift or dup $8000 and if $10000 - then 39 * 10 / ;
 : measure
-  sht-new @ if 0 sht-new !
-    sht-raw crc-ok? if sht-raw be16 17500 * 65535 / 4500 - temp ! else 1 bad +! then
-    sht-raw 3 + crc-ok? if
-      sht-raw 3 + be16 12500 * 65535 / 600 - 0 max 10000 min humid !
+  sht-raw sht-count snapshot dup whole? over sht-seen @ <> and if sht-seen !
+    sample crc-ok? if sample be16 17500 * 65535 / 4500 - temp ! else 1 bad +! then
+    sample 3 + crc-ok? if
+      sample 3 + be16 12500 * 65535 / 600 - 0 max 10000 min humid !
     else 1 bad +! then
-  then
-  adxl-raw axis ax !  adxl-raw 2 + axis ay !  adxl-raw 4 + axis az ! ;
+  else drop then
+  adxl-raw adxl-count snapshot whole? if
+    sample axis ax !  sample 2 + axis ay !  sample 4 + axis az !
+  then ;
 : hub-setup   \ the ADXL345: 16 g, 4 mg a bit, then measuring
   bus i2c-setup 0 current ! $53 target
   $31 push $20B push  begin bus idle? until
   $2D push $208 push  begin bus idle? until
-  0 tick !  0 pending !  0 held ! ;
+  0 tick !  0 pending !  0 held !  0 sht-count !  0 sht-seen !  0 adxl-count ! ;
 hub-setup
 \ On a Pico, a turn takes up to 218 µs: more than a tenth of 1 ms, its budget (#52).
 ' hub 1 10 chip every
