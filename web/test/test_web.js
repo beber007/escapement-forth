@@ -410,6 +410,20 @@ const STEPS = {
     const e = view().slots[named("adxl")], below = STEP >= 1 ? e.max <= e.budget : e.max < e.budget / 2;
     check("  adxl in its slot of 10 ms, far below its budget", e.runs >= 50 && below && e.over === 0, e);
   },
+  display: (out) => {
+    // The whole screen sent, a character a free turn of hub: some seconds.
+    const glyphs = fontOf(EXAMPLES.oled.join("\n"));
+    let lines = [];
+    for (let k = 0; k < 40 && !(lines[0] === "ESCAPEMENT FORTH" && /BAD$/.test(lines[7] || "")); k += 1) {
+      idle(500);
+      lines = screenText(1, glyphs);
+    }
+    check("  the display shows the two sensors", lines[0] === "ESCAPEMENT FORTH" &&
+          /^T   2[0-2]\.\d\d C$/.test(lines[2]) && /^Y +-(1000|9\d\d|8[7-9]\d) MG$/.test(lines[5]) &&
+          /^ {5}0 BAD$/.test(lines[7]), lines);
+    const e = view().slots[named("hub")], below = STEP >= 1 ? e.max <= e.budget : e.max < e.budget / 2;
+    check("  hub in its slot of 10 ms, far below its budget", e.runs >= 50 && below && e.over === 0, e);
+  },
   period: (out) => {
     seen = [];
     idle(300);
@@ -886,6 +900,77 @@ function i2cChecks() {
   check("i2c: a measure read past the clock's wrap", late === "0 6  ok\n", late);
 }
 i2cChecks();
+
+// The display at $3C: examples/hub.fs and oled.fs on I2C1, the text read back from the
+// pixels with oled.fs's font, as the page draws them. On the clock to the us only: some
+// 10 s, the worker let run every 30 ms.
+function fontOf(src) {
+  const glyphs = {};
+  for (const m of src.matchAll(/((?:\$[0-9A-F]{2} ){5})(32|char (\S)) glyph/g))
+    glyphs[m[2] === "32" ? " " : m[3]] = m[1].trim().split(" ").map((h) => parseInt(h.slice(1), 16));
+  return glyphs;
+}
+function screenText(port, glyphs) {
+  const px = new Uint8Array(forth.memory.buffer, forth.web_screen(port), 128 * 64), lines = [];
+  for (let row = 0; row < 8; row += 1) {
+    let s = "";
+    for (let c = 0; c < 21; c += 1) {
+      const cols = [0, 1, 2, 3, 4, 5].map((k) => {
+        let v = 0;
+        for (let b = 0; b < 8; b += 1)
+          v |= px[(row * 8 + b) * 128 + c * 6 + k] << b;
+        return v;
+      });
+      const ch = cols[5] === 0 ? Object.keys(glyphs).find((g) => glyphs[g].every((v, i) => v === cols[i])) : undefined;
+      s += ch === undefined ? "?" : ch;
+    }
+    lines.push(s.replace(/ +$/, ""));
+  }
+  return lines;
+}
+function screenChecks() {
+  if (STEP !== 0)
+    return;
+  boot();
+  forth.web_init();
+  take();
+  paste(dir + "../examples/i2c.fs");
+  paste(dir + "../examples/hub.fs");
+  check("oled: nothing sent to the displays before oled.fs",
+        forth.web_screen_changes(0) === 0 && forth.web_screen_changes(1) === 0,
+        [forth.web_screen_changes(0), forth.web_screen_changes(1)]);
+  const glyphs = fontOf(text(dir + "../examples/oled.fs"));
+  check("oled: its font read, the space to Z", Object.keys(glyphs).length === 59, Object.keys(glyphs).length);
+  paste(dir + "../examples/oled.fs");
+  let lines = [];
+  for (let k = 0; k < 40 && !(lines[0] === "ESCAPEMENT FORTH" && /BAD$/.test(lines[7] || "")); k += 1) {
+    idle(500);
+    lines = screenText(1, glyphs);
+  }
+  const want = [/^ESCAPEMENT FORTH$/, /^$/, /^T   2[0-2]\.\d\d C$/, /^H   5[0-5]\.\d\d %$/,
+                /^X +-?\d{1,3} MG$/, /^Y +-(1000|9\d\d|8[7-9]\d) MG$/, /^Z +-?\d{1,3} MG$/, /^ {5}0 BAD$/];
+  check("oled: the text of the screen, in oled.fs's font", lines.length === 8 && want.every((w, i) => w.test(lines[i])), lines);
+  check("  the display of I2C0 left alone", forth.web_screen_changes(0) === 0, forth.web_screen_changes(0));
+  check("  no exchange lost or failed", line("bad @ . lost @ .").out === "0 0  ok\n", line("bad @ . lost @ .").out);
+  // The commands oled.fs does not send, at the console, the slots stopped: what the display
+  // shows, against the screen before. A word of 8 bytes at most, to stay in one line.
+  for (let i = 0; i < 16; i += 1)
+    line(i + " stop");
+  const pixels = () => new Uint8Array(forth.memory.buffer, forth.web_screen(1), 128 * 64).slice();
+  const before = pixels();
+  const send = (bytes) => (line("$3C target " + bytes.map((b) => b + " push").join(" ") + " $200 push"), idle(20), pixels());
+  const same = (f) => (px) => px.every((v, i) => v === f(i % 128, Math.floor(i / 128)));
+  check("  $A7 inverts each pixel", same((x, y) => 1 - before[y * 128 + x])(send([0, "$A7"])), "");
+  check("  $A0 mirrors it", same((x, y) => 1 - before[y * 128 + 127 - x])(send([0, "$A0"])), "");
+  check("  $C0 turns it upside down", same((x, y) => 1 - before[(63 - y) * 128 + 127 - x])(send([0, "$C0"])), "");
+  check("  back with $A6, $A1 and $C8", same((x, y) => before[y * 128 + x])(send([0, "$A6", "$A1", "$C8"])), "");
+  check("  $AD takes a byte: its $50 not a start line", same((x, y) => before[y * 128 + x])(send([0, "$AD", "$50"])), "");
+  check("  $C1 to $CF as $C0 or $C8: their bit 3", same((x, y) => before[(63 - y) * 128 + x])(send([0, "$C7"])) &&
+        same((x, y) => before[y * 128 + x])(send([0, "$CF"])), "");
+  check("  $AE puts it all out, the screen kept", send([0, "$AE"]).every((v) => v === 0) &&
+        same((x, y) => before[y * 128 + x])(send([0, "$AF"])), "");
+}
+screenChecks();
 
 // boardLink, on a port made up: what the Pico sends, what it is sent, how it ends.
 async function boardLinkChecks() {

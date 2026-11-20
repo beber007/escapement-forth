@@ -299,10 +299,152 @@ static void AdxlEnd(Device *d, uint32_t now)
   (void)d; (void)now;
 } /* end of AdxlEnd */
 
-/* The display at $3C, an SSD1315: it takes every byte. What it draws is not modelled. */
-static int OledBegin(Device *d, int read, uint32_t now) { (void)d; (void)read; (void)now; return 1; }
-static int OledPut(Device *d, uint8_t byte, uint32_t now) { (void)d; (void)byte; (void)now; return 1; }
-static uint8_t OledGet(Device *d, uint32_t now) { (void)d; (void)now; return 0; }
+/* The display at $3C, an SSD1315, 128 x 64: its RAM, 8 pages of 128 columns, a byte a
+** column of 8 rows, its low bit at the top. The SSD1306's command set, which the SSD1315
+** keeps (Solomon Systech, SSD1306 datasheet rev. 1.1, 2008, section 10): after the
+** address, a control byte. Its bit 6 says pixels follow, else commands; its bit 7, Co,
+** that one byte only follows, then a control byte again. A command takes its arguments
+** from the bytes after it. Pixels go where the pointer is, which moves on by the mode:
+** in page addressing, along the page, back to its start column past column 127; in
+** horizontal or vertical addressing, within the window of $21 and $22. As at its reset:
+** page addressing, the display off, nothing remapped. */
+typedef struct {
+   Device D;
+   uint8_t Ram[8][128];
+   int Control, Data, Once, Command, Need, Have;
+   uint8_t Args[6];
+   int Mode, Col, Page, ColStart, ColEnd, PageStart, PageEnd, PageCol;
+   int On, Invert, AllOn, Remap, Flip, StartLine, Offset;
+   uint32_t Seq;
+} Oled;
+
+static void OledReset(Oled *o)
+{
+  Device d = o->D;
+  *o = (Oled){0};
+  o->D = d;
+  o->Mode = 2;
+  o->ColEnd = 127;
+  o->PageEnd = 7;
+} /* end of OledReset */
+
+/* OledArgs: How many bytes the command takes after it; the scrolls and the others the
+** examples do not send, as many as the datasheet gives them, and nothing done. */
+static int OledArgs(uint8_t c)
+{
+  switch (c) {
+     case 0x20: case 0x81: case 0x8D: case 0xA8: case 0xD3: case 0xD5: case 0xD9:
+     case 0xDA: case 0xDB: case 0xAD: return 1;   /* $AD: the SSD1315's IREF */
+     case 0x21: case 0x22: case 0xA3: return 2;
+     case 0x29: case 0x2A: return 5;
+     case 0x26: case 0x27: return 6;
+     default: return 0;
+  }
+} /* end of OledArgs */
+
+static void OledDo(Oled *o)
+{
+  uint8_t c = (uint8_t)o->Command, *a = o->Args;
+  if (c <= 0x0F)
+     o->Col = o->PageCol = (o->PageCol & 0xF0) | c;
+  else if (c <= 0x1F)
+     o->Col = o->PageCol = (o->PageCol & 0x0F) | (c & 0x07) << 4;
+  else if (c == 0x20)
+     o->Mode = a[0] & 3;
+  else if (c == 0x21) {
+     o->ColStart = o->Col = a[0] & 0x7F;
+     o->ColEnd = a[1] & 0x7F;
+  }
+  else if (c == 0x22) {
+     o->PageStart = o->Page = a[0] & 7;
+     o->PageEnd = a[1] & 7;
+  }
+  else if (c >= 0x40 && c <= 0x7F)
+     o->StartLine = c & 0x3F;
+  else if (c == 0xA0 || c == 0xA1)
+     o->Remap = c & 1;
+  else if (c == 0xA4 || c == 0xA5)
+     o->AllOn = c & 1;
+  else if (c == 0xA6 || c == 0xA7)
+     o->Invert = c & 1;
+  else if (c == 0xAE || c == 0xAF)
+     o->On = c & 1;
+  else if (c >= 0xB0 && c <= 0xB7)
+     o->Page = c & 7;
+  else if ((c & 0xF0) == 0xC0)   /* its bit 3 alone counts */
+     o->Flip = (c & 0x08) != 0;
+  else if (c == 0xD3)
+     o->Offset = a[0] & 0x3F;
+  o->Seq += 1;
+} /* end of OledDo */
+
+/* OledPixels: A byte of pixels where the pointer is, the pointer moved on. Mode 3 is
+** invalid: taken as page addressing. */
+static void OledPixels(Oled *o, uint8_t byte)
+{
+  o->Ram[o->Page][o->Col] = byte;
+  o->Seq += 1;
+  if (o->Mode == 0 || o->Mode == 1) {
+     int across = o->Mode == 0;
+     if (across ? o->Col < o->ColEnd : o->Page < o->PageEnd) {
+        if (across) o->Col += 1; else o->Page += 1;
+        return;
+     }
+     if (across) o->Col = o->ColStart; else o->Page = o->PageStart;
+     if (across ? o->Page < o->PageEnd : o->Col < o->ColEnd) {
+        if (across) o->Page += 1; else o->Col += 1;
+     }
+     else if (across) o->Page = o->PageStart;
+     else o->Col = o->ColStart;
+     return;
+  }
+  o->Col = o->Col < 127 ? o->Col + 1 : o->PageCol;
+} /* end of OledPixels */
+
+static int OledBegin(Device *d, int read, uint32_t now)
+{
+  Oled *o = (Oled *)d;
+  (void)read; (void)now;
+  o->Control = 1;
+  return 1;
+} /* end of OledBegin */
+
+static int OledPut(Device *d, uint8_t byte, uint32_t now)
+{
+  Oled *o = (Oled *)d;
+  (void)now;
+  if (o->Control) {
+     o->Control = 0;
+     o->Data = (byte & 0x40) != 0;
+     o->Once = (byte & 0x80) != 0;
+     return 1;
+  }
+  if (o->Data)
+     OledPixels(o,byte);
+  else if (o->Need > o->Have)
+     o->Args[o->Have++] = byte;
+  else {
+     o->Command = byte;
+     o->Need = OledArgs(byte);
+     o->Have = 0;
+  }
+  if (!o->Data && o->Need == o->Have) {
+     OledDo(o);
+     o->Need = o->Have = 0;
+  }
+  if (o->Once)
+     o->Control = 1;
+  return 1;
+} /* end of OledPut */
+
+/* OledGet: A read gives the status byte: bit 6 set while the display is off. */
+static uint8_t OledGet(Device *d, uint32_t now)
+{
+  Oled *o = (Oled *)d;
+  (void)now;
+  return o->On ? 0x00 : 0x40;
+} /* end of OledGet */
+
 static void OledEnd(Device *d, uint32_t now) { (void)d; (void)now; }
 
 /* A controller. One entry of the TX FIFO is taken ahead, as its byte before ends, as the
@@ -321,7 +463,7 @@ typedef struct {
 
 static Sht Shts[2];
 static Adxl Adxls[2];
-static Device Oleds[2];
+static Oled Oleds[2];
 static I2c Port[2];
 static uint32_t Reset = RESET_I2C0 | RESET_I2C1;
 static uint32_t Ctrl[30], Pad[33];
@@ -338,7 +480,7 @@ static void PortReset(int n)
   p->Mask = 0x8FF; p->SdaHold = 1; p->SdaSetup = 0x64; p->Spklen = 7;
   p->Devices[0] = &Shts[n].D;
   p->Devices[1] = &Adxls[n].D;
-  p->Devices[2] = &Oleds[n];
+  p->Devices[2] = &Oleds[n].D;
 } /* end of PortReset */
 
 static void Start(void)
@@ -355,7 +497,8 @@ static void Start(void)
      Adxls[i] = (Adxl){ {0x53,AdxlBegin,AdxlPut,AdxlGet,AdxlEnd}, {0},{0},0,0 };
      Adxls[i].Reg[0x00] = 0xE5;
      Adxls[i].Reg[0x2C] = 0x0A;
-     Oleds[i] = (Device){0x3C,OledBegin,OledPut,OledGet,OledEnd};
+     Oleds[i].D = (Device){0x3C,OledBegin,OledPut,OledGet,OledEnd};
+     OledReset(&Oleds[i]);
      PortReset(i);
   }
   Started = 1;
@@ -759,3 +902,31 @@ void ChipWrite(uint32_t address, uint32_t value, uint32_t now)
      default: break;
   }
 } /* end of ChipWrite */
+
+/* ChipScreen: What the display at $3C of port shows, 128 x 64, a byte a pixel, row after
+** row from the top left: 1 lit. The Grove module's panel is mounted turned: $A1 and $C8,
+** which oled.fs sends, show the RAM upright, its column 0 at the left and its page 0 at
+** the top. The start line and the offset move the rows the RAM gives. Returns the count
+** of changes since the start, which grows with each one; with pixels NULL, that alone.
+** The controller brought up to now first: the bytes it sent since the last register read. */
+uint32_t ChipScreen(int port, uint8_t *pixels, uint32_t now)
+{
+  const Oled *o;
+  int x, y;
+  Start();
+  port &= 1;
+  if (!(Reset & (port ? RESET_I2C1 : RESET_I2C0)))
+     Advance(&Port[port],now);
+  o = &Oleds[port];
+  if (pixels == 0)
+     return o->Seq;
+  for (y = 0; y < 64; y += 1) {
+     int row = ((o->Flip ? y : 63 - y) + o->StartLine + o->Offset) & 63;
+     for (x = 0; x < 128; x += 1) {
+        int col = o->Remap ? x : 127 - x;
+        int lit = o->AllOn || (o->Ram[row >> 3][col] >> (row & 7) & 1);
+        pixels[y * 128 + x] = (uint8_t)(o->On && (lit ^ o->Invert));
+     }
+  }
+  return o->Seq;
+} /* end of ChipScreen */

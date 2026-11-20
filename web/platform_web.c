@@ -496,3 +496,18 @@ __attribute__((export_name("web_view"))) uint32_t *WebView(void)
   }
   return View;
 } /* end of WebView */
+
+/* web_screen, web_screen_changes: What the display at $3C of port shows, 128 x 64 bytes,
+** 1 lit (chip_web.c); the count of its changes, 0 while nothing was sent to it. */
+static uint8_t Screen[128 * 64];
+
+__attribute__((export_name("web_screen"))) uint8_t *WebScreen(int port)
+{
+  ChipScreen(port,Screen,Wall());
+  return Screen;
+} /* end of WebScreen */
+
+__attribute__((export_name("web_screen_changes"))) uint32_t WebScreenChanges(int port)
+{
+  return ChipScreen(port,0,Wall());
+} /* end of WebScreenChanges */

@@ -18,6 +18,9 @@ const VIEW_ENTRY = 11;     // words of an entry of the view
 const SLOTS = 16;
 const names = new TextDecoder();   // apart: decoder may hold the first bytes of a character
 let traceTail = 0, lastTelemetry = -Infinity;
+// The displays at $3C of I2C0 and I2C1 (chip_web.c): the count of changes each last sent.
+const SCREEN = 128 * 64;
+const screensSent = [0, 0];
 
 function text(address, length) {
   return names.decode(new Uint8Array(forth.memory.buffer, address, length));
@@ -48,8 +51,17 @@ function telemetry(force) {
                  name: v[e + 3] === 0 ? "" : text(v[e + 2], v[e + 3]), runs: v[e + 4],
                  max: v[e + 5], over: v[e + 6], wcet: v[e + 7], budget: v[e + 8] });
   }
+  // A display's pixels, a byte each, once they changed: none while nothing was sent to it.
+  const screens = [];
+  for (let port = 0; port < 2; port += 1) {
+    const changes = forth.web_screen_changes(port) >>> 0;
+    if (changes !== screensSent[port]) {
+      screensSent[port] = changes;
+      screens.push({ port, pixels: new Uint8Array(forth.memory.buffer, forth.web_screen(port), SCREEN).slice() });
+    }
+  }
   postMessage({ telemetry: true, trace, clock: forth.web_clock() >>> 0, load: v[0],
-                bound: v[1], slots });
+                bound: v[1], slots, screens });
 }
 
 const imports = {
