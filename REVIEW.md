@@ -42,7 +42,8 @@ there, report every one, since its plain style is part of what it is reviewed fo
 - Each change on the side of the board: the Pico, the Pico 2 and the Pico W. The
   RP2040 and the RP2350 differ in their memory, their timer and their cores.
 - Each change of what a Pico does: does the web page's model (`web/chip_web.c`,
-  `web/kernel/`) do the same, or does a text say how it differs?
+  `web/platform_web.c`, `web/kernel/`, and the clock of `web/worker.js`) do the same,
+  or does a text say how it differs?
 - Each figure in a text: is it in the code, or in a measurement with its date and its
   board?
 
@@ -57,8 +58,9 @@ there, report every one, since its plain style is part of what it is reviewed fo
 
 ## Commands a review may run
 
+- `"Bash(git submodule update --init)"`: fetch the submodules, which the builds need.
 - `"Bash(make:*)"`: run the host tests, build the three images and the web page, and
-  run its tests.
+  run its tests. Do not run `make -C web serve`: it does not return.
 - `"Bash(arm-none-eabi-size:*)"`: read the size of an image.
 
 A review runs no tool that reaches a board.
@@ -66,6 +68,11 @@ A review runs no tool that reaches a board.
 ## Checks before the reviews
 
 - `git fetch origin`, so that `origin/main` is the `main` of now.
+- `git submodule update --init`, since a branch may move a submodule.
 - `make -C test/host run`.
 - `make -C pico`, `make -C pico BOARD=pico2` and `make -C pico BOARD=picow`.
-- `make -C web` and `make -C web test`.
+- `make -C web` and `make -C web test`, then `make -C web page` where Chrome is.
+  These three take another clang in `CLANG`. `make -C web test` takes another
+  JavaScript engine in `JS` and `JS_ARGS` (`JS=.../jsc JS_ARGS=--`). `make -C web page`
+  takes Chrome's path in `CHROME`, on a Mac:
+  `CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"`.
