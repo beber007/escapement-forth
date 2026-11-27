@@ -309,6 +309,13 @@ The image loads like Escapement's examples (see its `docs/rp2040.md`), with Open
 `set USE_CORE 0`, so that core 1 runs. Escapement is a submodule, pinned to the commit
 this prototype was built on.
 
+On a Pico 2 running this Forth, the probe could not halt core 0: neither `halt` nor
+`reset halt` stopped it (2026-11-21). The cause is not known. Do not use the rescue
+debug port's restart then: `rescue_reset` of Raspberry Pi's `target/rp2350.cfg`, which
+Escapement's Pico 2 tools run first. That day, it left the debug port off until the
+board was powered off. Hold BOOTSEL while plugging the board in, then write the image
+with `picotool`, as was done that day.
+
 ## How this project is built
 
 This project is developed with the help of an AI, as Escapement is. The AI's proposals are checked by the tests and on the board.
